@@ -8,18 +8,12 @@ from models.abastecimentos import Abastecimento, AbastecimentoCreate
 
 router = APIRouter(prefix="/abastecimentos", tags=["abastecimentos"])
 
-@router.get("", response_model=list[Abastecimento])
+@router.get("", response_model=None)
 async def listar(_u: dict = Depends(require("read"))):
+    # Retorna os dados brutos, sem validação do Pydantic.
+    # Isso evita o erro 500 se o banco tiver dados antigos ou incompletos.
     docs = await db.abastecimentos.find({}, {"_id": 0}).sort("data", -1).to_list(1000)
-    # Garante que todos os documentos tenham os campos novos (mesmo os antigos)
-    for d in docs:
-        if "numero_nf" not in d: d["numero_nf"] = None
-        if "chave_nfe" not in d: d["chave_nfe"] = None
-        if "hora" not in d: d["hora"] = None
-        if "cnpj" not in d: d["cnpj"] = None
-        if "fornecedor" not in d: d["fornecedor"] = None
-        if "origem" not in d: d["origem"] = "manual"
-    return [Abastecimento(**d) for d in docs]
+    return docs
 
 
 @router.get("/ultimo-km/{veiculo_id}")
