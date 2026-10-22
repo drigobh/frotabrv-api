@@ -270,9 +270,18 @@ export default function Abastecimentos() {
         <Table data-testid="abastecimento-table">
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
-              {["Data", "Origem", "Veículo", "Motorista", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "Média", "Ações"].map((h) => (
-                <TableHead key={h} className="text-xs uppercase tracking-wider text-slate-500">{h}</TableHead>
-              ))}
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap px-2 text-left">Data</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-center px-2">Origem</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 px-2 text-left">Veículo</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 px-2 text-left">Motorista</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">Litros</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">R$/L</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">Total</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 px-2 text-left">Posto</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">KM</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">Rodados</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">Média</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-center px-2">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -281,32 +290,34 @@ export default function Abastecimentos() {
             )}
             {rows.map((r) => (
               <TableRow key={r.id} className="border-slate-800/70" data-testid={`abastecimento-row-${r.id}`}>
-                <TableCell className="font-mono text-sm">{dataBR(r.data)}</TableCell>
-                <TableCell className="text-center">
+                <TableCell className="font-mono text-xs whitespace-nowrap px-2 text-left">{dataBR(r.data)}</TableCell>
+                <TableCell className="text-center px-2">
                   {r.origem === "pdf" ? (
                     <span className="inline-flex items-center justify-center rounded bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-400" title="Importado via PDF">PDF</span>
                   ) : (
                     <span className="inline-flex items-center justify-center rounded bg-slate-500/20 px-2 py-0.5 text-xs font-bold text-slate-400" title="Inserido Manualmente">M</span>
                   )}
                 </TableCell>
-                <TableCell className="font-mono">{r.veiculo_label.split(" · ")[0]}</TableCell>
-                <TableCell className="text-slate-300">{r.motorista_label ?? "—"}</TableCell>
-                <TableCell className="tabular-nums">{num(r.litros, 1)}</TableCell>
-                <TableCell className="tabular-nums">{num(r.preco_litro, 2)}</TableCell>
-                <TableCell className="tabular-nums font-medium">{brl(r.valor_total)}</TableCell>
-                <TableCell className="max-w-[180px] truncate text-slate-400">{r.posto}</TableCell>
-                <TableCell className="font-mono tabular-nums">{num(r.km)}</TableCell>
-                <TableCell className="tabular-nums">{r.km_rodados != null ? num(r.km_rodados) : "—"}</TableCell>
-                <TableCell className="tabular-nums text-sky-300">{r.media_km_l != null ? `${num(r.media_km_l, 2)}` : "—"}</TableCell>
-                <TableCell className="text-right flex gap-2 justify-end">
-                  <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)} aria-label="Editar">
-                    <Pencil className="size-4 text-sky-400" />
-                  </Button>
-                  {me?.perfil === "admin" && (
-                    <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)} aria-label="Excluir" data-testid={`abastecimento-delete-${r.id}`}>
-                      <Trash2 className="size-4" />
+                <TableCell className="font-mono text-xs whitespace-nowrap px-2 text-left">{r.veiculo_label.split(" · ")[0]}</TableCell>
+                <TableCell className="text-slate-300 text-xs whitespace-nowrap px-2 truncate max-w-[150px] text-left">{r.motorista_label ?? "—"}</TableCell>
+                <TableCell className="tabular-nums text-xs whitespace-nowrap px-2 text-right">{num(r.litros, 1)}</TableCell>
+                <TableCell className="tabular-nums text-xs whitespace-nowrap px-2 text-right">{num(r.preco_litro, 2)}</TableCell>
+                <TableCell className="tabular-nums font-medium text-xs whitespace-nowrap px-2 text-right">{brl(r.valor_total)}</TableCell>
+                <TableCell className="text-xs whitespace-nowrap px-2 truncate max-w-[100px] text-slate-400 text-left">{r.posto}</TableCell>
+                <TableCell className="font-mono tabular-nums text-xs whitespace-nowrap px-2 text-right">{num(r.km)}</TableCell>
+                <TableCell className="tabular-nums text-xs whitespace-nowrap px-2 text-right">{r.km_rodados != null ? num(r.km_rodados) : "—"}</TableCell>
+                <TableCell className="tabular-nums text-xs whitespace-nowrap px-2 text-right text-sky-300">{r.media_km_l != null ? `${num(r.media_km_l, 2)}` : "—"}</TableCell>
+                <TableCell className="text-center px-2">
+                  <div className="flex gap-1 justify-center">
+                    <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)} aria-label="Editar">
+                      <Pencil className="size-4 text-sky-400" />
                     </Button>
-                  )}
+                    {me?.perfil === "admin" && (
+                      <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)} aria-label="Excluir" data-testid={`abastecimento-delete-${r.id}`}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
