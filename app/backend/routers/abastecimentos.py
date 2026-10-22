@@ -11,6 +11,14 @@ router = APIRouter(prefix="/abastecimentos", tags=["abastecimentos"])
 @router.get("", response_model=list[Abastecimento])
 async def listar(_u: dict = Depends(require("read"))):
     docs = await db.abastecimentos.find({}, {"_id": 0}).sort("data", -1).to_list(1000)
+    # Garante que todos os documentos tenham os campos novos (mesmo os antigos)
+    for d in docs:
+        if "numero_nf" not in d: d["numero_nf"] = None
+        if "chave_nfe" not in d: d["chave_nfe"] = None
+        if "hora" not in d: d["hora"] = None
+        if "cnpj" not in d: d["cnpj"] = None
+        if "fornecedor" not in d: d["fornecedor"] = None
+        if "origem" not in d: d["origem"] = "manual"
     return [Abastecimento(**d) for d in docs]
 
 
