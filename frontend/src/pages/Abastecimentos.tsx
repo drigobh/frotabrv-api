@@ -48,7 +48,17 @@ export default function Abastecimentos() {
     const comKm = rows.filter((r) => r.km_rodados != null);
     const km = comKm.reduce((s, r) => s + (r.km_rodados ?? 0), 0);
     const litrosKm = comKm.reduce((s, r) => s + r.litros, 0);
-    return { litros, valor, km, media: litrosKm ? km / litrosKm : 0, preco: litros ? valor / litros : 0 };
+    
+    // Novos cálculos
+    const maior = rows.reduce((max, r) => r.valor_total > (max?.valor_total || 0) ? r : max, null as Abastecimento | null);
+    const menor = rows.reduce((min, r) => r.valor_total < (min?.valor_total || Infinity) ? r : min, null as Abastecimento | null);
+    const mediaValor = rows.length ? valor / rows.length : 0;
+    const mediaKm = comKm.length ? km / comKm.length : 0;
+
+    return { 
+      litros, valor, km, media: litrosKm ? km / litrosKm : 0, preco: litros ? valor / litros : 0,
+      maior, menor, mediaValor, mediaKm
+    };
   }, [rows]);
 
   const invalidate = () => {
@@ -90,10 +100,10 @@ export default function Abastecimentos() {
   const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
 
   const cards = [
-    { label: "Total abastecido", valor: `${num(resumo.litros, 1)} L`, testId: "resumo-litros" },
-    { label: "Valor total", valor: brl(resumo.valor), testId: "resumo-valor" },
-    { label: "Média geral", valor: `${num(resumo.media, 2)} km/L`, testId: "resumo-media" },
-    { label: "Preço médio", valor: `${brl(resumo.preco)}/L`, testId: "resumo-preco" },
+    { label: "Maior abastecimento", valor: resumo.maior ? brl(resumo.maior.valor_total) : "—", sub: resumo.maior?.veiculo_label.split(" · ")[0], testId: "resumo-maior" },
+    { label: "Menor abastecimento", valor: resumo.menor ? brl(resumo.menor.valor_total) : "—", sub: resumo.menor?.motorista_label || resumo.menor?.veiculo_label.split(" · ")[0], testId: "resumo-menor" },
+    { label: "Média por abastecimento", valor: brl(resumo.mediaValor), sub: "R$ por registro", testId: "resumo-media-valor" },
+    { label: "Média de KM rodados", valor: `${num(resumo.mediaKm, 0)} km`, sub: "por abastecimento", testId: "resumo-media-km" },
   ];
 
 
@@ -137,9 +147,12 @@ export default function Abastecimentos() {
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
-          <div key={c.label} className="glass rounded-xl px-4 py-3">
-            <p className="text-xs text-slate-500">{c.label}</p>
-            <p className="mt-1 font-heading text-2xl font-semibold tabular-nums" data-testid={c.testId}>{c.valor}</p>
+          <div key={c.label} className="glass rounded-xl" style={{ padding: '12px 16px', height: '90px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} data-testid={c.testId}>
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, fontWeight: 500 }}>{c.label}</p>
+            <div>
+              <p style={{ fontSize: '20px', fontWeight: 600, color: '#f8fafc', margin: 0, lineHeight: 1 }}>{c.valor}</p>
+              {c.sub && <p style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>{c.sub}</p>}
+            </div>
           </div>
         ))}
       </div>

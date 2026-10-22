@@ -56,12 +56,15 @@ async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depend
         if motorista:
             motorista_label = motorista["nome"]
 
-    # Cálculo do KM Rodados (se houver abastecimento anterior)
+    # Cálculo do KM Rodados: busca o último abastecimento com KM menor que o atual
     anterior = await db.abastecimentos.find_one(
         {"veiculo_id": body.veiculo_id, "km": {"$lt": body.km}},
         sort=[("km", -1)]
     )
-    km_rodados = body.km - anterior["km"] if anterior else None
+    
+    # Se não houver abastecimento anterior, usa o hodômetro do cadastro do veículo
+    km_anterior = anterior["km"] if anterior else veiculo.get("hodometro_km", 0)
+    km_rodados = body.km - km_anterior if km_anterior > 0 else None
     media_km_l = km_rodados / body.litros if km_rodados and body.litros > 0 else None
     valor_total = body.litros * body.preco_litro
 
