@@ -24,10 +24,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---> ESTA LINHA ESTAVA FALTANDO <---
 api_router = APIRouter(prefix="/api")
 
 @api_router.get("/health")
 async def health():
     return {"status": "ok", "service": "frota-brv"}
 
+# Conecta o router de autenticação
+from routers import auth
+api_router.include_router(auth.router)
+
+# Adiciona todas as rotas com o prefixo /api
 app.include_router(api_router)
