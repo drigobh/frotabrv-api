@@ -38,3 +38,7 @@ async def me(user: dict = Depends(current_user)):
 async def logout(response: Response):
     response.delete_cookie(COOKIE_NAME)
     return {"ok": True}
+@router.get("/logout")
+async def logout_get(response: Response):
+    response.delete_cookie(COOKIE_NAME, path="/")
+    return {"ok": True, "msg": "Sessão encerrada."}

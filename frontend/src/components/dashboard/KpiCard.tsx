@@ -14,12 +14,12 @@ export function KpiCard({ kpi, icon: Icon, format, color }: Props) {
   const t = kpi.tendencia;
   const Trend = t == null || t === 0 ? Minus : t > 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <article className="glass lift relative overflow-hidden rounded-2xl p-5" data-testid={`kpi-${kpi.chave}`}>
+    <article className="glass lift relative overflow-hidden rounded-2xl p-4" data-testid={`kpi-${kpi.chave}`}>
       <div className="flex items-start justify-between">
         <p className="text-sm text-slate-400">{kpi.titulo}</p>
         <Icon className="size-4 text-slate-500" />
       </div>
-      <p className="mt-2 font-heading text-3xl font-semibold tabular-nums text-slate-50" data-testid={`kpi-${kpi.chave}-value`}>
+      <p className="mt-1 font-heading text-2xl font-semibold tabular-nums text-slate-50" data-testid={`kpi-${kpi.chave}-value`}>
         {format(kpi.valor)}
       </p>
       <p
@@ -32,7 +32,7 @@ export function KpiCard({ kpi, icon: Icon, format, color }: Props) {
         <Trend className="size-3.5" />
         {t == null ? "sem base no mês anterior" : `${t > 0 ? "+" : ""}${t.toLocaleString("pt-BR")}% vs mês anterior`}
       </p>
-      <div className="mt-3 h-12">
+      <div className="mt-2 h-8">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={kpi.serie} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
             <defs>
