@@ -21,10 +21,6 @@ export default function AppLayout() {
   }
   if (isError || !user) return <Navigate to="/login" replace />;
   
-  // FORÇAR LOGIN: Se estiver na raiz e não tiver vindo do login, joga para o login
-  if (window.location.pathname === "/" && !sessionStorage.getItem("logado_agora")) {
-      return <Navigate to="/login" replace />;
-  }
 
   return (
     <div className="min-h-screen">
