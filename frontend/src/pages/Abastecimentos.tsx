@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil } from "lucide-react";
+import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText } from "lucide-react";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { brl, dataBR, errMsg, num } from "@/lib/format";
@@ -15,6 +17,8 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { useMotoristas, useVeiculos } from "@/hooks/useCadastros";
 import { useHoje, useMe } from "@/hooks/useSession";
 import type { Abastecimento } from "@/types/abastecimentos";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 const TODOS = "__all__";
 const NENHUM = "__none__";
@@ -36,6 +40,7 @@ export default function Abastecimentos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const params = new URLSearchParams();
   if (filtroVeiculo !== TODOS) params.set("veiculo_id", filtroVeiculo);
@@ -129,6 +134,57 @@ export default function Abastecimentos() {
   const set = (k: keyof ReturnType<typeof vazio>) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
   const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
 
+
+  const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let text = "";
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map((item: any) => item.str).join(" ") + "\n";
+      }
+
+      // Regex para extrair os dados da nota
+      const nfMatch = text.match(/Nº\s*(\d+)/);
+      const chaveMatch = text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/);
+      const cnpjMatch = text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/);
+      const fornecedorMatch = text.match(/RECEBEMOS DE\s*(.*?)\s*OS PRODUTOS/);
+      const litrosMatch = text.match(/DIESEL S 10.*?(\d+,\d+)\s*\d+,\d+\s*([\d\.]+,\d+)/);
+      const kmMatch = text.match(/KM\s*(\d+)/);
+      const placaMatch = text.match(/PLACA DO VEÍCULO\s*([A-Z0-9]+)/);
+      const horaMatch = text.match(/(\d{2}:\d{2}:\d{2})/);
+
+      // Monta o payload para enviar ao backend
+      const payload = {
+        data: new Date().toISOString().split('T')[0], // Data de hoje se não achar no PDF
+        hora: horaMatch ? horaMatch[1] : null,
+        numero_nf: nfMatch ? nfMatch[1] : null,
+        chave_nfe: chaveMatch ? chaveMatch[1].replace(/\s/g, "") : null,
+        cnpj: cnpjMatch ? cnpjMatch[1] : null,
+        fornecedor: fornecedorMatch ? fornecedorMatch[1].trim() : null,
+        placa: placaMatch ? placaMatch[1] : null, // Placa extraída da nota
+        litros: litrosMatch ? Number(litrosMatch[1].replace(",", ".")) : 0,
+        preco_litro: litrosMatch ? Number(litrosMatch[2].replace(".", "").replace(",", ".")) : 0,
+        km: kmMatch ? Number(kmMatch[1]) : 0,
+      };
+
+      // Envia para o backend
+      await apiPost("/abastecimentos/importar", payload);
+      
+      toast.success("Nota Fiscal importada e registrada com sucesso!");
+      invalidate();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao importar o PDF. Verifique se o veículo está cadastrado.");
+    }
+  };
+
   const abrirNovo = () => {
     setEditingId(null);
     setForm(vazio(hoje));
@@ -198,9 +254,16 @@ export default function Abastecimentos() {
         title="Abastecimentos"
         description="Registro detalhado com cálculo automático de KM rodados e média KM/L a partir do hodômetro."
         actions={
-          <Button onClick={abrirNovo} data-testid="abastecimento-new-button">
-            <Plus className="size-4" /> Novo abastecimento
-          </Button>
+
+                    <div className="flex gap-2">
+            <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()} data-testid="abastecimento-import-pdf">
+              <FileText className="size-4 mr-2" /> Importar NF
+            </Button>
+            <Button onClick={abrirNovo} data-testid="abastecimento-new-button">
+              <Plus className="size-4" /> Novo abastecimento
+            </Button>
+          </div>
         }
       />
 
