@@ -111,9 +111,7 @@ export default function Abastecimentos() {
       }
 
       // Regex flexíveis para encontrar Placa e KM em qualquer lugar do texto
-      // Procura por "PLACA:" seguido de qualquer coisa, e depois uma placa (3 letras + 4 números ou padrão Mercosul)
       const placaMatch = text.match(/PLACA[^A-Z0-9]*([A-Z]{3}[0-9][A-Z0-9][0-9]{2})/i) || text.match(/PLACA:\s*([A-Z0-9]{7})/i);
-      // Procura por "KM:" seguido de números
       const kmMatch = text.match(/KM[^0-9]*(\d+)/i);
 
       const payload = {
@@ -128,16 +126,6 @@ export default function Abastecimentos() {
         preco_litro: text.match(/DIESEL S 10.*?(\d+,\d+)\s*\d+,\d+\s*([\d\.]+,\d+)/)?.[2] ? Number(text.match(/DIESEL S 10.*?(\d+,\d+)\s*\d+,\d+\s*([\d\.]+,\d+)/)[2].replace(".", "").replace(",", ".")) : 0,
         km: kmMatch ? Number(kmMatch[1]) : 0,
       };
-
-      await apiPost("/abastecimentos/importar", payload);
-      
-      toast.success("Nota Fiscal importada e registrada com sucesso!");
-      invalidate();
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao importar o PDF. Verifique se o veículo está cadastrado.");
-    }
-  }
 
       await apiPost("/abastecimentos/importar", payload);
       
