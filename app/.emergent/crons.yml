@@ -1,0 +1,17 @@
+crons:
+  - name: vencimentos-semanal
+    description: "Envia toda segunda às 7h (Brasília) o e-mail de documentos e contas que vencem em 30 dias"
+    cron: "0 7 * * 1"
+    timezone: "America/Sao_Paulo"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/cron/vencimentos-semanal"
+    method: POST
+    enabled: true
+  - name: parabens-campeao
+    description: "Dia 1º às 7h (Brasília = 10h UTC) envia parabéns ao campeão KM/L do mês anterior, com cópia aos admins"
+    # Fuso fixo em UTC: timezone não-UTC exige dia do mês "*". Brasília (UTC-3, sem horário de verão) 7h = 10h UTC.
+    cron: "0 10 1 * *"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/cron/parabens-campeao"
+    method: POST
+    enabled: true
