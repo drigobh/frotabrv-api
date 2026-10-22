@@ -30,7 +30,23 @@ async def get_dashboard(user: dict = Depends(require("read"))):
         inativos=inativos
     )
 
-    custos = [CustoMes(mes=m, combustivel=0, manutencao=0) for m in last_months(6)]
+    # Cálculo real de custos dos últimos 6 meses
+    meses = last_months(6)
+    custos = []
+    for mes in meses:
+        # Busca todos os abastecimentos do mês
+        abast = await db.abastecimentos.find(
+            {"data": {"$regex": f"^{mes}"}}, {"valor_total": 1}
+        ).to_list(10000)
+        total_combustivel = sum(a.get("valor_total", 0) for a in abast)
+
+        # Busca todas as manutenções do mês
+        manut = await db.manutencoes.find(
+            {"data": {"$regex": f"^{mes}"}}, {"custo": 1}
+        ).to_list(10000)
+        total_manutencao = sum(m.get("custo", 0) for m in manut)
+
+        custos.append(CustoMes(mes=mes, combustivel=total_combustivel, manutencao=total_manutencao))
 
     mes_atual = today_iso()[:7]
     mes_ant = last_months(2)[0]
