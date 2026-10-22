@@ -115,9 +115,16 @@ export default function Abastecimentos() {
       const chaveMatch = text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/);
       const cnpjMatch = text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/);
       const fornecedorMatch = text.match(/RECEBEMOS DE\s*(.*?)\s*OS PRODUTOS/);
+      
+      // Regex de Litros e Preço (ignorando espaços)
       const litrosMatch = text.match(/DIESEL S 10.*?(\d+,\d+)\s*\d+,\d+\s*([\d\.]+,\d+)/);
-      const kmMatch = text.match(/KM\s*(\d+)/);
-      const placaMatch = text.match(/PLACA DO VEÍCULO\s*([A-Z0-9]+)/);
+      
+      // Regex de KM (procura por "KM: 616416" ou similar)
+      const kmMatch = text.match(/KM:\s*(\d+)/);
+      
+      // Regex de Placa (procura por "PLACA: QPR3736" ou similar)
+      const placaMatch = text.match(/PLACA:\s*([A-Z0-9]{7})/);
+      
       const horaMatch = text.match(/(\d{2}:\d{2}:\d{2})/);
 
       // Monta o payload para enviar ao backend
@@ -128,7 +135,7 @@ export default function Abastecimentos() {
         chave_nfe: chaveMatch ? chaveMatch[1].replace(/\s/g, "") : null,
         cnpj: cnpjMatch ? cnpjMatch[1] : null,
         fornecedor: fornecedorMatch ? fornecedorMatch[1].trim() : null,
-        placa: placaMatch ? placaMatch[1] : null,
+        placa: placaMatch ? placaMatch[1].toUpperCase() : null,
         litros: litrosMatch ? Number(litrosMatch[1].replace(",", ".")) : 0,
         preco_litro: litrosMatch ? Number(litrosMatch[2].replace(".", "").replace(",", ".")) : 0,
         km: kmMatch ? Number(kmMatch[1]) : 0,
