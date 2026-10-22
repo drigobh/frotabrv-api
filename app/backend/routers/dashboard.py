@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from lib.db import db
 from lib.security import require
 from models.dashboard import Dashboard, Kpi, StatusFrota, CustoMes, Campeoes
+from models.acoplamentos import HistoricoItem
 from lib.campeoes import campeao_do_mes
 from lib.dates import last_months, today_iso
 
@@ -36,8 +37,12 @@ async def get_dashboard(user: dict = Depends(require("read"))):
     c_atual = await campeao_do_mes(mes_atual)
     c_ant = await campeao_do_mes(mes_ant)
     campeoes = Campeoes(mes_atual=c_atual, mes_passado=c_ant)
+    
+    # Busca as últimas 5 movimentações de acoplamento
+    hist_docs = await db.acoplamentos_historico.find({}, {"_id": 0}).sort("created_at", -1).to_list(5)
+    historico_recente = [HistoricoItem(**h) for h in hist_docs]
 
     return Dashboard(
         kpis=kpis, status_frota=status_frota, custos=custos, 
-        alertas=[], historico_recente=[], campeoes=campeoes
+        alertas=[], historico_recente=historico_recente, campeoes=campeoes
     )
