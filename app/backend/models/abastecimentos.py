@@ -1,3 +1,4 @@
+from typing import Literal
 from pydantic import BaseModel, Field
 
 
@@ -10,6 +11,12 @@ class AbastecimentoCreate(BaseModel):
     posto: str = Field(min_length=1)
     km: float = Field(ge=0)
     observacoes: str = ""
+    numero_nf: str | None = None
+    chave_nfe: str | None = None
+    hora: str | None = None
+    cnpj: str | None = None
+    fornecedor: str | None = None
+    origem: Literal["manual", "pdf"] = "manual"
 
 
 class Abastecimento(AbastecimentoCreate):

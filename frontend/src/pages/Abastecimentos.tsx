@@ -19,7 +19,10 @@ import type { Abastecimento } from "@/types/abastecimentos";
 const TODOS = "__all__";
 const NENHUM = "__none__";
 
-const vazio = (hoje: string) => ({ data: hoje, veiculo_id: "", motorista_id: NENHUM, litros: "", preco_litro: "", posto: "", km: "", observacoes: "" });
+const vazio = (hoje: string) => ({ 
+  data: hoje, veiculo_id: "", motorista_id: NENHUM, litros: "", preco_litro: "", posto: "", km: "", observacoes: "",
+  numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "manual"
+});
 
 export default function Abastecimentos() {
   const qc = useQueryClient();
@@ -97,6 +100,12 @@ export default function Abastecimentos() {
         posto: form.posto,
         km: Number(form.km),
         observacoes: form.observacoes,
+        numero_nf: form.numero_nf || null,
+        chave_nfe: form.chave_nfe || null,
+        hora: form.hora || null,
+        cnpj: form.cnpj || null,
+        fornecedor: form.fornecedor || null,
+        origem: form.origem,
       };
       if (editingId) return apiPut<Abastecimento>(`/abastecimentos/${editingId}`, payload);
       return apiPost<Abastecimento>("/abastecimentos", payload);
@@ -137,6 +146,12 @@ export default function Abastecimentos() {
       posto: r.posto,
       km: String(r.km),
       observacoes: r.observacoes || "",
+      numero_nf: r.numero_nf || "",
+      chave_nfe: r.chave_nfe || "",
+      hora: r.hora || "",
+      cnpj: r.cnpj || "",
+      fornecedor: r.fornecedor || "",
+      origem: r.origem || "manual",
     });
     setOpen(true);
   };
@@ -255,7 +270,7 @@ export default function Abastecimentos() {
         <Table data-testid="abastecimento-table">
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
-              {["Data", "Veículo", "Motorista", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "Média", "Ações"].map((h) => (
+              {["Data", "Origem", "Veículo", "Motorista", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "Média", "Ações"].map((h) => (
                 <TableHead key={h} className="text-xs uppercase tracking-wider text-slate-500">{h}</TableHead>
               ))}
             </TableRow>
@@ -267,6 +282,13 @@ export default function Abastecimentos() {
             {rows.map((r) => (
               <TableRow key={r.id} className="border-slate-800/70" data-testid={`abastecimento-row-${r.id}`}>
                 <TableCell className="font-mono text-sm">{dataBR(r.data)}</TableCell>
+                <TableCell className="text-center">
+                  {r.origem === "pdf" ? (
+                    <span className="inline-flex items-center justify-center rounded bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-400" title="Importado via PDF">PDF</span>
+                  ) : (
+                    <span className="inline-flex items-center justify-center rounded bg-slate-500/20 px-2 py-0.5 text-xs font-bold text-slate-400" title="Inserido Manualmente">M</span>
+                  )}
+                </TableCell>
                 <TableCell className="font-mono">{r.veiculo_label.split(" · ")[0]}</TableCell>
                 <TableCell className="text-slate-300">{r.motorista_label ?? "—"}</TableCell>
                 <TableCell className="tabular-nums">{num(r.litros, 1)}</TableCell>
@@ -333,7 +355,28 @@ export default function Abastecimentos() {
               <Label htmlFor="ab-posto">Posto *</Label>
               <Input id="ab-posto" value={form.posto} onChange={(e) => set("posto")(e.target.value)} required />
             </div>
-            <p className="col-span-2 rounded-lg bg-slate-950/60 px-3 py-2 text-sm text-slate-300">
+            
+            <div className="col-span-1 grid gap-1.5">
+              <Label>Nº NF</Label>
+              <Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} placeholder="12550" />
+            </div>
+            <div className="col-span-1 grid gap-1.5">
+              <Label>Hora</Label>
+              <Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} />
+            </div>
+            <div className="col-span-2 grid gap-1.5">
+              <Label>Chave NF-e</Label>
+              <Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} placeholder="3126 1020..." />
+            </div>
+            <div className="col-span-1 grid gap-1.5">
+              <Label>CNPJ Emitente</Label>
+              <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: e.target.value }))} placeholder="00.000.000/0000-00" />
+            </div>
+            <div className="col-span-1 grid gap-1.5">
+              <Label>Fornecedor</Label>
+              <Input value={form.fornecedor} onChange={(e) => setForm(s => ({ ...s, fornecedor: e.target.value }))} placeholder="Posto..." />
+            </div>
+<p className="col-span-2 rounded-lg bg-slate-950/60 px-3 py-2 text-sm text-slate-300">
               Valor total: <span className="font-semibold text-slate-50">{Number.isFinite(total) ? brl(total) : "—"}</span>
             </p>
             <DialogFooter className="col-span-2">
