@@ -14,7 +14,7 @@ from fastapi import Depends, HTTPException, Request
 
 from lib.db import db
 
-COOKIE_NAME = "frota_session"
+COOKIE_NAME = "frota_session_v2"
 TOKEN_TTL_HOURS = 12
 _ALG = "HS256"
 
