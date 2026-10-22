@@ -18,6 +18,7 @@ import { useMotoristas, useVeiculos } from "@/hooks/useCadastros";
 import { useHoje, useMe } from "@/hooks/useSession";
 import type { Abastecimento } from "@/types/abastecimentos";
 
+// Configura o worker do PDF
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 const TODOS = "__all__";
@@ -62,7 +63,7 @@ export default function Abastecimentos() {
     const menor = rows.reduce((min, r) => r.valor_total < (min?.valor_total || Infinity) ? r : min, null as Abastecimento | null);
     const mediaValor = rows.length ? valor / rows.length : 0;
     const mediaKm = comKm.length ? km / comKm.length : 0;
-    const custoPorKm = km > 0 ? valor / km : 0; // CÁLCULO DO CUSTO POR KM
+    const custoPorKm = km > 0 ? valor / km : 0;
 
     return { 
       litros, valor, km, media: litrosKm ? km / litrosKm : 0, preco: litros ? valor / litros : 0,
@@ -94,6 +95,55 @@ export default function Abastecimentos() {
     void qc.invalidateQueries({ queryKey: ["ranking"] });
   };
 
+  const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let text = "";
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map((item: any) => item.str).join(" ") + "\n";
+      }
+
+      // Regex para extrair os dados
+      const nfMatch = text.match(/Nº\s*(\d+)/);
+      const chaveMatch = text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/);
+      const cnpjMatch = text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/);
+      const fornecedorMatch = text.match(/RECEBEMOS DE\s*(.*?)\s*OS PRODUTOS/);
+      const litrosMatch = text.match(/DIESEL S 10.*?(\d+,\d+)\s*\d+,\d+\s*([\d\.]+,\d+)/);
+      const kmMatch = text.match(/KM\s*(\d+)/);
+      const placaMatch = text.match(/PLACA DO VEÍCULO\s*([A-Z0-9]+)/);
+      const horaMatch = text.match(/(\d{2}:\d{2}:\d{2})/);
+
+      // Monta o payload para enviar ao backend
+      const payload = {
+        data: new Date().toISOString().split('T')[0],
+        hora: horaMatch ? horaMatch[1] : null,
+        numero_nf: nfMatch ? nfMatch[1] : null,
+        chave_nfe: chaveMatch ? chaveMatch[1].replace(/\s/g, "") : null,
+        cnpj: cnpjMatch ? cnpjMatch[1] : null,
+        fornecedor: fornecedorMatch ? fornecedorMatch[1].trim() : null,
+        placa: placaMatch ? placaMatch[1] : null,
+        litros: litrosMatch ? Number(litrosMatch[1].replace(",", ".")) : 0,
+        preco_litro: litrosMatch ? Number(litrosMatch[2].replace(".", "").replace(",", ".")) : 0,
+        km: kmMatch ? Number(kmMatch[1]) : 0,
+      };
+
+      await apiPost("/abastecimentos/importar", payload);
+      
+      toast.success("Nota Fiscal importada e registrada com sucesso!");
+      invalidate();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao importar o PDF. Verifique se o veículo está cadastrado.");
+    }
+  };
+
   const salvar = useMutation({
     mutationFn: () => {
       const payload = {
@@ -115,7 +165,7 @@ export default function Abastecimentos() {
       if (editingId) return apiPut<Abastecimento>(`/abastecimentos/${editingId}`, payload);
       return apiPost<Abastecimento>("/abastecimentos", payload);
     },
-    onSuccess: (a) => {
+    onSuccess: () => {
       toast.success(editingId ? "Abastecimento atualizado" : "Abastecimento registrado");
       setOpen(false);
       setEditingId(null);
@@ -133,57 +183,6 @@ export default function Abastecimentos() {
   const total = Number(form.litros.replace(",", ".")) * Number(form.preco_litro.replace(",", "."));
   const set = (k: keyof ReturnType<typeof vazio>) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
   const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
-
-
-  const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let text = "";
-
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        text += content.items.map((item: any) => item.str).join(" ") + "\n";
-      }
-
-      // Regex para extrair os dados da nota
-      const nfMatch = text.match(/Nº\s*(\d+)/);
-      const chaveMatch = text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/);
-      const cnpjMatch = text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/);
-      const fornecedorMatch = text.match(/RECEBEMOS DE\s*(.*?)\s*OS PRODUTOS/);
-      const litrosMatch = text.match(/DIESEL S 10.*?(\d+,\d+)\s*\d+,\d+\s*([\d\.]+,\d+)/);
-      const kmMatch = text.match(/KM\s*(\d+)/);
-      const placaMatch = text.match(/PLACA DO VEÍCULO\s*([A-Z0-9]+)/);
-      const horaMatch = text.match(/(\d{2}:\d{2}:\d{2})/);
-
-      // Monta o payload para enviar ao backend
-      const payload = {
-        data: new Date().toISOString().split('T')[0], // Data de hoje se não achar no PDF
-        hora: horaMatch ? horaMatch[1] : null,
-        numero_nf: nfMatch ? nfMatch[1] : null,
-        chave_nfe: chaveMatch ? chaveMatch[1].replace(/\s/g, "") : null,
-        cnpj: cnpjMatch ? cnpjMatch[1] : null,
-        fornecedor: fornecedorMatch ? fornecedorMatch[1].trim() : null,
-        placa: placaMatch ? placaMatch[1] : null, // Placa extraída da nota
-        litros: litrosMatch ? Number(litrosMatch[1].replace(",", ".")) : 0,
-        preco_litro: litrosMatch ? Number(litrosMatch[2].replace(".", "").replace(",", ".")) : 0,
-        km: kmMatch ? Number(kmMatch[1]) : 0,
-      };
-
-      // Envia para o backend
-      await apiPost("/abastecimentos/importar", payload);
-      
-      toast.success("Nota Fiscal importada e registrada com sucesso!");
-      invalidate();
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao importar o PDF. Verifique se o veículo está cadastrado.");
-    }
-  };
 
   const abrirNovo = () => {
     setEditingId(null);
@@ -233,7 +232,6 @@ export default function Abastecimentos() {
     }
   };
 
-  // 10 CARDS (incluindo o Custo por KM)
   const cards = [
     { label: "Abastecimentos", valor: resumo.total, icon: List, color: "#38bdf8", sub: "registros no período" },
     { label: "Total Abastecido", valor: `${num(resumo.litros, 1)} L`, icon: Droplets, color: "#2dd4bf", sub: "volume total" },
@@ -254,13 +252,12 @@ export default function Abastecimentos() {
         title="Abastecimentos"
         description="Registro detalhado com cálculo automático de KM rodados e média KM/L a partir do hodômetro."
         actions={
-
-                    <div className="flex gap-2">
+          <div className="flex gap-2">
             <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
-            <Button variant="outline" onClick={() => fileInputRef.current?.click()} data-testid="abastecimento-import-pdf">
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
               <FileText className="size-4 mr-2" /> Importar NF
             </Button>
-            <Button onClick={abrirNovo} data-testid="abastecimento-new-button">
+            <Button onClick={abrirNovo}>
               <Plus className="size-4" /> Novo abastecimento
             </Button>
           </div>
@@ -318,19 +315,19 @@ export default function Abastecimentos() {
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="grid w-64 gap-1.5">
           <Label>Veículo</Label>
-          <FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos os veículos" }, ...veicOpts]} testId="abastecimento-filtro-veiculo" />
+          <FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos os veículos" }, ...veicOpts]} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="filtro-mes">Mês</Label>
-          <Input id="filtro-mes" type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" data-testid="abastecimento-filtro-mes" />
+          <Input id="filtro-mes" type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" />
         </div>
         {(mes || filtroVeiculo !== TODOS) && (
-          <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); }} data-testid="abastecimento-limpar-filtros">Limpar filtros</Button>
+          <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); }}>Limpar filtros</Button>
         )}
       </div>
 
       <div className="glass overflow-hidden rounded-2xl">
-        <Table data-testid="abastecimento-table">
+        <Table className="text-xs">
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
               <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap px-2 text-left">Data</TableHead>
@@ -349,10 +346,10 @@ export default function Abastecimentos() {
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
-              <TableRow><TableCell colSpan={11} className="py-10 text-center text-slate-500">{q.isPending ? "Carregando…" : "Nenhum abastecimento encontrado."}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={12} className="py-10 text-center text-slate-500">{q.isPending ? "Carregando…" : "Nenhum abastecimento encontrado."}</TableCell></TableRow>
             )}
             {rows.map((r) => (
-              <TableRow key={r.id} className="border-slate-800/70" data-testid={`abastecimento-row-${r.id}`}>
+              <TableRow key={r.id} className="border-slate-800/70">
                 <TableCell className="font-mono text-xs whitespace-nowrap px-2 text-left">{dataBR(r.data)}</TableCell>
                 <TableCell className="text-center px-2">
                   {r.origem === "pdf" ? (
@@ -376,7 +373,7 @@ export default function Abastecimentos() {
                       <Pencil className="size-4 text-sky-400" />
                     </Button>
                     {me?.perfil === "admin" && (
-                      <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)} aria-label="Excluir" data-testid={`abastecimento-delete-${r.id}`}>
+                      <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)} aria-label="Excluir">
                         <Trash2 className="size-4" />
                       </Button>
                     )}
@@ -389,7 +386,7 @@ export default function Abastecimentos() {
       </div>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if(!o) setEditingId(null); }}>
-        <DialogContent className="sm:max-w-lg" data-testid="abastecimento-dialog">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Fuel className="size-5 text-sky-400" /> 
@@ -429,12 +426,11 @@ export default function Abastecimentos() {
               <Label htmlFor="ab-posto">Posto *</Label>
               <Input id="ab-posto" value={form.posto} onChange={(e) => set("posto")(e.target.value)} required />
             </div>
-            
-            <div className="col-span-1 grid gap-1.5">
+            <div className="grid gap-1.5">
               <Label>Nº NF</Label>
               <Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} placeholder="12550" />
             </div>
-            <div className="col-span-1 grid gap-1.5">
+            <div className="grid gap-1.5">
               <Label>Hora</Label>
               <Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} />
             </div>
@@ -442,15 +438,15 @@ export default function Abastecimentos() {
               <Label>Chave NF-e</Label>
               <Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} placeholder="3126 1020..." />
             </div>
-            <div className="col-span-1 grid gap-1.5">
+            <div className="grid gap-1.5">
               <Label>CNPJ Emitente</Label>
               <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: e.target.value }))} placeholder="00.000.000/0000-00" />
             </div>
-            <div className="col-span-1 grid gap-1.5">
+            <div className="grid gap-1.5">
               <Label>Fornecedor</Label>
               <Input value={form.fornecedor} onChange={(e) => setForm(s => ({ ...s, fornecedor: e.target.value }))} placeholder="Posto..." />
             </div>
-<p className="col-span-2 rounded-lg bg-slate-950/60 px-3 py-2 text-sm text-slate-300">
+            <p className="col-span-2 rounded-lg bg-slate-950/60 px-3 py-2 text-sm text-slate-300">
               Valor total: <span className="font-semibold text-slate-50">{Number.isFinite(total) ? brl(total) : "—"}</span>
             </p>
             <DialogFooter className="col-span-2">
