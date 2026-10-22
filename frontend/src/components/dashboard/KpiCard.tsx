@@ -13,51 +13,63 @@ interface Props {
 export function KpiCard({ kpi, icon: Icon, format, color }: Props) {
   const t = kpi.tendencia;
   const Trend = t == null || t === 0 ? Minus : t > 0 ? ArrowUpRight : ArrowDownRight;
+  const hasSerie = kpi.serie && kpi.serie.length > 0;
+
   return (
     <article 
-      className="glass lift relative overflow-hidden rounded-xl" 
-      style={{ padding: '12px', height: '110px', display: 'flex', flexDirection: 'column' }}
+      className="glass relative overflow-hidden rounded-xl" 
+      style={{ 
+        padding: '12px 16px', 
+        height: '90px', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        justifyContent: 'space-between' 
+      }}
       data-testid={`kpi-${kpi.chave}`}
     >
-      <div className="flex items-start justify-between">
-        <p className="text-xs text-slate-400">{kpi.titulo}</p>
-        <Icon className="size-3.5 text-slate-500" />
-      </div>
-      <p 
-        className="font-heading font-semibold tabular-nums text-slate-50" 
-        style={{ fontSize: '24px', marginTop: '4px', lineHeight: '1.2' }}
-        data-testid={`kpi-${kpi.chave}-value`}
-      >
-        {format(kpi.valor)}
-      </p>
-      <p
-        className={cn(
-          "inline-flex items-center gap-1 text-[10px]",
-          t == null || t === 0 ? "text-slate-500" : t > 0 ? "text-emerald-400" : "text-red-400",
-        )}
-        style={{ marginTop: '2px' }}
-        data-testid={`kpi-${kpi.chave}-trend`}
-      >
-        <Trend className="size-3" />
-        {t == null ? "sem base anterior" : `${t > 0 ? "+" : ""}${t.toLocaleString("pt-BR")}% vs anterior`}
-      </p>
-      {kpi.serie && kpi.serie.length > 0 ? (
-        <div style={{ flex: 1, minHeight: '30px', marginTop: '4px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={kpi.serie} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id={`spark-${kpi.chave}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area type="monotone" dataKey="valor" stroke={color} strokeWidth={2} fill={`url(#spark-${kpi.chave})`} isAnimationActive={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          width: '28px', height: '28px', borderRadius: '8px', 
+          backgroundColor: `${color}20`, color: color 
+        }}>
+          <Icon size={16} />
         </div>
-      ) : (
-        <div style={{ flex: 1, minHeight: '10px', marginTop: '4px' }} />
-      )}
+        <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, fontWeight: 500 }}>
+          {kpi.titulo}
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+        <div>
+          <p 
+            style={{ fontSize: '22px', fontWeight: 600, color: '#f8fafc', margin: 0, lineHeight: 1 }}
+            data-testid={`kpi-${kpi.chave}-value`}
+          >
+            {format(kpi.valor)}
+          </p>
+          <p
+            style={{ 
+              fontSize: '10px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '2px',
+              color: t == null || t === 0 ? "#64748b" : t > 0 ? "#10b981" : "#ef4444" 
+            }}
+            data-testid={`kpi-${kpi.chave}-trend`}
+          >
+            <Trend size={12} />
+            {t == null ? "sem base" : `${t > 0 ? "+" : ""}${t}%`}
+          </p>
+        </div>
+
+        {hasSerie && (
+          <div style={{ width: '60px', height: '30px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={kpi.serie}>
+                <Area type="monotone" dataKey="valor" stroke={color} strokeWidth={2} fill={`${color}20`} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
     </article>
   );
 }
