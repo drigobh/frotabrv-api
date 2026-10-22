@@ -6,15 +6,12 @@ from lib.db import ensure_indexes, client
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Cria os índices no Mongo ao iniciar
     await ensure_indexes()
     yield
-    # Fecha conexão ao desligar
     client.close()
 
 app = FastAPI(title="FrotaBrv API", lifespan=lifespan)
 
-# CORS (Permite que o frontend acesse a API)
 origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -24,19 +21,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---> ESTA LINHA ESTAVA FALTANDO <---
 api_router = APIRouter(prefix="/api")
 
 @api_router.get("/health")
 async def health():
     return {"status": "ok", "service": "frota-brv"}
 
-# Conecta o router de autenticação
-from routers import auth, veiculos, carretas, motoristas
+# Importando todas as rotas
+from routers import auth, veiculos, carretas, motoristas, dashboard, acoplamentos
+
 api_router.include_router(auth.router)
 api_router.include_router(veiculos.router)
 api_router.include_router(carretas.router)
 api_router.include_router(motoristas.router)
+api_router.include_router(dashboard.router)
+api_router.include_router(acoplamentos.router)
 
-# Adiciona todas as rotas com o prefixo /api
 app.include_router(api_router)
