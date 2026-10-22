@@ -10,11 +10,9 @@ router = APIRouter(prefix="/abastecimentos", tags=["abastecimentos"])
 
 @router.get("", response_model=None)
 async def listar(_u: dict = Depends(require("read"))):
-    # Retorna os dados brutos, sem validação do Pydantic.
-    # Isso evita o erro 500 se o banco tiver dados antigos ou incompletos.
+    # Retorna os dados brutos do banco para evitar erros de validação com dados antigos
     docs = await db.abastecimentos.find({}, {"_id": 0}).sort("data", -1).to_list(1000)
     return docs
-
 
 @router.get("/ultimo-km/{veiculo_id}")
 async def ultimo_km(veiculo_id: str, _u: dict = Depends(require("read"))):
@@ -22,7 +20,6 @@ async def ultimo_km(veiculo_id: str, _u: dict = Depends(require("read"))):
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
     
-    # Busca o último abastecimento registrado para este veículo
     ultimo_abast = await db.abastecimentos.find_one(
         {"veiculo_id": veiculo_id}, 
         sort=[("km", -1)]
@@ -31,20 +28,16 @@ async def ultimo_km(veiculo_id: str, _u: dict = Depends(require("read"))):
     km_veiculo = veiculo.get("hodometro_km", 0)
     km_abast = ultimo_abast["km"] if ultimo_abast else 0
     
-    # Retorna o maior KM entre o cadastro e o último abastecimento
     return {"ultimo_km": max(km_veiculo, km_abast)}
 
-
-@router.post("/importar", response_model=Abastecimento, status_code=201)
+@router.post("/importar", response_model=None, status_code=201)
 async def importar_pdf(body: dict, request: Request, user: dict = Depends(require("write"))):
-    """Recebe os dados extraídos do PDF e cria o abastecimento."""
+    placa_limpa = body.get("placa", "").strip().upper()
+    veiculo = await db.veiculos.find_one({"placa": placa_limpa})
     
-    # 1. Verifica se o veículo existe pela placa
-    veiculo = await db.veiculos.find_one({"placa": body.get("placa")})
     if not veiculo:
-        raise HTTPException(404, f"Veículo com placa {body.get('placa')} não encontrado.")
-    
-    # 2. Verifica o acoplamento ativo para pegar o motorista e carreta
+        raise HTTPException(404, f"Veículo com placa '{placa_limpa}' não encontrado.")
+
     acoplamento = await db.acoplamentos.find_one({"veiculo_id": veiculo["id"], "status": "ativo"})
     motorista_label = None
     if acoplamento and acoplamento.get("motorista_id"):
@@ -52,29 +45,31 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         if motorista:
             motorista_label = motorista["nome"]
 
-    # 3. Calcula os KM rodados
+    km = body.get("km", 0)
     anterior = await db.abastecimentos.find_one(
-        {"veiculo_id": veiculo["id"], "km": {"$lt": body["km"]}},
+        {"veiculo_id": veiculo["id"], "km": {"$lt": km}},
         sort=[("km", -1)]
     )
     km_anterior = anterior["km"] if anterior else veiculo.get("hodometro_km", 0)
-    km_rodados = body["km"] - km_anterior if km_anterior > 0 else None
-    media_km_l = km_rodados / body["litros"] if km_rodados and body["litros"] > 0 else None
-    valor_total = body["litros"] * body["preco_litro"]
+    km_rodados = km - km_anterior if km_anterior > 0 else None
+    
+    litros = body.get("litros", 0)
+    preco_litro = body.get("preco_litro", 0)
+    media_km_l = km_rodados / litros if km_rodados and litros > 0 else None
+    valor_total = litros * preco_litro
 
-    # 4. Cria o documento
     doc = {
         "id": str(uuid.uuid4()),
-        "data": body["data"],
+        "data": body.get("data", now_iso()),
         "hora": body.get("hora"),
         "veiculo_id": veiculo["id"],
         "motorista_id": acoplamento.get("motorista_id") if acoplamento else None,
         "motorista_label": motorista_label,
-        "litros": body["litros"],
-        "preco_litro": body["preco_litro"],
+        "litros": litros,
+        "preco_litro": preco_litro,
         "posto": body.get("fornecedor", "Importado via PDF"),
-        "km": body["km"],
-        "observacoes": body.get("observacoes", ""),
+        "km": km,
+        "observacoes": "",
         "numero_nf": body.get("numero_nf"),
         "chave_nfe": body.get("chave_nfe"),
         "cnpj": body.get("cnpj"),
@@ -90,25 +85,13 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     
     await db.abastecimentos.insert_one(dict(doc))
     await audit(user, "importar", "abastecimentos", doc["id"], f"NF: {doc['numero_nf']}", request)
-    return Abastecimento(**doc)
+    return doc
 
 @router.post("", response_model=Abastecimento, status_code=201)
 async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depends(require("write"))):
     veiculo = await db.veiculos.find_one({"id": body.veiculo_id})
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
-
-    # Validação do Hodômetro: não pode ser menor que o último registrado
-    ultimo_abast = await db.abastecimentos.find_one(
-        {"veiculo_id": body.veiculo_id}, 
-        sort=[("km", -1)]
-    )
-    km_cadastro = veiculo.get("hodometro_km", 0)
-    km_ultimo_abast = ultimo_abast["km"] if ultimo_abast else 0
-    km_minimo = max(km_cadastro, km_ultimo_abast)
-
-    if body.km < km_minimo:
-        raise HTTPException(400, f"O hodômetro informado ({body.km}) é menor que o último registrado ({km_minimo}).")
     
     motorista_label = None
     if body.motorista_id:
@@ -116,13 +99,10 @@ async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depend
         if motorista:
             motorista_label = motorista["nome"]
 
-    # Cálculo do KM Rodados: busca o último abastecimento com KM menor que o atual
     anterior = await db.abastecimentos.find_one(
         {"veiculo_id": body.veiculo_id, "km": {"$lt": body.km}},
         sort=[("km", -1)]
     )
-    
-    # Se não houver abastecimento anterior, usa o hodômetro do cadastro do veículo
     km_anterior = anterior["km"] if anterior else veiculo.get("hodometro_km", 0)
     km_rodados = body.km - km_anterior if km_anterior > 0 else None
     media_km_l = km_rodados / body.litros if km_rodados and body.litros > 0 else None
@@ -160,7 +140,6 @@ async def editar(abastecimento_id: str, body: AbastecimentoCreate, request: Requ
         if motorista:
             motorista_label = motorista["nome"]
 
-    # Recalcula o KM rodados (considerando o abastecimento anterior, excluindo o atual)
     anterior = await db.abastecimentos.find_one(
         {"veiculo_id": body.veiculo_id, "km": {"$lt": body.km}, "id": {"$ne": abastecimento_id}},
         sort=[("km", -1)]
@@ -182,7 +161,6 @@ async def editar(abastecimento_id: str, body: AbastecimentoCreate, request: Requ
     await db.abastecimentos.update_one({"id": abastecimento_id}, {"$set": dados_atualizados})
     await audit(user, "editar", "abastecimentos", abastecimento_id, f"Veículo: {dados_atualizados['veiculo_label']}", request)
     
-    # Busca o documento atualizado para retornar
     doc_atualizado = await db.abastecimentos.find_one({"id": abastecimento_id}, {"_id": 0})
     return Abastecimento(**doc_atualizado)
 
