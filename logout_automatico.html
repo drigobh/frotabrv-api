@@ -1,9 +1,13 @@
 
         <html>
-            <body>
+            <body style="background-color: #111; color: white; font-family: sans-serif; padding: 50px; text-align: center;">
+                <h1>Limpando Sessão...</h1>
                 <script>
+                    // Apaga o cookie da sessão
                     document.cookie = "frota_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                    alert("Sessão limpa! Feche esta aba e volte ao sistema.");
+                    setTimeout(function() {
+                        document.body.innerHTML = "<h1>Sessão limpa com sucesso!</h1><p>Você pode fechar esta aba e voltar ao sistema.</p>";
+                    }, 1000);
                 </script>
             </body>
         </html>

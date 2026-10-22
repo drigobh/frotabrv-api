@@ -19,7 +19,7 @@ export function KpiCard({ kpi, icon: Icon, format, color }: Props) {
         <p className="text-sm text-slate-400">{kpi.titulo}</p>
         <Icon className="size-4 text-slate-500" />
       </div>
-      <p className="mt-2 font-heading text-4xl font-semibold tabular-nums text-slate-50" data-testid={`kpi-${kpi.chave}-value`}>
+      <p className="mt-2 font-heading text-3xl font-semibold tabular-nums text-slate-50" data-testid={`kpi-${kpi.chave}-value`}>
         {format(kpi.valor)}
       </p>
       <p
