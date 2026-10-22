@@ -87,7 +87,7 @@ export default function Abastecimentos() {
 
   const total = Number(form.litros.replace(",", ".")) * Number(form.preco_litro.replace(",", "."));
   const set = (k: keyof ReturnType<typeof vazio>) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
-  const veicOpts = (veiculos.data ?? []).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
+  const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
 
   const cards = [
     { label: "Total abastecido", valor: `${num(resumo.litros, 1)} L`, testId: "resumo-litros" },
@@ -95,6 +95,32 @@ export default function Abastecimentos() {
     { label: "Média geral", valor: `${num(resumo.media, 2)} km/L`, testId: "resumo-media" },
     { label: "Preço médio", valor: `${brl(resumo.preco)}/L`, testId: "resumo-preco" },
   ];
+
+
+  const handleVeiculoChange = async (veiculoId: string) => {
+    set("veiculo_id")(veiculoId);
+    if (!veiculoId) return;
+
+    try {
+      // Busca o último KM (do cadastro ou último abastecimento)
+      const kmData = await apiGet<{ ultimo_km: number }>(`/abastecimentos/ultimo-km/${veiculoId}`);
+      setForm(s => ({ ...s, km: String(kmData.ultimo_km) }));
+
+      // Busca o acoplamento ativo para preencher o motorista
+      const acoplamentos = await apiGet<any[]>("/acoplamentos");
+      const acoplamentoAtivo = acoplamentos.find(a => a.veiculo_id === veiculoId);
+      
+      if (acoplamentoAtivo) {
+        if (acoplamentoAtivo.motorista_id) {
+          setForm(s => ({ ...s, motorista_id: acoplamentoAtivo.motorista_id }));
+        }
+      } else {
+        setForm(s => ({ ...s, motorista_id: NENHUM }));
+      }
+    } catch (error) {
+      console.error("Erro ao buscar dados do veículo:", error);
+    }
+  };
 
   return (
     <div>
@@ -186,14 +212,14 @@ export default function Abastecimentos() {
             </div>
             <div className="col-span-2 grid gap-1.5">
               <Label>Veículo *</Label>
-              <FieldSelect value={form.veiculo_id} onChange={set("veiculo_id")} options={veicOpts} placeholder="Selecione o veículo" testId="abastecimento-form-veiculo" />
+              <FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione o veículo" testId="abastecimento-form-veiculo" />
             </div>
             <div className="col-span-2 grid gap-1.5">
               <Label>Motorista</Label>
               <FieldSelect
                 value={form.motorista_id}
                 onChange={set("motorista_id")}
-                options={[{ value: NENHUM, label: "— Não informado —" }, ...(motoristas.data ?? []).map((m) => ({ value: m.id, label: m.nome }))]}
+                options={[{ value: NENHUM, label: "— Não informado —" }, ...(motoristas.data ?? []).filter(m => m.ativo).map((m) => ({ value: m.id, label: m.nome }))]}
                 testId="abastecimento-form-motorista"
               />
             </div>

@@ -13,11 +13,42 @@ async def listar(_u: dict = Depends(require("read"))):
     docs = await db.abastecimentos.find({}, {"_id": 0}).sort("data", -1).to_list(1000)
     return [Abastecimento(**d) for d in docs]
 
+
+@router.get("/ultimo-km/{veiculo_id}")
+async def ultimo_km(veiculo_id: str, _u: dict = Depends(require("read"))):
+    veiculo = await db.veiculos.find_one({"id": veiculo_id})
+    if not veiculo:
+        raise HTTPException(404, "Veículo não encontrado")
+    
+    # Busca o último abastecimento registrado para este veículo
+    ultimo_abast = await db.abastecimentos.find_one(
+        {"veiculo_id": veiculo_id}, 
+        sort=[("km", -1)]
+    )
+    
+    km_veiculo = veiculo.get("hodometro_km", 0)
+    km_abast = ultimo_abast["km"] if ultimo_abast else 0
+    
+    # Retorna o maior KM entre o cadastro e o último abastecimento
+    return {"ultimo_km": max(km_veiculo, km_abast)}
+
 @router.post("", response_model=Abastecimento, status_code=201)
 async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depends(require("write"))):
     veiculo = await db.veiculos.find_one({"id": body.veiculo_id})
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
+
+    # Validação do Hodômetro: não pode ser menor que o último registrado
+    ultimo_abast = await db.abastecimentos.find_one(
+        {"veiculo_id": body.veiculo_id}, 
+        sort=[("km", -1)]
+    )
+    km_cadastro = veiculo.get("hodometro_km", 0)
+    km_ultimo_abast = ultimo_abast["km"] if ultimo_abast else 0
+    km_minimo = max(km_cadastro, km_ultimo_abast)
+
+    if body.km < km_minimo:
+        raise HTTPException(400, f"O hodômetro informado ({body.km}) é menor que o último registrado ({km_minimo}).")
     
     motorista_label = None
     if body.motorista_id:
