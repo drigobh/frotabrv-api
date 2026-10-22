@@ -2,11 +2,10 @@ import os
 import shutil
 import datetime
 import zipfile
-import requests
 
 def criar_backup_full(raiz, pasta_backups):
     agora = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    nome_backup = f"backup_FULL_emergencia_{agora}.zip"
+    nome_backup = f"backup_FULL_emergencia_500_{agora}.zip"
     caminho_zip = os.path.join(pasta_backups, nome_backup)
     
     print(f"📦 Criando Backup Full do Sistema...")
@@ -26,12 +25,12 @@ def criar_backup_full(raiz, pasta_backups):
                         pass
     print(f"✅ Backup Full salvo em: _automacao/backups/{nome_backup}")
 
-def corrigir_backend_500(raiz):
+def corrigir_backend(raiz):
     caminho = os.path.join(raiz, "app", "backend", "routers", "abastecimentos.py")
     with open(caminho, 'r', encoding='utf-8') as f:
         conteudo = f.read()
 
-    # 1. A rota de listar (`GET`) precisa ser resiliente a dados antigos que não têm os novos campos
+    # 1. Substitui a rota de listar por uma versão "à prova de falhas"
     rota_antiga = '''@router.get("", response_model=list[Abastecimento])
 async def listar(_u: dict = Depends(require("read"))):
     docs = await db.abastecimentos.find({}, {"_id": 0}).sort("data", -1).to_list(1000)
@@ -54,39 +53,9 @@ async def listar(_u: dict = Depends(require("read"))):
         conteudo = conteudo.replace(rota_antiga, rota_nova)
         with open(caminho, 'w', encoding='utf-8') as f:
             f.write(conteudo)
-        print("⚙️ Backend: Rota de listagem corrigida para ser resiliente a dados antigos.")
+        print("⚙️ Backend: Rota de listagem corrigida para ser tolerante a dados antigos.")
     else:
-        print("⚠️ A rota de listagem original não foi encontrada. O arquivo pode já ter sido alterado.")
-
-def testar_mongo():
-    print("\n🔍 Testando conexão direta com o MongoDB (para ver se os dados existem)...")
-    # Usando a URL que está no .env (vamos tentar ler do arquivo)
-    env_path = os.path.join(os.getcwd(), "app", "backend", ".env")
-    if not os.path.exists(env_path):
-        print("❌ Arquivo .env não encontrado. Não é possível testar o Mongo.")
-        return
-
-    with open(env_path, 'r', encoding='utf-8') as f:
-        env_content = f.read()
-    
-    import re
-    mongo_url_match = re.search(r'MONGO_URL=(.+)', env_content)
-    if not mongo_url_match:
-        print("❌ MONGO_URL não encontrada no .env.")
-        return
-
-    mongo_url = mongo_url_match.group(1).strip()
-    
-    try:
-        from pymongo import MongoClient
-        client = MongoClient(mongo_url)
-        db = client.get_database() # Pega o DB_NAME do final da URL
-        count = db["abastecimentos"].count_documents({})
-        print(f"✅ Conexão com Mongo OK. Total de abastecimentos na coleção: {count}")
-        if count == 0:
-            print("⚠️ ALERTA: A coleção de abastecimentos está VAZIA no banco de dados!")
-    except Exception as e:
-        print(f"❌ Erro ao conectar no MongoDB: {e}")
+        print("⚠️ A rota de listagem original não foi encontrada. Verifique se o arquivo já foi alterado.")
 
 def executar():
     raiz = os.getcwd()
@@ -96,8 +65,7 @@ def executar():
     os.makedirs(pasta_backups, exist_ok=True)
 
     criar_backup_full(raiz, pasta_backups)
-    corrigir_backend_500(raiz)
-    testar_mongo()
+    corrigir_backend(raiz)
 
     print("\n🚀 Automação concluída! Faça o commit e push para o Render:")
     print("git add .")
