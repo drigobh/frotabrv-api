@@ -142,3 +142,18 @@
     letter-spacing: -0.01em;
   }
 }
+
+/* FORÇAR TAMANHO DOS CARDS DO DASHBOARD */
+article[data-testid^="kpi-"] {
+    padding: 12px !important;
+    height: 120px !important;
+    max-height: 120px !important;
+}
+article[data-testid^="kpi-"] p.font-heading {
+    font-size: 24px !important;
+    margin-top: 4px !important;
+}
+article[data-testid^="kpi-"] .mt-1.h-6 {
+    height: 32px !important;
+    margin-top: 8px !important;
+}
