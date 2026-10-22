@@ -30,7 +30,7 @@ export default function Abastecimentos() {
   const [filtroVeiculo, setFiltroVeiculo] = useState(TODOS);
   const [mes, setMes] = useState("");
   const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null); // Estado para edição
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
 
@@ -54,10 +54,11 @@ export default function Abastecimentos() {
     const menor = rows.reduce((min, r) => r.valor_total < (min?.valor_total || Infinity) ? r : min, null as Abastecimento | null);
     const mediaValor = rows.length ? valor / rows.length : 0;
     const mediaKm = comKm.length ? km / comKm.length : 0;
+    const custoPorKm = km > 0 ? valor / km : 0; // CÁLCULO DO CUSTO POR KM
 
     return { 
       litros, valor, km, media: litrosKm ? km / litrosKm : 0, preco: litros ? valor / litros : 0,
-      total: rows.length, maior, menor, mediaValor, mediaKm
+      total: rows.length, maior, menor, mediaValor, mediaKm, custoPorKm
     };
   }, [rows]);
 
@@ -145,7 +146,7 @@ export default function Abastecimentos() {
     if (!veiculoId) return;
 
     try {
-      if (!editingId) { // Só auto-preenche se for novo
+      if (!editingId) {
         const kmData = await apiGet<{ ultimo_km: number }>(`/abastecimentos/ultimo-km/${veiculoId}`);
         setForm(s => ({ ...s, km: String(kmData.ultimo_km) }));
       }
@@ -161,6 +162,7 @@ export default function Abastecimentos() {
     }
   };
 
+  // 10 CARDS (incluindo o Custo por KM)
   const cards = [
     { label: "Abastecimentos", valor: resumo.total, icon: List, color: "#38bdf8", sub: "registros no período" },
     { label: "Total Abastecido", valor: `${num(resumo.litros, 1)} L`, icon: Droplets, color: "#2dd4bf", sub: "volume total" },
@@ -171,6 +173,7 @@ export default function Abastecimentos() {
     { label: "Menor Abastecimento", valor: resumo.menor ? brl(resumo.menor.valor_total) : "—", icon: ArrowDownRight, color: "#f87171", sub: resumo.menor?.motorista_label || resumo.menor?.veiculo_label.split(" · ")[0] },
     { label: "Média por Abast.", valor: brl(resumo.mediaValor), icon: DollarSign, color: "#fb923c", sub: "R$ por registro" },
     { label: "Média de KM", valor: `${num(resumo.mediaKm, 0)} km`, icon: TrendingUp, color: "#60a5fa", sub: "por abastecimento" },
+    { label: "Custo por KM", valor: brl(resumo.custoPorKm), icon: DollarSign, color: "#34d399", sub: "combustível por km" },
   ];
 
   return (
@@ -186,7 +189,7 @@ export default function Abastecimentos() {
         }
       />
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {cards.map((c) => (
           <div key={c.label} className="glass lift relative overflow-hidden rounded-xl transition-all hover:scale-[1.02]" style={{ padding: '12px 16px', height: '90px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

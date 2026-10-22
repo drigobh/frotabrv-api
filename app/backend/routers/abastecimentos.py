@@ -83,3 +83,55 @@ async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depend
     await db.abastecimentos.insert_one(dict(doc))
     await audit(user, "criar", "abastecimentos", doc["id"], f"Veículo: {doc['veiculo_label']}", request)
     return Abastecimento(**doc)
+
+@router.put("/{abastecimento_id}", response_model=Abastecimento)
+async def editar(abastecimento_id: str, body: AbastecimentoCreate, request: Request, user: dict = Depends(require("write"))):
+    atual = await db.abastecimentos.find_one({"id": abastecimento_id})
+    if not atual:
+        raise HTTPException(404, "Abastecimento não encontrado")
+
+    veiculo = await db.veiculos.find_one({"id": body.veiculo_id})
+    if not veiculo:
+        raise HTTPException(404, "Veículo não encontrado")
+
+    motorista_label = None
+    if body.motorista_id:
+        motorista = await db.motoristas.find_one({"id": body.motorista_id})
+        if motorista:
+            motorista_label = motorista["nome"]
+
+    # Recalcula o KM rodados (considerando o abastecimento anterior, excluindo o atual)
+    anterior = await db.abastecimentos.find_one(
+        {"veiculo_id": body.veiculo_id, "km": {"$lt": body.km}, "id": {"$ne": abastecimento_id}},
+        sort=[("km", -1)]
+    )
+    km_anterior = anterior["km"] if anterior else veiculo.get("hodometro_km", 0)
+    km_rodados = body.km - km_anterior if km_anterior > 0 else None
+    media_km_l = km_rodados / body.litros if km_rodados and body.litros > 0 else None
+    valor_total = body.litros * body.preco_litro
+
+    dados_atualizados = {
+        **body.model_dump(),
+        "valor_total": round(valor_total, 2),
+        "km_rodados": km_rodados,
+        "media_km_l": round(media_km_l, 2) if media_km_l else None,
+        "veiculo_label": f"{veiculo['placa']} - {veiculo.get('modelo', '')}",
+        "motorista_label": motorista_label,
+    }
+
+    await db.abastecimentos.update_one({"id": abastecimento_id}, {"$set": dados_atualizados})
+    await audit(user, "editar", "abastecimentos", abastecimento_id, f"Veículo: {dados_atualizados['veiculo_label']}", request)
+    
+    # Busca o documento atualizado para retornar
+    doc_atualizado = await db.abastecimentos.find_one({"id": abastecimento_id}, {"_id": 0})
+    return Abastecimento(**doc_atualizado)
+
+@router.delete("/{abastecimento_id}", status_code=204)
+async def excluir(abastecimento_id: str, request: Request, user: dict = Depends(require("write"))):
+    atual = await db.abastecimentos.find_one({"id": abastecimento_id})
+    if not atual:
+        raise HTTPException(404, "Abastecimento não encontrado")
+    
+    await db.abastecimentos.delete_one({"id": abastecimento_id})
+    await audit(user, "excluir", "abastecimentos", abastecimento_id, f"Veículo: {atual.get('veiculo_label')}", request)
+    return None
