@@ -26,12 +26,22 @@ class Veiculo(VeiculoCreate):
 class CarretaCreate(BaseModel):
     codigo: str = Field(min_length=1)
     tipo: str = Field(min_length=1)
+    placa: str | None = None
+    modelo: str = ""
+    ano: int | None = None
+    hodometro_km: float = Field(default=0, ge=0)
     observacoes: str = ""
 
     @field_validator("codigo", mode="before")
     @classmethod
     def _codigo(cls, v: str) -> str:
         return str(v).upper().strip()
+
+    @field_validator("placa", mode="before")
+    @classmethod
+    def _placa(cls, v: str | None) -> str | None:
+        if not v: return None
+        return str(v).upper().replace("-", "").strip()
 
 
 class Carreta(CarretaCreate):
