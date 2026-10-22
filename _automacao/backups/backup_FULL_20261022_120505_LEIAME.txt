@@ -1,0 +1,3 @@
+Backup Full gerado em: 20261022_120505
+Motivo: Criação das rotas básicas de API (veiculos, carretas, motoristas).
+Estado anterior: Backend com apenas rota de auth.

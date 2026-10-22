@@ -32,8 +32,11 @@ async def health():
     return {"status": "ok", "service": "frota-brv"}
 
 # Conecta o router de autenticação
-from routers import auth
+from routers import auth, veiculos, carretas, motoristas
 api_router.include_router(auth.router)
+api_router.include_router(veiculos.router)
+api_router.include_router(carretas.router)
+api_router.include_router(motoristas.router)
 
 # Adiciona todas as rotas com o prefixo /api
 app.include_router(api_router)
