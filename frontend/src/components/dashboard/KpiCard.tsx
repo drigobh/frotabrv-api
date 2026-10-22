@@ -41,19 +41,23 @@ export function KpiCard({ kpi, icon: Icon, format, color }: Props) {
         <Trend className="size-3" />
         {t == null ? "sem base anterior" : `${t > 0 ? "+" : ""}${t.toLocaleString("pt-BR")}% vs anterior`}
       </p>
-      <div style={{ flex: 1, minHeight: '30px', marginTop: '4px' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={kpi.serie} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-            <defs>
-              <linearGradient id={`spark-${kpi.chave}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-                <stop offset="100%" stopColor={color} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <Area type="monotone" dataKey="valor" stroke={color} strokeWidth={2} fill={`url(#spark-${kpi.chave})`} isAnimationActive={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      {kpi.serie && kpi.serie.length > 0 ? (
+        <div style={{ flex: 1, minHeight: '30px', marginTop: '4px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={kpi.serie} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id={`spark-${kpi.chave}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area type="monotone" dataKey="valor" stroke={color} strokeWidth={2} fill={`url(#spark-${kpi.chave})`} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div style={{ flex: 1, minHeight: '10px', marginTop: '4px' }} />
+      )}
     </article>
   );
 }
