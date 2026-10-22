@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from models.acoplamentos import HistoricoItem
+from models.ranking import CampeaoMes
 
 
 class SeriePonto(BaseModel):
@@ -49,8 +50,8 @@ class Campeao(BaseModel):
 
 
 class Campeoes(BaseModel):
-    mes_passado: Campeao | None = None
-    mes_atual: Campeao | None = None
+    mes_passado: CampeaoMes | None = None
+    mes_atual: CampeaoMes | None = None
 
 
 class Dashboard(BaseModel):
