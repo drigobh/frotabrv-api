@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload } from "lucide-react";
+import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
@@ -10,7 +10,7 @@ import { brl, dataBR, errMsg, num } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/common/PageHeader";
 import { FieldSelect } from "@/components/common/FieldSelect";
@@ -41,6 +41,13 @@ export default function Abastecimentos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
+  
+  // Refs para os inputs de arquivo
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const xlsInputRef = useRef<HTMLInputElement>(null);
+
+  // Estado para o modal de progresso
+  const [importProgress, setImportProgress] = useState<{ total: number; current: number; errors: any[] } | null>(null);
 
   const params = new URLSearchParams();
   if (filtroVeiculo !== TODOS) params.set("veiculo_id", filtroVeiculo);
@@ -93,7 +100,8 @@ export default function Abastecimentos() {
     void qc.invalidateQueries({ queryKey: ["financeiro"] });
     void qc.invalidateQueries({ queryKey: ["ranking"] });
   };
-    const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -178,7 +186,7 @@ export default function Abastecimentos() {
       }
 
       if (startRow === -1) {
-        toast.error("Cabeçalho da planilha não encontrado. Verifique se as colunas 'Data', 'Placa' e 'Litros' estão na planilha.");
+        toast.error("Cabeçalho da planilha não encontrado.");
         return;
       }
 
@@ -193,27 +201,47 @@ export default function Abastecimentos() {
       const idxPreco = colIndex("v. litro");
 
       if (idxData === -1 || idxPlaca === -1 || idxLitros === -1 || idxPreco === -1) {
-        toast.error("Colunas essenciais não encontradas (Data, Placa, Litros, V. Litro).");
+        toast.error("Colunas essenciais não encontradas.");
         return;
       }
 
+      const totalLinhas = rows.length - startRow;
+      setImportProgress({ total: totalLinhas, current: 0, errors: [] });
+      
       let importados = 0;
+      const erros: any[] = [];
 
       for (let i = startRow; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || !row[idxData] || row[idxData].toLowerCase().includes("total") || row[idxData].includes("Bsoft")) continue;
+        
+        // VALIDAÇÃO DE SEGURANÇA: Verifica se a linha tem dados válidos
+        const dataCell = row[idxData];
+        const placaCell = row[idxPlaca];
+        const litrosCell = row[idxLitros];
+        const precoCell = row[idxPreco];
 
-        let dataStr = row[idxData];
+        // Se a célula de data estiver vazia, for "Total", ou se as células essenciais não existirem, pula
+        if (!dataCell || !placaCell || !litrosCell || !precoCell || 
+            dataCell.toLowerCase().includes("total") || 
+            dataCell.includes("Bsoft") ||
+            litrosCell.trim() === "" || 
+            precoCell.trim() === "") {
+          setImportProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
+          continue;
+        }
+
+        let dataStr = dataCell;
         if (dataStr.includes("/")) {
            const [d, m, y] = dataStr.split("/");
            dataStr = `${y}-${m}-${d}`;
         }
 
-        const placaRaw = row[idxPlaca] || "";
+        const placaRaw = placaCell || "";
         const placa = placaRaw.split("/")[0].replace("-", "").toUpperCase();
 
-        const litrosRaw = Number(row[idxLitros].replace(/\./g, "").replace(",", ".")) / 1000;
-        const valorLitroRaw = Number(row[idxPreco].replace(/\./g, "").replace(",", ".")) / 100;
+        // Remove pontos e troca vírgula por ponto. Se falhar, o Number() retorna NaN, que é tratado no try/catch da API
+        const litrosRaw = Number(litrosCell.replace(/\./g, "").replace(",", ".")) / 1000;
+        const valorLitroRaw = Number(precoCell.replace(/\./g, "").replace(",", ".")) / 100;
         
         const payload = {
           data: dataStr,
@@ -231,19 +259,34 @@ export default function Abastecimentos() {
         try {
           await apiPost("/abastecimentos/importar", payload);
           importados++;
-        } catch (err) {
-          console.error(`Erro na linha ${i + 1}:`, err);
+        } catch (err: any) {
+          const msgErro = err.response?.data?.detail || err.message || "Erro desconhecido";
+          erros.push({
+            linha: i + 1,
+            placa: placa || "N/A",
+            erro: msgErro
+          });
         }
+
+        setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
       }
 
-      toast.success(`${importados} abastecimentos importados com sucesso!`);
+      setImportProgress(prev => prev ? { ...prev, current: totalLinhas, errors: erros } : null);
+      
+      if (erros.length === 0) {
+        toast.success(`${importados} abastecimentos importados com sucesso!`);
+        setTimeout(() => setImportProgress(null), 2000);
+      }
+      
       invalidate();
     } catch (error) {
       console.error(error);
       toast.error("Erro ao ler o arquivo.");
+      setImportProgress(null);
     }
   };
-    const salvar = useMutation({
+
+  const salvar = useMutation({
     mutationFn: () => {
       const payload = {
         data: form.data,
@@ -343,7 +386,8 @@ export default function Abastecimentos() {
     { label: "Média de KM", valor: `${num(resumo.mediaKm, 0)} km`, icon: TrendingUp, color: "#60a5fa", sub: "por abastecimento" },
     { label: "Custo por KM", valor: brl(resumo.custoPorKm), icon: DollarSign, color: "#34d399", sub: "combustível por km" },
   ];
-    return (
+
+  return (
     <div>
       <PageHeader
         eyebrow="Operação"
@@ -351,14 +395,14 @@ export default function Abastecimentos() {
         description="Registro detalhado com cálculo automático de KM rodados e média KM/L a partir do hodômetro."
         actions={
           <div className="flex gap-2">
-            <label className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 cursor-pointer">
-              <input type="file" accept=".xls,.xlsx" onChange={handleImportXLS} className="hidden" />
+            <input type="file" accept=".xls,.xlsx" ref={xlsInputRef} onChange={handleImportXLS} className="hidden" />
+            <Button variant="outline" onClick={() => xlsInputRef.current?.click()}>
               <Upload className="size-4 mr-2" /> Importar XLS
-            </label>
-            <label className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 cursor-pointer">
-              <input type="file" accept=".pdf" onChange={handleImportPDF} className="hidden" />
+            </Button>
+            <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
               <FileText className="size-4 mr-2" /> Importar NF
-            </label>
+            </Button>
             <Button onClick={abrirNovo}>
               <Plus className="size-4" /> Novo abastecimento
             </Button>
@@ -561,6 +605,63 @@ export default function Abastecimentos() {
         onConfirm={() => excluirId && excluir.mutate(excluirId)}
         testId="abastecimento-excluir"
       />
+
+      {/* Modal de Progresso de Importação */}
+      <Dialog open={importProgress !== null} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Importando Planilha</DialogTitle>
+            <DialogDescription>
+              {importProgress && importProgress.current < importProgress.total 
+                ? "Por favor, aguarde enquanto processamos os registros..."
+                : "Importação concluída!"}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {importProgress && (
+            <div className="space-y-4 py-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-400">Progresso</span>
+                <span className="font-mono text-slate-200">{importProgress.current} / {importProgress.total}</span>
+              </div>
+              
+              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-sky-500 transition-all duration-300" 
+                  style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                />
+              </div>
+
+              {importProgress.errors.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-semibold text-red-400 mb-2 flex items-center gap-2">
+                    <AlertTriangle className="size-4" /> Erros encontrados ({importProgress.errors.length})
+                  </h4>
+                  <div className="max-h-40 overflow-y-auto rounded-md border border-slate-800 bg-slate-950 p-2">
+                    <ul className="space-y-1 text-xs">
+                      {importProgress.errors.map((err, idx) => (
+                        <li key={idx} className="text-slate-300">
+                          <span className="font-mono text-slate-500">Linha {err.linha}</span> - 
+                          <span className="text-red-300 font-medium ml-1">{err.placa}</span>:
+                          <span className="ml-1 text-slate-400">{err.erro}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            {importProgress && importProgress.current >= importProgress.total ? (
+              <Button onClick={() => setImportProgress(null)}>Fechar</Button>
+            ) : (
+              <Button disabled variant="outline">Processando...</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

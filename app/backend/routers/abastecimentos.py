@@ -173,3 +173,59 @@ async def excluir(abastecimento_id: str, request: Request, user: dict = Depends(
     await db.abastecimentos.delete_one({"id": abastecimento_id})
     await audit(user, "excluir", "abastecimentos", abastecimento_id, f"Veículo: {atual.get('veiculo_label')}", request)
     return None
+
+
+@router.get("/hodometro-atual")
+async def get_hodometro_atual(user: dict = Depends(require("read"))):
+    from datetime import datetime, timedelta
+    
+    veiculos = await db.veiculos.find({"ativo": True}, {"_id": 0}).to_list(None)
+    resultado = []
+    
+    agora = datetime.now()
+    mes_atual = agora.strftime("%Y-%m")
+    
+    primeiro_dia_mes = agora.replace(day=1)
+    ultimo_dia_mes_anterior = primeiro_dia_mes - timedelta(days=1)
+    mes_anterior = ultimo_dia_mes_anterior.strftime("%Y-%m")
+
+    for v in veiculos:
+        abast = await db.abastecimentos.find({"veiculo_id": v["id"]}).sort("data", 1).to_list(None)
+        
+        if not abast:
+            resultado.append({
+                "veiculo_id": v["id"], "placa": v["placa"], "modelo": v["modelo"],
+                "ultimo_km": 0, "qtd_geral": 0, "qtd_mes": 0, "qtd_mes_anterior": 0,
+                "media_ultimo": 0, "media_mes": 0, "media_mes_anterior": 0,
+                "total_mes": 0, "total_mes_anterior": 0, "media_preco_mes": 0
+            })
+            continue
+
+        ultimo = abast[-1]
+        
+        abast_mes = [a for a in abast if a["data"].startswith(mes_atual)]
+        abast_anterior = [a for a in abast if a["data"].startswith(mes_anterior)]
+        
+        def calc_media(lista):
+            validos = [a for a in lista if a.get("km_rodados") and a.get("km_rodados") > 0]
+            if not validos: return 0
+            km = sum(a["km_rodados"] for a in validos)
+            l = sum(a["litros"] for a in validos)
+            return km / l if l > 0 else 0
+            
+        def calc_total(lista): return sum(a["valor_total"] for a in lista)
+        def calc_preco_medio(lista):
+            l = sum(a["litros"] for a in lista)
+            v = sum(a["valor_total"] for a in lista)
+            return v / l if l > 0 else 0
+
+        resultado.append({
+            "veiculo_id": v["id"], "placa": v["placa"], "modelo": v["modelo"],
+            "ultimo_km": ultimo["km"],
+            "qtd_geral": len(abast), "qtd_mes": len(abast_mes), "qtd_mes_anterior": len(abast_anterior),
+            "media_ultimo": ultimo.get("media_km_l") or 0,
+            "media_mes": calc_media(abast_mes), "media_mes_anterior": calc_media(abast_anterior),
+            "total_mes": calc_total(abast_mes), "total_mes_anterior": calc_total(abast_anterior),
+            "media_preco_mes": calc_preco_medio(abast_mes)
+        })
+    return resultado
