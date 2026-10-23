@@ -40,6 +40,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     litros = body.get("litros") or 0
     preco_litro = body.get("preco_litro") or 0
     data_abast = body.get("data")
+    km_atual = body.get("km") or 0
 
     # Busca o último abastecimento ANTES da data atual para calcular os KM rodados
     ultimo = await db.abastecimentos.find_one(
@@ -51,12 +52,15 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     km_rodados = None
     media_km_l = None
 
-    if ultimo and ultimo.get("km") and body.get("km"):
-        # Se tem abastecimento anterior, subtrai a leitura atual pela anterior
-        km_rodados = body.get("km") - ultimo["km"]
-    elif body.get("km") and veiculo.get("hodometro_km"):
-        # Se é o primeiro abastecimento, subtrai a leitura atual pelo Hodômetro Inicial do Veículo
-        km_rodados = body.get("km") - veiculo["hodometro_km"]
+    # Lógica de Cálculo:
+    # 1. Se tem abastecimento anterior, subtrai a leitura atual pela anterior.
+    # 2. Se não tem, subtrai a leitura atual pelo Hodômetro Inicial do Veículo.
+    # 3. Se o resultado for negativo, ignora (mostra None).
+    
+    if ultimo and ultimo.get("km"):
+        km_rodados = km_atual - ultimo["km"]
+    elif km_atual > 0 and veiculo.get("hodometro_km"):
+        km_rodados = km_atual - veiculo["hodometro_km"]
 
     if km_rodados and km_rodados > 0 and litros > 0:
         media_km_l = km_rodados / litros
@@ -87,7 +91,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         "preco_litro": preco_litro,
         "valor_total": valor_total,
         "posto": body.get("fornecedor") or "Importado",
-        "km": body.get("km"),
+        "km": km_atual,
         "km_rodados": km_rodados,
         "media_km_l": media_km_l,
         "origem": "excel",
