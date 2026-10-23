@@ -34,22 +34,14 @@ async def ultimo_km(veiculo_id: str, _u: dict = Depends(require("read"))):
 async def importar_pdf(body: dict, request: Request, user: dict = Depends(require("write"))):
     placa_limpa = body.get("placa", "").strip().upper()
     
-    # BUSCA 1: Veículo (com projeção _id: 0)
     veiculo = await db.veiculos.find_one({"placa": placa_limpa}, {"_id": 0})
     if not veiculo:
         raise HTTPException(status_code=404, detail=f"Veículo com placa {placa_limpa} não encontrado.")
 
-    # CORREÇÃO MATEMÁTICA: Litros em milésimos (805000 -> 805.0), Preço em centavos (669 -> 6.69)
+    # O Frontend já envia os valores corrigidos (divididos por 1000 e 100)
     litros_corrigidos = body.get("litros") or 0
     preco_corrigido = body.get("preco_litro") or 0
-    
-    # Fallback para PDF (que pode vir em reais)
-    if litros_corrigidos == 0 and body.get("litros", 0) > 0:
-        litros_corrigidos = body.get("litros")
-    if preco_corrigido == 0 and body.get("preco_litro", 0) > 0:
-        preco_corrigido = body.get("preco_litro")
 
-    # BUSCA 2: Último abastecimento (com projeção _id: 0)
     ultimo = await db.abastecimentos.find_one(
         {"veiculo_id": veiculo["id"], "data": {"$lt": body.get("data")}},
         {"_id": 0},
