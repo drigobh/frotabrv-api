@@ -7,7 +7,7 @@ from lib.dates import now_iso
 from datetime import datetime, timedelta
 import uuid
 
-router = APIRouter(prefix="/api/abastecimentos", tags=["Abastecimentos"])
+router = APIRouter(tags=["Abastecimentos"])
 
 class AbastecimentoCreate(BaseModel):
     data: str
