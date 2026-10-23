@@ -104,16 +104,6 @@ export default function Abastecimentos() {
   }, [rowsComCalculo]);
 
   const ranking = useMemo(() => {
-    const porVeiculo: Record<string, { label: string, litros: number, km: number }> = {};
-    rowsComCalculo.forEach(r => {
-      if (r.km_rodados != null) {
-        if (!porVeiculo[r.veiculo_id]) porVeiculo[r.veiculo_id] = { label: r.veiculo_label.split(" Â· ")[0], litros: 0, km: 0 };
-        porVeiculo[r.veiculo_id].litros += r.litros;
-        porVeiculo[r.veiculo_id].km += r.km_rodados;
-      }
-    });
-    return Object.values(porVeiculo).map(v => ({ label: v.label, media: v.litros > 0 ? v.km / v.litros : 0 })).sort((a, b) => b.media - a.media).slice(0, 5);
-  }, [rowsComCalculo]);
 
   const ranking = useMemo(() => {
     const porVeiculo: Record<string, { label: string, litros: number, km: number }> = {};
