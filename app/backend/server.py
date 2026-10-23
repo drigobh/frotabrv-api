@@ -24,7 +24,6 @@ app.include_router(carretas.router)
 app.include_router(motoristas.router)
 app.include_router(dashboard.router)
 app.include_router(acoplamentos.router)
-app.include_router(abastecimentos.router)
 app.include_router(manutencoes.router)
 app.include_router(admin.router)
 
