@@ -18,15 +18,15 @@ app.add_middleware(
 )
 
 # Registro das rotas com prefixos corretos
-app.include_router(auth.router, prefix="/api/auth")
-app.include_router(veiculos.router, prefix="/api/veiculos")
-app.include_router(carretas.router, prefix="/api/carretas")
-app.include_router(motoristas.router, prefix="/api/motoristas")
-app.include_router(dashboard.router, prefix="/api/dashboard")
-app.include_router(acoplamentos.router, prefix="/api/acoplamentos")
-app.include_router(abastecimentos.router, prefix="/api/abastecimentos")
-app.include_router(manutencoes.router, prefix="/api/manutencoes")
-app.include_router(admin.router, prefix="/api/admin")
+app.include_router(auth.router)
+app.include_router(veiculos.router)
+app.include_router(carretas.router)
+app.include_router(motoristas.router)
+app.include_router(dashboard.router)
+app.include_router(acoplamentos.router)
+app.include_router(abastecimentos.router)
+app.include_router(manutencoes.router)
+app.include_router(admin.router)
 
 @app.on_event("startup")
 async def startup():
