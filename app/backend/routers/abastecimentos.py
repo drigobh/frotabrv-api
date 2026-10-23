@@ -40,8 +40,8 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         raise HTTPException(status_code=404, detail=f"Veículo com placa {placa_limpa} não encontrado.")
 
     # CORREÇÃO MATEMÁTICA: Litros em milésimos (805000 -> 805.0), Preço em centavos (669 -> 6.69)
-    litros_corrigidos = (body.get("litros") or 0) / 1000
-    preco_corrigido = (body.get("preco_litro") or 0) / 100
+    litros_corrigidos = body.get("litros") or 0
+    preco_corrigido = body.get("preco_litro") or 0
     
     # Fallback para PDF (que pode vir em reais)
     if litros_corrigidos == 0 and body.get("litros", 0) > 0:
