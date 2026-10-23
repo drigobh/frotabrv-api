@@ -110,22 +110,59 @@ export default function Abastecimentos() {
         text += content.items.map((item: any) => item.str).join(" ") + "\n";
       }
 
-      // Regex flexíveis para encontrar Placa e KM em qualquer lugar do texto
-      const placaMatch = text.match(/PLACA[^A-Z0-9]*([A-Z]{3}[0-9][A-Z0-9][0-9]{2})/i) || text.match(/PLACA:\s*([A-Z0-9]{7})/i);
-      const kmMatch = text.match(/KM[^0-9]*(\d+)/i);
+      // --- REGEX INTELIGENTE ---
+
+      // 1. Placa (Procura "PLACA:" e pega 7 caracteres alfanuméricos)
+      const placaMatch = text.match(/PLACA[:\s]*([A-Z]{3}[0-9][A-Z0-9][0-9]{2})/i) || text.match(/PLACA[:\s]*([A-Z0-9]{7})/i);
+      
+      // 2. KM (Procura "KM:" seguido de números)
+      const kmMatch = text.match(/KM[:\s]*(\d+)/i);
+      
+      // 3. Litros e Preço (Busca os números pela posição na tabela de produtos)
+      // O padrão é: ... L   QUANTIDADE   VALOR_UNITARIO   VALOR_TOTAL ...
+      // Ex: L 264,5700 6,990000 1.849,34  ou  L 297,350 6,840 2.033,87
+      const litrosMatch = text.match(/L\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i) 
+                       || text.match(/L\s+([\d.,]+)\s+([\d.,]+)/i); // Fallback
+
+      // 4. Nº NF
+      const nfMatch = text.match(/Nº\s*(\d+)/);
+      
+      // 5. Chave NF-e
+      const chaveMatch = text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/i);
+      
+      // 6. CNPJ (Procura o CNPJ do emitente, que fica antes do destinatário)
+      const cnpjMatch = text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/i);
+      
+      // 7. Fornecedor
+      const fornecedorMatch = text.match(/RECEBEMOS DE\s*(.*?)\s*OS PRODUTOS/i);
+
+      // Limpeza dos números (remove pontos de milhar e troca vírgula por ponto)
+      const parseNum = (val: string) => Number(val.replace(/\./g, "").replace(",", "."));
 
       const payload = {
         data: new Date().toISOString().split('T')[0],
         hora: null,
-        numero_nf: text.match(/Nº\s*(\d+)/)?.[1] || null,
-        chave_nfe: text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/)?.[1]?.replace(/\s/g, "") || null,
-        cnpj: text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/)?.[1] || null,
-        fornecedor: text.match(/RECEBEMOS DE\s*(.*?)\s*OS PRODUTOS/)?.[1]?.trim() || null,
+        numero_nf: nfMatch ? nfMatch[1] : null,
+        chave_nfe: chaveMatch ? chaveMatch[1].replace(/\s/g, "") : null,
+        cnpj: cnpjMatch ? cnpjMatch[1] : null,
+        fornecedor: fornecedorMatch ? fornecedorMatch[1].trim() : null,
         placa: placaMatch ? placaMatch[1].toUpperCase() : null,
-        litros: text.match(/DIESEL S 10.*?(\d+,\d+)\s*\d+,\d+\s*([\d\.]+,\d+)/)?.[1] ? Number(text.match(/DIESEL S 10.*?(\d+,\d+)\s*\d+,\d+\s*([\d\.]+,\d+)/)[1].replace(",", ".")) : 0,
-        preco_litro: text.match(/DIESEL S 10.*?(\d+,\d+)\s*\d+,\d+\s*([\d\.]+,\d+)/)?.[2] ? Number(text.match(/DIESEL S 10.*?(\d+,\d+)\s*\d+,\d+\s*([\d\.]+,\d+)/)[2].replace(".", "").replace(",", ".")) : 0,
+        litros: litrosMatch ? parseNum(litrosMatch[1]) : 0,
+        preco_litro: litrosMatch ? parseNum(litrosMatch[2]) : 0,
         km: kmMatch ? Number(kmMatch[1]) : 0,
       };
+
+      console.log("Dados extraídos:", payload);
+
+      await apiPost("/abastecimentos/importar", payload);
+      
+      toast.success("Nota Fiscal importada e registrada com sucesso!");
+      invalidate();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao importar o PDF. Verifique se o veículo está cadastrado.");
+    }
+  }
 
       await apiPost("/abastecimentos/importar", payload);
       
