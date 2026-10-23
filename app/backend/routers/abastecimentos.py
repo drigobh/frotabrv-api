@@ -73,6 +73,18 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         mot = await db.motoristas.find_one({"id": motorista_id}, {"_id": 0})
         motorista_label = mot["nome"] if mot else None
 
+    
+    # Busca o acoplamento ativo para pegar o motorista
+    acoplamento = await db.acoplamentos.find_one(
+        {"veiculo_id": veiculo["id"], "ativo": True},
+        {"_id": 0}
+    )
+    motorista_id = acoplamento.get("motorista_id") if acoplamento else None
+    motorista_label = None
+    if motorista_id:
+        mot = await db.motoristas.find_one({"id": motorista_id}, {"_id": 0})
+        motorista_label = mot["nome"] if mot else None
+
     doc = {
         "id": str(uuid.uuid4()),
         "data": data_abast,
@@ -87,7 +99,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         "km": body.get("km"),
         "km_rodados": km_rodados,
         "media_km_l": media_km_l,
-        "origem": "pdf",
+        "origem": body.get("origem", "excel"),
         "numero_nf": body.get("numero_nf"),
         "chave_nfe": body.get("chave_nfe"),
         "hora": body.get("hora"),

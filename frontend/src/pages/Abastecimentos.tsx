@@ -206,21 +206,18 @@ export default function Abastecimentos() {
         }
 
         let dataStr = String(row[idxData]).trim();
-        if (dataStr.includes("/")) {
-           const [d, m, y] = dataStr.split("/");
-           dataStr = `${y}-${m}-${d}`;
-        }
+        if (dataStr.includes("-")) { const [y, m, d] = dataStr.split(" ")[0].split("-"); dataStr = `${d}/${m}/${y}`; }
 
         const placaRaw = String(row[idxPlaca] || "").trim();
         const placa = placaRaw.split("/")[0].replace("-", "").toUpperCase();
 
         const parseNum = (val: any) => Number(String(val).replace(/[^0-9]/g, ""));
         
-        const litrosNum = typeof row[idxLitros] === 'number' ? row[idxLitros] : parseNum(row[idxLitros]);
-        const precoNum = typeof row[idxPreco] === 'number' ? row[idxPreco] : parseNum(row[idxPreco]);
+        const litrosNum = typeof row[idxLitros] === "number" ? row[idxLitros] : Number(String(row[idxLitros]).replace(",", "."));
+        const precoNum = typeof row[idxPreco] === "number" ? row[idxPreco] : Number(String(row[idxPreco]).replace(",", "."));
         
-        const litrosRaw = litrosNum / 1000;
-        const valorLitroRaw = precoNum / 100;
+        const litrosRaw = litrosNum;
+        const valorLitroRaw = precoNum;
         
         const kmStr = String(row[idxKm] || "0");
         
@@ -442,3 +439,4 @@ export default function Abastecimentos() {
     </div>
   );
 }
+
