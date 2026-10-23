@@ -61,13 +61,25 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     valor_total = litros * preco_litro
 
+    
+    # Busca o acoplamento ativo para pegar o motorista
+    acoplamento = await db.acoplamentos.find_one(
+        {"veiculo_id": veiculo["id"], "ativo": True},
+        {"_id": 0}
+    )
+    motorista_id = acoplamento.get("motorista_id") if acoplamento else None
+    motorista_label = None
+    if motorista_id:
+        mot = await db.motoristas.find_one({"id": motorista_id}, {"_id": 0})
+        motorista_label = mot["nome"] if mot else None
+
     doc = {
         "id": str(uuid.uuid4()),
         "data": data_abast,
         "veiculo_id": veiculo["id"],
         "veiculo_label": f"{veiculo['placa']} · {veiculo['modelo']}",
-        "motorista_id": None,
-        "motorista_label": None,
+        "motorista_id": motorista_id,
+        "motorista_label": motorista_label,
         "litros": litros,
         "preco_litro": preco_litro,
         "valor_total": valor_total,
