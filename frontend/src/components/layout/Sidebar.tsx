@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { 
-  Gauge, LayoutDashboard, Truck, Users, Link as LinkIcon, Fuel, Wrench, 
+  LayoutDashboard, Truck, Users, Link as LinkIcon, Fuel, Wrench, 
   FileText, DollarSign, Trophy, BarChart3, Shield, FileWarning, 
   Bell, Database, LogOut 
 } from "lucide-react";
@@ -21,7 +21,7 @@ export function Sidebar({ user, onNavigate }: SidebarProps) {
     {
       title: "VISÃO GERAL",
       items: [
-        { label: "Dashboard", icon: Gauge, LayoutDashboard, path: "/" },
+        { label: "Dashboard", icon: LayoutDashboard, path: "/" },
       ],
     },
     {
@@ -36,7 +36,6 @@ export function Sidebar({ user, onNavigate }: SidebarProps) {
       title: "OPERAÇÃO",
       items: [
         { label: "Acoplamentos", icon: LinkIcon, path: "/acoplamentos" },
-        { label: "Hodômetro Atual", icon: Gauge, path: "/hodometro" },
         { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
         { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
       ],

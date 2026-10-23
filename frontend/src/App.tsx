@@ -8,7 +8,6 @@ import Carretas from "@/pages/Carretas";
 import Motoristas from "@/pages/Motoristas";
 import Acoplamentos from "@/pages/Acoplamentos";
 import Base from '@/pages/Base';
-import Hodometro from '@/pages/Hodometro';
 import Abastecimentos from "@/pages/Abastecimentos";
 import Manutencoes from "@/pages/Manutencoes";
 import Documentos from "@/pages/Documentos";
@@ -33,7 +32,6 @@ export default function App() {
           <Route path="cadastros/carretas" element={<Carretas />} />
           <Route path="cadastros/motoristas" element={<Motoristas />} />
           <Route path="acoplamentos" element={<Acoplamentos />} />
-          <Route path="hodometro" element={<Hodometro />} />
           <Route path="abastecimentos" element={<Abastecimentos />} />
           <Route path="manutencoes" element={<Manutencoes />} />
           <Route path="documentos" element={<Documentos />} />

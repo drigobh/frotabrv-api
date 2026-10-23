@@ -1,36 +1,44 @@
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from lib.db import db
-from routers import auth, veiculos, carretas, motoristas, dashboard, acoplamentos, abastecimentos, manutencoes, admin
-
-from lib.security import hash_password
 import os
+from lib.db import ensure_indexes, client
 
-app = FastAPI(title="FrotaBravus API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await ensure_indexes()
+    yield
+    client.close()
 
-# Configuração do CORS
+app = FastAPI(title="FrotaBrv API", lifespan=lifespan)
+
+origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://frotabrv-api.onrender.com", "*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Registro das rotas com prefixos corretos
-app.include_router(auth.router)
-app.include_router(veiculos.router)
-app.include_router(carretas.router)
-app.include_router(motoristas.router)
-app.include_router(dashboard.router)
-app.include_router(acoplamentos.router)
-app.include_router(manutencoes.router)
+api_router = APIRouter(prefix="/api")
+
+@api_router.get("/health")
+async def health():
+    return {"status": "ok", "service": "frota-brv"}
+
+# Importando todas as rotas
+from routers import auth, veiculos, carretas, motoristas, dashboard, acoplamentos, abastecimentos, manutencoes
+from routers import admin
+
+api_router.include_router(auth.router)
+api_router.include_router(veiculos.router)
+api_router.include_router(carretas.router)
+api_router.include_router(motoristas.router)
+api_router.include_router(dashboard.router)
+api_router.include_router(acoplamentos.router)
+api_router.include_router(abastecimentos.router)
+api_router.include_router(manutencoes.router)
+
+app.include_router(api_router)
 app.include_router(admin.router)
-
-@app.on_event("startup")
-async def startup():
-    print("✅ API Iniciada com sucesso!")
-
-@app.on_event("shutdown")
-async def shutdown():
-    print("🛑 API Finalizada.")
