@@ -37,7 +37,6 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     if not veiculo:
         raise HTTPException(status_code=404, detail=f"Veículo com placa {placa_limpa} não encontrado.")
 
-    # O Frontend já envia litros e preco_litro divididos corretamente.
     litros = body.get("litros") or 0
     preco_litro = body.get("preco_litro") or 0
     data_abast = body.get("data")
@@ -52,20 +51,17 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     km_rodados = None
     media_km_l = None
 
-    # Se tiver um abastecimento anterior, usa a Leitura dele. Senão, usa o Hodômetro Inicial do Veículo.
     if ultimo and ultimo.get("km") and body.get("km"):
+        # Se tem abastecimento anterior, subtrai a leitura atual pela anterior
         km_rodados = body.get("km") - ultimo["km"]
-        if km_rodados > 0 and litros > 0:
-            media_km_l = km_rodados / litros
-        else:
-            km_rodados = None
     elif body.get("km") and veiculo.get("hodometro_km"):
-        # Primeiro abastecimento: usa o Hodômetro Inicial do Veículo
+        # Se é o primeiro abastecimento, subtrai a leitura atual pelo Hodômetro Inicial do Veículo
         km_rodados = body.get("km") - veiculo["hodometro_km"]
-        if km_rodados > 0 and litros > 0:
-            media_km_l = km_rodados / litros
-        else:
-            km_rodados = None
+
+    if km_rodados and km_rodados > 0 and litros > 0:
+        media_km_l = km_rodados / litros
+    else:
+        km_rodados = None
 
     valor_total = litros * preco_litro
 
