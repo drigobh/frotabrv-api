@@ -1,9 +1,8 @@
-import { useMemo, useState, useRef } from "react";
+﻿import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { brl, dataBR, errMsg, num } from "@/lib/format";
@@ -41,12 +40,9 @@ export default function Abastecimentos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
-  
-  // Refs para os inputs de arquivo
   const fileInputRef = useRef<HTMLInputElement>(null);
   const xlsInputRef = useRef<HTMLInputElement>(null);
 
-  // Estado para o modal de progresso
   const [importProgress, setImportProgress] = useState<{ total: number; current: number; errors: any[] } | null>(null);
 
   const params = new URLSearchParams();
@@ -71,26 +67,19 @@ export default function Abastecimentos() {
     const mediaKm = comKm.length ? km / comKm.length : 0;
     const custoPorKm = km > 0 ? valor / km : 0;
 
-    return { 
-      litros, valor, km, media: litrosKm ? km / litrosKm : 0, preco: litros ? valor / litros : 0,
-      total: rows.length, maior, menor, mediaValor, mediaKm, custoPorKm
-    };
+    return { litros, valor, km, media: litrosKm ? km / litrosKm : 0, preco: litros ? valor / litros : 0, total: rows.length, maior, menor, mediaValor, mediaKm, custoPorKm };
   }, [rows]);
 
   const ranking = useMemo(() => {
     const porVeiculo: Record<string, { label: string, litros: number, km: number }> = {};
     rows.forEach(r => {
       if (r.km_rodados != null) {
-        if (!porVeiculo[r.veiculo_id]) porVeiculo[r.veiculo_id] = { label: r.veiculo_label.split(" · ")[0], litros: 0, km: 0 };
+        if (!porVeiculo[r.veiculo_id]) porVeiculo[r.veiculo_id] = { label: r.veiculo_label.split(" Â· ")[0], litros: 0, km: 0 };
         porVeiculo[r.veiculo_id].litros += r.litros;
         porVeiculo[r.veiculo_id].km += r.km_rodados;
       }
     });
-    
-    return Object.values(porVeiculo)
-      .map(v => ({ label: v.label, media: v.litros > 0 ? v.km / v.litros : 0 }))
-      .sort((a, b) => b.media - a.media)
-      .slice(0, 5);
+    return Object.values(porVeiculo).map(v => ({ label: v.label, media: v.litros > 0 ? v.km / v.litros : 0 })).sort((a, b) => b.media - a.media).slice(0, 5);
   }, [rows]);
 
   const invalidate = () => {
@@ -104,51 +93,29 @@ export default function Abastecimentos() {
   const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let text = "";
-
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         text += content.items.map((item: any) => item.str).join(" ") + "\n";
       }
-
       const placaMatch = text.match(/PLACA[:\s]*([A-Z]{3}[0-9][A-Z0-9][0-9]{2})/i) || text.match(/PLACA[:\s]*([A-Z0-9]{7})/i);
       const kmMatch = text.match(/KM[:\s]*(\d+)/i);
       const litrosMatch = text.match(/L\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i) || text.match(/L\s+([\d.,]+)\s+([\d.,]+)/i);
-      const nfMatch = text.match(/Nº\s*(\d+)/);
-      const chaveMatch = text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/i);
-      const cnpjMatch = text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/i);
-      const fornecedorMatch = text.match(/RECEBEMOS DE\s*(.*?)\s*OS PRODUTOS/i);
-
       const parseNum = (val: string) => Number(val.replace(/\./g, "").replace(",", "."));
-
       const payload = {
-        data: new Date().toISOString().split('T')[0],
-        hora: null,
-        numero_nf: nfMatch ? nfMatch[1] : null,
-        chave_nfe: chaveMatch ? chaveMatch[1].replace(/\s/g, "") : null,
-        cnpj: cnpjMatch ? cnpjMatch[1] : null,
-        fornecedor: fornecedorMatch ? fornecedorMatch[1].trim() : null,
-        placa: placaMatch ? placaMatch[1].toUpperCase() : null,
-        litros: litrosMatch ? parseNum(litrosMatch[1]) : 0,
-        preco_litro: litrosMatch ? parseNum(litrosMatch[2]) : 0,
-        km: kmMatch ? Number(kmMatch[1]) : 0,
+        data: new Date().toISOString().split('T')[0], hora: null, numero_nf: null, chave_nfe: null, cnpj: null, fornecedor: null,
+        placa: placaMatch ? placaMatch[1].toUpperCase() : null, litros: litrosMatch ? parseNum(litrosMatch[1]) : 0,
+        preco_litro: litrosMatch ? parseNum(litrosMatch[2]) : 0, km: kmMatch ? Number(kmMatch[1]) : 0,
       };
-
       await apiPost("/abastecimentos/importar", payload);
-      toast.success("Nota Fiscal importada com sucesso!");
-      invalidate();
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao importar o PDF.");
-    }
+      toast.success("Nota Fiscal importada com sucesso!"); invalidate();
+    } catch (error) { console.error(error); toast.error("Erro ao importar o PDF."); }
   };
-
-  const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -172,11 +139,10 @@ export default function Abastecimentos() {
 
       if (rows.length === 0) { toast.error("Nenhuma linha encontrada."); return; }
 
-      // A MÁGICA: Procura a linha de cabeçalho pela presença das palavras-chave, 
-      // ignorando diferenças de maiúsculas/minúsculas e acentos.
       let headerRow: string[] = [];
       let startRow = -1;
       
+      // Procura a linha de cabeçalho em qualquer lugar do arquivo
       for (let i = 0; i < rows.length; i++) {
         const rowStr = rows[i].join(" ").toUpperCase();
         if (rowStr.includes("DATA") && rowStr.includes("PLACA") && rowStr.includes("LITROS")) {
@@ -186,9 +152,12 @@ export default function Abastecimentos() {
         }
       }
 
-      if (startRow === -1) { toast.error("Cabeçalho não encontrado."); return; }
+      if (startRow === -1) { 
+        toast.error("Cabeçalho não encontrado. Verifique se a planilha tem as colunas Data, Placa e Litros.");
+        return; 
+      }
 
-      // Encontra o índice de cada coluna pelo nome (ignorando maiúsculas)
+      // Mapeia as colunas pelo nome
       const findIdx = (name: string) => headerRow.findIndex(h => h.includes(name.toUpperCase()));
       
       const idxData = findIdx("DATA");
@@ -212,7 +181,6 @@ export default function Abastecimentos() {
       for (let i = startRow; i < rows.length; i++) {
         const row = rows[i];
         
-        // Pula linhas vazias ou de total
         if (!row || !row[idxData] || row[idxData].toUpperCase().includes("TOTAIS") || row[idxData].includes("Bsoft")) {
           setImportProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
           continue;
@@ -227,8 +195,7 @@ export default function Abastecimentos() {
         const placaRaw = row[idxPlaca] || "";
         const placa = placaRaw.split("/")[0].replace("-", "").toUpperCase();
 
-        // A FUNÇÃO MÁGICA: Remove tudo que não for número antes de converter
-        // Ex: "111.832,07" vira "11183207" e depois divide por 1000.
+        // FUNÇÃO DE LIMPEZA: Remove tudo que não for número antes de converter
         const parseNum = (val: string) => Number(String(val).replace(/[^0-9]/g, ""));
         
         const litrosRaw = parseNum(row[idxLitros]) / 1000;
@@ -275,167 +242,65 @@ export default function Abastecimentos() {
     }
   };
 
-        try {
-          await apiPost("/abastecimentos/importar", payload);
-          importados++;
-        } catch (err: any) {
-          const msgErro = err.response?.data?.detail || err.message || "Erro desconhecido";
-          erros.push({
-            linha: i + 1,
-            placa: placa || "N/A",
-            erro: msgErro
-          });
-        }
-
-        setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
-      }
-
-      setImportProgress(prev => prev ? { ...prev, current: totalLinhas, errors: erros } : null);
-      
-      if (erros.length === 0) {
-        toast.success(`${importados} abastecimentos importados com sucesso!`);
-        setTimeout(() => setImportProgress(null), 2000);
-      }
-      
-      invalidate();
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao ler o arquivo.");
-      setImportProgress(null);
-    }
-  };
-
   const salvar = useMutation({
     mutationFn: () => {
-      const payload = {
-        data: form.data,
-        veiculo_id: form.veiculo_id,
-        motorista_id: form.motorista_id === NENHUM ? null : form.motorista_id,
-        litros: Number(form.litros.replace(",", ".")),
-        preco_litro: Number(form.preco_litro.replace(",", ".")),
-        posto: form.posto,
-        km: Number(form.km),
-        observacoes: form.observacoes,
-        numero_nf: form.numero_nf || null,
-        chave_nfe: form.chave_nfe || null,
-        hora: form.hora || null,
-        cnpj: form.cnpj || null,
-        fornecedor: form.fornecedor || null,
-        origem: form.origem,
-      };
+      const payload = { data: form.data, veiculo_id: form.veiculo_id, motorista_id: form.motorista_id === NENHUM ? null : form.motorista_id, litros: Number(form.litros.replace(",", ".")), preco_litro: Number(form.preco_litro.replace(",", ".")), posto: form.posto, km: Number(form.km), observacoes: form.observacoes, numero_nf: form.numero_nf || null, chave_nfe: form.chave_nfe || null, hora: form.hora || null, cnpj: form.cnpj || null, fornecedor: form.fornecedor || null, origem: form.origem };
       if (editingId) return apiPut<Abastecimento>(`/abastecimentos/${editingId}`, payload);
       return apiPost<Abastecimento>("/abastecimentos", payload);
     },
-    onSuccess: () => {
-      toast.success(editingId ? "Abastecimento atualizado" : "Abastecimento registrado");
-      setOpen(false);
-      setEditingId(null);
-      invalidate();
-    },
+    onSuccess: () => { toast.success(editingId ? "Atualizado" : "Registrado"); setOpen(false); setEditingId(null); invalidate(); },
     onError: (e) => toast.error(errMsg(e)),
   });
 
   const excluir = useMutation({
     mutationFn: (id: string) => apiDelete<void>(`/abastecimentos/${id}`),
-    onSuccess: () => { toast.success("Abastecimento excluído"); setExcluirId(null); invalidate(); },
+    onSuccess: () => { toast.success("ExcluÃ­do"); setExcluirId(null); invalidate(); },
     onError: (e) => toast.error(errMsg(e)),
   });
 
   const total = Number(form.litros.replace(",", ".")) * Number(form.preco_litro.replace(",", "."));
   const set = (k: keyof ReturnType<typeof vazio>) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
-  const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
-
-  const abrirNovo = () => {
-    setEditingId(null);
-    setForm(vazio(hoje));
-    setOpen(true);
-  };
-
-  const abrirEdicao = (r: Abastecimento) => {
-    setEditingId(r.id);
-    setForm({
-      data: r.data,
-      veiculo_id: r.veiculo_id,
-      motorista_id: r.motorista_id || NENHUM,
-      litros: String(r.litros),
-      preco_litro: String(r.preco_litro),
-      posto: r.posto,
-      km: String(r.km),
-      observacoes: r.observacoes || "",
-      numero_nf: r.numero_nf || "",
-      chave_nfe: r.chave_nfe || "",
-      hora: r.hora || "",
-      cnpj: r.cnpj || "",
-      fornecedor: r.fornecedor || "",
-      origem: r.origem || "manual",
-    });
-    setOpen(true);
-  };
+  const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} Â· ${v.modelo}` }));
+  const abrirNovo = () => { setEditingId(null); setForm(vazio(hoje)); setOpen(true); };
+  const abrirEdicao = (r: Abastecimento) => { setEditingId(r.id); setForm({ data: r.data, veiculo_id: r.veiculo_id, motorista_id: r.motorista_id || NENHUM, litros: String(r.litros), preco_litro: String(r.preco_litro), posto: r.posto, km: String(r.km), observacoes: r.observacoes || "", numero_nf: r.numero_nf || "", chave_nfe: r.chave_nfe || "", hora: r.hora || "", cnpj: r.cnpj || "", fornecedor: r.fornecedor || "", origem: r.origem || "manual" }); setOpen(true); };
 
   const handleVeiculoChange = async (veiculoId: string) => {
-    set("veiculo_id")(veiculoId);
-    if (!veiculoId) return;
-
+    set("veiculo_id")(veiculoId); if (!veiculoId) return;
     try {
-      if (!editingId) {
-        const kmData = await apiGet<{ ultimo_km: number }>(`/abastecimentos/ultimo-km/${veiculoId}`);
-        setForm(s => ({ ...s, km: String(kmData.ultimo_km) }));
-      }
-
-      const acoplamentos = await apiGet<any[]>("/acoplamentos");
-      const acoplamentoAtivo = acoplamentos.find(a => a.veiculo_id === veiculoId);
-      
-      if (acoplamentoAtivo && acoplamentoAtivo.motorista_id && !editingId) {
-        setForm(s => ({ ...s, motorista_id: acoplamentoAtivo.motorista_id }));
-      }
-    } catch (error) {
-      console.error("Erro ao buscar dados:", error);
-    }
+      if (!editingId) { const d = await apiGet<{ultimo_km: number}>(`/abastecimentos/ultimo-km/${veiculoId}`); setForm(s => ({ ...s, km: String(d.ultimo_km) })); }
+      const a = await apiGet<any[]>("/acoplamentos"); const ativo = a.find(x => x.veiculo_id === veiculoId);
+      if (ativo && ativo.motorista_id && !editingId) setForm(s => ({ ...s, motorista_id: ativo.motorista_id }));
+    } catch (e) { console.error(e); }
   };
 
   const cards = [
-    { label: "Abastecimentos", valor: resumo.total, icon: List, color: "#38bdf8", sub: "registros no período" },
-    { label: "Total Abastecido", valor: `${num(resumo.litros, 1)} L`, icon: Droplets, color: "#2dd4bf", sub: "volume total" },
-    { label: "Valor Total", valor: brl(resumo.valor), icon: DollarSign, color: "#fbbf24", sub: "custo total" },
-    { label: "Média Geral", valor: `${num(resumo.media, 2)} km/L`, icon: TrendingUp, color: "#a78bfa", sub: "eficiência da frota" },
-    { label: "Preço Médio", valor: `${brl(resumo.preco)}/L`, icon: Target, color: "#f87171", sub: "por litro" },
-    { label: "Maior Abastecimento", valor: resumo.maior ? brl(resumo.maior.valor_total) : "—", icon: ArrowUpRight, color: "#4ade80", sub: resumo.maior?.veiculo_label.split(" · ")[0] },
-    { label: "Menor Abastecimento", valor: resumo.menor ? brl(resumo.menor.valor_total) : "—", icon: ArrowDownRight, color: "#f87171", sub: resumo.menor?.motorista_label || resumo.menor?.veiculo_label.split(" · ")[0] },
-    { label: "Média por Abast.", valor: brl(resumo.mediaValor), icon: DollarSign, color: "#fb923c", sub: "R$ por registro" },
-    { label: "Média de KM", valor: `${num(resumo.mediaKm, 0)} km`, icon: TrendingUp, color: "#60a5fa", sub: "por abastecimento" },
-    { label: "Custo por KM", valor: brl(resumo.custoPorKm), icon: DollarSign, color: "#34d399", sub: "combustível por km" },
+    { label: "Abastecimentos", valor: resumo.total, icon: List, color: "#38bdf8", sub: "registros" },
+    { label: "Total Abastecido", valor: `${num(resumo.litros, 1)} L`, icon: Droplets, color: "#2dd4bf", sub: "volume" },
+    { label: "Valor Total", valor: brl(resumo.valor), icon: DollarSign, color: "#fbbf24", sub: "custo" },
+    { label: "MÃ©dia Geral", valor: `${num(resumo.media, 2)} km/L`, icon: TrendingUp, color: "#a78bfa", sub: "eficiÃªncia" },
+    { label: "PreÃ§o MÃ©dio", valor: `${brl(resumo.preco)}/L`, icon: Target, color: "#f87171", sub: "por litro" },
+    { label: "Maior Abastecimento", valor: resumo.maior ? brl(resumo.maior.valor_total) : "â€”", icon: ArrowUpRight, color: "#4ade80", sub: resumo.maior?.veiculo_label.split(" Â· ")[0] },
+    { label: "Menor Abastecimento", valor: resumo.menor ? brl(resumo.menor.valor_total) : "â€”", icon: ArrowDownRight, color: "#f87171", sub: resumo.menor?.motorista_label || resumo.menor?.veiculo_label.split(" Â· ")[0] },
+    { label: "MÃ©dia por Abast.", valor: brl(resumo.mediaValor), icon: DollarSign, color: "#fb923c", sub: "R$ / registro" },
+    { label: "MÃ©dia de KM", valor: `${num(resumo.mediaKm, 0)} km`, icon: TrendingUp, color: "#60a5fa", sub: "por abastecimento" },
+    { label: "Custo por KM", valor: brl(resumo.custoPorKm), icon: DollarSign, color: "#34d399", sub: "combustÃ­vel" },
   ];
-
-  return (
+    return (
     <div>
-      <PageHeader
-        eyebrow="Operação"
-        title="Abastecimentos"
-        description="Registro detalhado com cálculo automático de KM rodados e média KM/L a partir do hodômetro."
-        actions={
-          <div className="flex gap-2">
-            <input type="file" accept=".xls,.xlsx" ref={xlsInputRef} onChange={handleImportXLS} className="hidden" />
-            <Button variant="outline" onClick={() => xlsInputRef.current?.click()}>
-              <Upload className="size-4 mr-2" /> Importar XLS
-            </Button>
-            <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
-            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-              <FileText className="size-4 mr-2" /> Importar NF
-            </Button>
-            <Button onClick={abrirNovo}>
-              <Plus className="size-4" /> Novo abastecimento
-            </Button>
-          </div>
-        }
-      />
-
+      <PageHeader eyebrow="OperaÃ§Ã£o" title="Abastecimentos" description="Registro detalhado." actions={
+        <div className="flex gap-2">
+          <input type="file" accept=".xls,.xlsx" ref={xlsInputRef} onChange={handleImportXLS} className="hidden" />
+          <Button variant="outline" onClick={() => xlsInputRef.current?.click()}><Upload className="size-4 mr-2" /> Importar XLS</Button>
+          <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()}><FileText className="size-4 mr-2" /> Importar NF</Button>
+          <Button onClick={abrirNovo}><Plus className="size-4" /> Novo</Button>
+        </div>
+      }/>
       <div className="mb-5 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {cards.map((c) => (
-          <div key={c.label} className="glass lift relative overflow-hidden rounded-xl transition-all hover:scale-[1.02]" style={{ padding: '12px 16px', height: '90px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div key={c.label} className="glass lift relative overflow-hidden rounded-xl hover:scale-[1.02]" style={{ padding: '12px 16px', height: '90px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '8px', backgroundColor: `${c.color}20`, color: c.color }}>
-                <c.icon size={16} />
-              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '8px', backgroundColor: `${c.color}20`, color: c.color }}><c.icon size={16} /></div>
               <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, fontWeight: 500 }}>{c.label}</p>
             </div>
             <div>
@@ -445,94 +310,53 @@ export default function Abastecimentos() {
           </div>
         ))}
       </div>
-
       <div className="mb-5 glass rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-          <TrendingUp className="size-4 text-emerald-400" />
-          Termômetro de Eficiência (Top 5 KM/L)
-        </h3>
+        <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2"><TrendingUp className="size-4 text-emerald-400" /> TermÃ´metro (Top 5 KM/L)</h3>
         <div className="space-y-2 w-full">
-          {ranking.length === 0 ? (
-            <p className="text-sm text-slate-500">Sem dados suficientes para calcular o ranking.</p>
-          ) : (
-            ranking.map((r, i) => {
-              const placa = r.label.split(" ")[0];
-              const percent = Math.min((r.media / 5) * 100, 100);
-              const isGood = r.media >= 2.5;
+          {ranking.length === 0 ? <p className="text-sm text-slate-500">Sem dados.</p> : ranking.map((r, i) => {
+              const p = Math.min((r.media / 5) * 100, 100); const good = r.media >= 2.5;
               return (
                 <div key={r.label} className="flex items-center gap-3 w-full">
-                  <span className="w-6 text-xs text-slate-500 font-mono">{i + 1}º</span>
-                  <span className="w-20 text-sm font-medium text-slate-300 font-mono" title={r.label}>{placa}</span>
-                  <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full ${isGood ? 'bg-emerald-500' : 'bg-red-500'}`} 
-                      style={{ width: `${percent}%` }}
-                    />
-                  </div>
+                  <span className="w-6 text-xs text-slate-500 font-mono">{i + 1}Âº</span>
+                  <span className="w-20 text-sm font-medium text-slate-300 font-mono">{r.label.split(" ")[0]}</span>
+                  <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden"><div className={`h-full ${good ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${p}%` }} /></div>
                   <span className="w-12 text-right text-sm font-bold text-slate-200">{num(r.media, 2)}</span>
                 </div>
               );
-            })
-          )}
+          })}
         </div>
       </div>
-
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="grid w-64 gap-1.5">
-          <Label>Veículo</Label>
-          <FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos os veículos" }, ...veicOpts]} testId="abastecimento-filtro-veiculo" />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="filtro-mes">Mês</Label>
-          <Input id="filtro-mes" type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" />
-        </div>
-        {(mes || filtroVeiculo !== TODOS) && (
-          <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); }}>Limpar filtros</Button>
-        )}
+        <div className="grid w-64 gap-1.5"><Label>VeÃ­culo</Label><FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} testId="filtro-veiculo" /></div>
+        <div className="grid gap-1.5"><Label>MÃªs</Label><Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" /></div>
+        {(mes || filtroVeiculo !== TODOS) && <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); }}>Limpar</Button>}
       </div>
-
       <div className="glass overflow-hidden rounded-2xl">
         <Table className="text-xs">
           <TableHeader>
-            <TableRow className="border-slate-800 hover:bg-transparent">
-              {["Data", "Origem", "Veículo", "Motorista", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "Média", "Ações"].map((h) => (
-                <TableHead key={h} className="text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap px-2 text-left">{h}</TableHead>
-              ))}
+            <TableRow className="border-slate-800">
+              {["Data", "Origem", "VeÃ­culo", "Motorista", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "MÃ©dia", "AÃ§Ãµes"].map(h => <TableHead key={h} className="text-[10px] uppercase text-slate-500 px-2">{h}</TableHead>)}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 && (
-              <TableRow><TableCell colSpan={12} className="py-10 text-center text-slate-500">{q.isPending ? "Carregando…" : "Nenhum abastecimento encontrado."}</TableCell></TableRow>
-            )}
-            {rows.map((r) => (
+            {rows.length === 0 && <TableRow><TableCell colSpan={12} className="py-10 text-center text-slate-500">Nenhum abastecimento.</TableCell></TableRow>}
+            {rows.map(r => (
               <TableRow key={r.id} className="border-slate-800/70">
-                <TableCell className="font-mono text-xs whitespace-nowrap px-2 text-left">{dataBR(r.data)}</TableCell>
-                <TableCell className="text-center px-2">
-                  {r.origem === "pdf" ? (
-                    <span className="inline-flex items-center justify-center rounded bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-400" title="Importado via PDF">PDF</span>
-                  ) : (
-                    <span className="inline-flex items-center justify-center rounded bg-slate-500/20 px-2 py-0.5 text-xs font-bold text-slate-400" title="Inserido Manualmente">M</span>
-                  )}
-                </TableCell>
-                <TableCell className="font-mono text-xs whitespace-nowrap px-2 text-left">{r.veiculo_label.split(" · ")[0]}</TableCell>
-                <TableCell className="text-slate-300 text-xs whitespace-nowrap px-2 truncate max-w-[150px] text-left">{r.motorista_label ?? "—"}</TableCell>
-                <TableCell className="tabular-nums text-xs whitespace-nowrap px-2 text-right">{num(r.litros, 1)}</TableCell>
-                <TableCell className="tabular-nums text-xs whitespace-nowrap px-2 text-right">{num(r.preco_litro, 2)}</TableCell>
-                <TableCell className="tabular-nums font-medium text-xs whitespace-nowrap px-2 text-right">{brl(r.valor_total)}</TableCell>
-                <TableCell className="text-xs whitespace-nowrap px-2 truncate max-w-[100px] text-slate-400 text-left">{r.posto}</TableCell>
-                <TableCell className="font-mono tabular-nums text-xs whitespace-nowrap px-2 text-right">{num(r.km)}</TableCell>
-                <TableCell className="tabular-nums text-xs whitespace-nowrap px-2 text-right">{r.km_rodados != null ? num(r.km_rodados) : "—"}</TableCell>
-                <TableCell className="tabular-nums text-xs whitespace-nowrap px-2 text-right text-sky-300">{r.media_km_l != null ? `${num(r.media_km_l, 2)}` : "—"}</TableCell>
+                <TableCell className="font-mono px-2">{dataBR(r.data)}</TableCell>
+                <TableCell className="text-center px-2">{r.origem === "pdf" ? <span className="bg-red-500/20 text-red-400 px-2 py-0.5 font-bold rounded">PDF</span> : <span className="bg-slate-500/20 text-slate-400 px-2 py-0.5 font-bold rounded">M</span>}</TableCell>
+                <TableCell className="font-mono px-2">{r.veiculo_label.split(" Â· ")[0]}</TableCell>
+                <TableCell className="text-slate-300 px-2 truncate max-w-[150px]">{r.motorista_label ?? "â€”"}</TableCell>
+                <TableCell className="tabular-nums px-2 text-right">{num(r.litros, 1)}</TableCell>
+                <TableCell className="tabular-nums px-2 text-right">{num(r.preco_litro, 2)}</TableCell>
+                <TableCell className="tabular-nums font-medium px-2 text-right">{brl(r.valor_total)}</TableCell>
+                <TableCell className="truncate max-w-[100px] text-slate-400 px-2">{r.posto}</TableCell>
+                <TableCell className="font-mono tabular-nums px-2 text-right">{num(r.km)}</TableCell>
+                <TableCell className="tabular-nums px-2 text-right">{r.km_rodados != null ? num(r.km_rodados) : "â€”"}</TableCell>
+                <TableCell className="tabular-nums text-sky-300 px-2 text-right">{r.media_km_l != null ? num(r.media_km_l, 2) : "â€”"}</TableCell>
                 <TableCell className="text-center px-2">
                   <div className="flex gap-1 justify-center">
-                    <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)} aria-label="Editar">
-                      <Pencil className="size-4 text-sky-400" />
-                    </Button>
-                    {me?.perfil === "admin" && (
-                      <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)} aria-label="Excluir">
-                        <Trash2 className="size-4" />
-                      </Button>
-                    )}
+                    <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
+                    {me?.perfil === "admin" && <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4" /></Button>}
                   </div>
                 </TableCell>
               </TableRow>
@@ -543,127 +367,45 @@ export default function Abastecimentos() {
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if(!o) setEditingId(null); }}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Fuel className="size-5 text-sky-400" /> 
-              {editingId ? "Editar abastecimento" : "Novo abastecimento"}
-            </DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{editingId ? "Editar" : "Novo"} Abastecimento</DialogTitle></DialogHeader>
           <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
-            <div className="grid gap-1.5">
-              <Label htmlFor="ab-data">Data *</Label>
-              <Input id="ab-data" type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} required />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="ab-km">Hodômetro (KM) *</Label>
-              <Input id="ab-km" type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} required />
-            </div>
-            <div className="col-span-2 grid gap-1.5">
-              <Label>Veículo *</Label>
-              <FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione o veículo" testId="abastecimento-form-veiculo" />
-            </div>
-            <div className="col-span-2 grid gap-1.5">
-              <Label>Motorista</Label>
-              <FieldSelect
-                value={form.motorista_id}
-                onChange={set("motorista_id")}
-                options={[{ value: NENHUM, label: "— Não informado —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]}
-                testId="abastecimento-form-motorista"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="ab-litros">Litros *</Label>
-              <Input id="ab-litros" inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} required />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="ab-preco">Preço por litro (R$) *</Label>
-              <Input id="ab-preco" inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} required />
-            </div>
-            <div className="col-span-2 grid gap-1.5">
-              <Label htmlFor="ab-posto">Posto *</Label>
-              <Input id="ab-posto" value={form.posto} onChange={(e) => set("posto")(e.target.value)} required />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Nº NF</Label>
-              <Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} placeholder="12550" />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Hora</Label>
-              <Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} />
-            </div>
-            <div className="col-span-2 grid gap-1.5">
-              <Label>Chave NF-e</Label>
-              <Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} placeholder="3126 1020..." />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>CNPJ Emitente</Label>
-              <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: e.target.value }))} placeholder="00.000.000/0000-00" />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Fornecedor</Label>
-              <Input value={form.fornecedor} onChange={(e) => setForm(s => ({ ...s, fornecedor: e.target.value }))} placeholder="Posto..." />
-            </div>
-            <p className="col-span-2 rounded-lg bg-slate-950/60 px-3 py-2 text-sm text-slate-300">
-              Valor total: <span className="font-semibold text-slate-50">{Number.isFinite(total) ? brl(total) : "—"}</span>
-            </p>
-            <DialogFooter className="col-span-2">
-              <Button type="submit" disabled={salvar.isPending || !form.veiculo_id}>{editingId ? "Salvar Alterações" : "Registrar"}</Button>
-            </DialogFooter>
+            <div className="grid gap-1.5"><Label>Data *</Label><Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} required /></div>
+            <div className="grid gap-1.5"><Label>HodÃ´metro *</Label><Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} required /></div>
+            <div className="col-span-2 grid gap-1.5"><Label>VeÃ­culo *</Label><FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione" testId="form-veiculo" /></div>
+            <div className="col-span-2 grid gap-1.5"><Label>Motorista</Label><FieldSelect value={form.motorista_id} onChange={set("motorista_id")} options={[{ value: NENHUM, label: "â€” Nenhum â€”" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="form-motorista" /></div>
+            <div className="grid gap-1.5"><Label>Litros *</Label><Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} required /></div>
+            <div className="grid gap-1.5"><Label>PreÃ§o/L *</Label><Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} required /></div>
+            <div className="col-span-2 grid gap-1.5"><Label>Posto *</Label><Input value={form.posto} onChange={(e) => set("posto")(e.target.value)} required /></div>
+            <div className="grid gap-1.5"><Label>NÂº NF</Label><Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} /></div>
+            <div className="grid gap-1.5"><Label>Hora</Label><Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} /></div>
+            <div className="col-span-2 grid gap-1.5"><Label>Chave NF-e</Label><Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} /></div>
+            <div className="grid gap-1.5"><Label>CNPJ Emitente</Label><Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: e.target.value }))} /></div>
+            <div className="grid gap-1.5"><Label>Fornecedor</Label><Input value={form.fornecedor} onChange={(e) => setForm(s => ({ ...s, fornecedor: e.target.value }))} /></div>
+            <p className="col-span-2 rounded-lg bg-slate-950/60 p-3 text-sm">Valor total: <span className="font-semibold text-slate-50">{Number.isFinite(total) ? brl(total) : "â€”"}</span></p>
+            <DialogFooter className="col-span-2"><Button type="submit" disabled={salvar.isPending || !form.veiculo_id}>{editingId ? "Salvar" : "Registrar"}</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog
-        open={excluirId !== null}
-        onOpenChange={(o) => !o && setExcluirId(null)}
-        title="Excluir abastecimento?"
-        description="Esta ação é registrada na auditoria e não pode ser desfeita."
-        confirmLabel="Excluir"
-        destructive
-        pending={excluir.isPending}
-        onConfirm={() => excluirId && excluir.mutate(excluirId)}
-        testId="abastecimento-excluir"
-      />
+      <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir?" description="AÃ§Ã£o irreversÃ­vel." confirmLabel="Excluir" destructive pending={excluir.isPending} onConfirm={() => excluirId && excluir.mutate(excluirId)} testId="excluir" />
 
-      {/* Modal de Progresso de Importação */}
       <Dialog open={importProgress !== null} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Importando Planilha</DialogTitle>
-            <DialogDescription>
-              {importProgress && importProgress.current < importProgress.total 
-                ? "Por favor, aguarde enquanto processamos os registros..."
-                : "Importação concluída!"}
-            </DialogDescription>
+            <DialogDescription>{importProgress && importProgress.current < importProgress.total ? "Processando..." : "ConcluÃ­do!"}</DialogDescription>
           </DialogHeader>
-          
           {importProgress && (
             <div className="space-y-4 py-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-400">Progresso</span>
-                <span className="font-mono text-slate-200">{importProgress.current} / {importProgress.total}</span>
-              </div>
-              
-              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-sky-500 transition-all duration-300" 
-                  style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                />
-              </div>
-
+              <div className="flex justify-between text-sm"><span className="text-slate-400">Progresso</span><span className="font-mono">{importProgress.current} / {importProgress.total}</span></div>
+              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-sky-500 transition-all" style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }} /></div>
               {importProgress.errors.length > 0 && (
                 <div className="mt-4">
-                  <h4 className="text-sm font-semibold text-red-400 mb-2 flex items-center gap-2">
-                    <AlertTriangle className="size-4" /> Erros encontrados ({importProgress.errors.length})
-                  </h4>
+                  <h4 className="text-sm font-semibold text-red-400 mb-2 flex items-center gap-2"><AlertTriangle className="size-4" /> Erros ({importProgress.errors.length})</h4>
                   <div className="max-h-40 overflow-y-auto rounded-md border border-slate-800 bg-slate-950 p-2">
                     <ul className="space-y-1 text-xs">
                       {importProgress.errors.map((err, idx) => (
-                        <li key={idx} className="text-slate-300">
-                          <span className="font-mono text-slate-500">Linha {err.linha}</span> - 
-                          <span className="text-red-300 font-medium ml-1">{err.placa}</span>:
-                          <span className="ml-1 text-slate-400">{err.erro}</span>
-                        </li>
+                        <li key={idx} className="text-slate-300"><span className="font-mono text-slate-500">Linha {err.linha}</span> - <span className="text-red-300">{err.placa}</span>: {err.erro}</li>
                       ))}
                     </ul>
                   </div>
@@ -671,14 +413,7 @@ export default function Abastecimentos() {
               )}
             </div>
           )}
-
-          <DialogFooter>
-            {importProgress && importProgress.current >= importProgress.total ? (
-              <Button onClick={() => setImportProgress(null)}>Fechar</Button>
-            ) : (
-              <Button disabled variant="outline">Processando...</Button>
-            )}
-          </DialogFooter>
+          <DialogFooter>{importProgress && importProgress.current >= importProgress.total ? <Button onClick={() => setImportProgress(null)}>Fechar</Button> : <Button disabled variant="outline">Processando...</Button>}</DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
