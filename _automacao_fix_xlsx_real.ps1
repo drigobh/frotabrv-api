@@ -1,48 +1,35 @@
-import os
-import re
+$file = "frontend\src\pages\Abastecimentos.tsx"
+$content = Get-Content $file -Raw
 
-def corrigir(raiz):
-    caminho = os.path.join(raiz, "frontend", "src", "pages", "Abastecimentos.tsx")
-    
-    with open(caminho, 'r', encoding='utf-8') as f:
-        conteudo = f.read()
+# Adiciona o import do xlsx se não existir
+if ($content -notmatch 'import \* as XLSX from "xlsx";') {
+    $content = $content -replace 'import \{ toast \} from "sonner";', "import * as XLSX from `"xlsx`";`nimport { toast } from `"sonner`";"
+}
 
-    # Substitui a função handleImportXLS inteira
-    padrao = re.compile(r'const handleImportXLS = async[\s\S]*?\n  \};', re.DOTALL)
-    
-    nova_funcao = '''const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
+$oldFunctionPattern = 'const handleImportXLS = async[\s\S]*?\n  \};'
+
+$newFunction = @'
+  const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
-      const text = await file.text();
-      const rowRegex = /<tr[^>]*>([\\s\\S]*?)<\\/tr>/gi;
-      const rows: string[][] = [];
-      let rowMatch;
-
-      while ((rowMatch = rowRegex.exec(text)) !== null) {
-        const cells: string[] = [];
-        let cellMatch;
-        const cellRegexLocal = /<td[^>]*>([\\s\\S]*?)<\\/td>/gi;
-        while ((cellMatch = cellRegexLocal.exec(rowMatch[1])) !== null) {
-          let cellText = cellMatch[1].replace(/<[^>]+>/g, "").trim();
-          cellText = cellText.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-          cells.push(cellText);
-        }
-        if (cells.length > 0) rows.push(cells);
-      }
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: false });
 
       if (rows.length === 0) { toast.error("Nenhuma linha encontrada."); return; }
 
       let headerRow: string[] = [];
       let startRow = -1;
       
-      // Procura a linha de cabeçalho em qualquer lugar do arquivo
       for (let i = 0; i < rows.length; i++) {
-        const rowStr = rows[i].join(" ").toUpperCase();
-        // Verifica se a linha tem as três palavras-chave (ignorando acentos e maiúsculas)
+        const row = rows[i] || [];
+        const rowStr = row.join(" ").toUpperCase();
         if (rowStr.includes("DATA") && rowStr.includes("PLACA") && rowStr.includes("LITROS")) {
-          headerRow = rows[i].map(c => c.toUpperCase().trim());
+          headerRow = row.map((c: any) => String(c).toUpperCase().trim());
           startRow = i + 1;
           break;
         }
@@ -53,7 +40,6 @@ def corrigir(raiz):
         return; 
       }
 
-      // Mapeia as colunas pelo nome
       const findIdx = (name: string) => headerRow.findIndex(h => h.includes(name.toUpperCase()));
       
       const idxData = findIdx("DATA");
@@ -77,31 +63,36 @@ def corrigir(raiz):
       for (let i = startRow; i < rows.length; i++) {
         const row = rows[i];
         
-        if (!row || !row[idxData] || row[idxData].toUpperCase().includes("TOTAIS") || row[idxData].includes("Bsoft")) {
+        if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAIS") || String(row[idxData]).includes("Bsoft")) {
           setImportProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
           continue;
         }
 
-        let dataStr = row[idxData];
+        let dataStr = String(row[idxData]).trim();
         if (dataStr.includes("/")) {
            const [d, m, y] = dataStr.split("/");
            dataStr = `${y}-${m}-${d}`;
         }
 
-        const placaRaw = row[idxPlaca] || "";
+        const placaRaw = String(row[idxPlaca] || "").trim();
         const placa = placaRaw.split("/")[0].replace("-", "").toUpperCase();
 
-        // FUNÇÃO DE LIMPEZA: Remove tudo que não for número antes de converter
-        const parseNum = (val: string) => Number(String(val).replace(/[^0-9]/g, ""));
+        const parseNum = (val: any) => Number(String(val).replace(/[^0-9]/g, ""));
         
-        const litrosRaw = parseNum(row[idxLitros]) / 1000;
-        const valorLitroRaw = parseNum(row[idxPreco]) / 100;
+        // Se o Excel já retornou como número, usamos direto. Se for string, limpamos.
+        const litrosNum = typeof row[idxLitros] === 'number' ? row[idxLitros] : parseNum(row[idxLitros]);
+        const precoNum = typeof row[idxPreco] === 'number' ? row[idxPreco] : parseNum(row[idxPreco]);
+        
+        const litrosRaw = litrosNum / 1000;
+        const valorLitroRaw = precoNum / 100;
+        
+        const kmStr = String(row[idxKm] || "0");
         
         const payload = {
           data: dataStr,
           placa: placa,
-          km: Number((row[idxKm] || "0").replace(/\\./g, "").replace(",", ".")),
-          fornecedor: row[idxPosto] || "",
+          km: Number(kmStr.replace(/\./g, "").replace(",", ".")),
+          fornecedor: String(row[idxPosto] || "").trim(),
           litros: litrosRaw,
           preco_litro: valorLitroRaw,
           hora: null,
@@ -136,15 +127,11 @@ def corrigir(raiz):
       toast.error("Erro ao ler o arquivo.");
       setImportProgress(null);
     }
-  };'''
+  };
+'@
 
-    if padrao.search(conteudo):
-        conteudo = padrao.sub(nova_funcao, conteudo)
-        with open(caminho, 'w', encoding='utf-8') as f:
-            f.write(conteudo)
-        print("✅ Função handleImportXLS reescrita com busca por nome de coluna e limpeza de números.")
-    else:
-        print("⚠️ Não foi possível encontrar a função handleImportXLS.")
+$newContent = $content -replace $oldFunctionPattern, $newFunction
 
-if __name__ == "__main__":
-    corrigir(os.getcwd())
+Set-Content -Path $file -Value $newContent -Encoding UTF8
+
+Write-Host "✅ Função handleImportXLS substituída para usar XLSX." -ForegroundColor Green
