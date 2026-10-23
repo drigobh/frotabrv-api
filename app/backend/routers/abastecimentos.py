@@ -4,6 +4,7 @@ from lib.db import db
 from lib.security import require
 from models.abastecimentos import Abastecimento, AbastecimentoCreate
 import uuid
+from datetime import datetime
 
 router = APIRouter(prefix="/abastecimentos", tags=["abastecimentos"])
 
@@ -39,10 +40,19 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     litros = body.get("litros") or 0
     preco_litro = body.get("preco_litro") or 0
-    data_abast = body.get("data")
+    data_recebida = body.get("data") # DD/MM/YYYY
     km_atual = body.get("km") or 0
 
-    # Busca o último abastecimento
+    # Converte a data para ISO (YYYY-MM-DD) para o MongoDB ordenar corretamente
+    try:
+        if "/" in data_recebida:
+            data_abast = datetime.strptime(data_recebida, "%d/%m/%Y").strftime("%Y-%m-%d")
+        else:
+            data_abast = data_recebida
+    except:
+        data_abast = data_recebida
+
+    # Busca o último abastecimento com data ANTERIOR
     ultimo = await db.abastecimentos.find_one(
         {"veiculo_id": veiculo["id"], "data": {"$lt": data_abast}},
         {"_id": 0},
@@ -54,26 +64,26 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     if ultimo and ultimo.get("km"):
         km_rodados = km_atual - ultimo["km"]
-        # Ignora valores absurdos (como o hodômetro inicial zerado)
+        # Validação: não permite valores absurdos ou negativos
         if km_rodados < 0 or km_rodados > 5000:
             km_rodados = None
-    elif km_atual > 0 and veiculo.get("hodometro_km"):
-        km_rodados = km_atual - veiculo["hodometro_km"]
-        if km_rodados < 0 or km_rodados > 5000:
-            km_rodados = None
-
+    
     if km_rodados and km_rodados > 0 and litros > 0:
         media_km_l = km_rodados / litros
 
-    # Arredonda o valor total para 2 casas decimais para evitar erro de float
-    valor_total = round(litros * preco_litro, 2)
+    # Usa o valor total EXATO enviado pelo frontend (da coluna J do Excel)
+    valor_total = body.get("valor_total")
+    if not valor_total:
+        valor_total = litros * preco_litro
+    valor_total = round(valor_total, 2)
 
-    # Busca o motorista no acoplamento ativo (ou no último acoplamento válido)
+    # Busca o motorista no acoplamento ativo
     acoplamento = await db.acoplamentos.find_one(
         {"veiculo_id": veiculo["id"], "ativo": True},
         {"_id": 0}
     )
     if not acoplamento:
+        # Se não achar ativo, pega o último criado
         acoplamento = await db.acoplamentos.find_one({"veiculo_id": veiculo["id"]}, {"_id": 0}, sort=[("created_at", -1)])
         
     motorista_id = acoplamento.get("motorista_id") if acoplamento else None
@@ -84,7 +94,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     doc = {
         "id": str(uuid.uuid4()),
-        "data": data_abast,
+        "data": data_abast, # Salva como YYYY-MM-DD
         "veiculo_id": veiculo["id"],
         "veiculo_label": f"{veiculo['placa']} · {veiculo['modelo']}",
         "motorista_id": motorista_id,
@@ -96,7 +106,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         "km": km_atual,
         "km_rodados": km_rodados,
         "media_km_l": media_km_l,
-        "origem": "excel",
+        "origem": body.get("origem", "excel"),
         "numero_nf": body.get("numero_nf"),
         "chave_nfe": body.get("chave_nfe"),
         "hora": body.get("hora"),
