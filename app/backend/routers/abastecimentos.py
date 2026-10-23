@@ -36,55 +36,60 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     veiculo = await db.veiculos.find_one({"placa": placa_limpa})
     
     if not veiculo:
-        raise HTTPException(404, f"Veículo com placa '{placa_limpa}' não encontrado.")
+        raise HTTPException(status_code=404, detail=f"Veículo com placa {placa_limpa} não encontrado.")
 
-    acoplamento = await db.acoplamentos.find_one({"veiculo_id": veiculo["id"], "status": "ativo"})
-    motorista_label = None
-    if acoplamento and acoplamento.get("motorista_id"):
-        motorista = await db.motoristas.find_one({"id": acoplamento["motorista_id"]})
-        if motorista:
-            motorista_label = motorista["nome"]
-
-    km = body.get("km", 0)
-    anterior = await db.abastecimentos.find_one(
-        {"veiculo_id": veiculo["id"], "km": {"$lt": km}},
-        sort=[("km", -1)]
-    )
-    km_anterior = anterior["km"] if anterior else veiculo.get("hodometro_km", 0)
-    km_rodados = km - km_anterior if km_anterior > 0 else None
+    # CORREÇÃO MATEMÁTICA: Litros em milésimos (805000 -> 805.0), Preço em centavos (669 -> 6.69)
+    litros_corrigidos = (body.get("litros") or 0) / 1000
+    preco_corrigido = (body.get("preco_litro") or 0) / 100
     
-    litros = body.get("litros", 0)
-    preco_litro = body.get("preco_litro", 0)
-    media_km_l = km_rodados / litros if km_rodados and litros > 0 else None
-    valor_total = litros * preco_litro
+    # Fallback para PDF (que pode vir em reais)
+    if litros_corrigidos == 0 and body.get("litros", 0) > 0:
+        litros_corrigidos = body.get("litros")
+    if preco_corrigido == 0 and body.get("preco_litro", 0) > 0:
+        preco_corrigido = body.get("preco_litro")
+
+    # Busca último abastecimento para calcular KM Rodados
+    ultimo = await db.abastecimentos.find_one(
+        {"veiculo_id": veiculo["id"], "data": {"$lt": body.get("data")}},
+        sort=[("data", -1)]
+    )
+
+    km_rodados = None
+    media_km_l = None
+
+    if ultimo and ultimo.get("km") and body.get("km"):
+        km_rodados = body.get("km") - ultimo["km"]
+        if km_rodados > 0 and litros_corrigidos > 0:
+            media_km_l = km_rodados / litros_corrigidos
+        else:
+            km_rodados = None
+
+    valor_total = litros_corrigidos * preco_corrigido
 
     doc = {
         "id": str(uuid.uuid4()),
-        "data": body.get("data", now_iso()),
-        "hora": body.get("hora"),
+        "data": body.get("data"),
         "veiculo_id": veiculo["id"],
-        "motorista_id": acoplamento.get("motorista_id") if acoplamento else None,
-        "motorista_label": motorista_label,
-        "litros": litros,
-        "preco_litro": preco_litro,
-        "posto": body.get("fornecedor", "Importado via PDF"),
-        "km": km,
-        "observacoes": "",
+        "veiculo_label": f"{veiculo['placa']} · {veiculo['modelo']}",
+        "motorista_id": None,
+        "motorista_label": None,
+        "litros": litros_corrigidos,
+        "preco_litro": preco_corrigido,
+        "valor_total": valor_total,
+        "posto": body.get("fornecedor") or "Importado",
+        "km": body.get("km"),
+        "km_rodados": km_rodados,
+        "media_km_l": media_km_l,
+        "origem": "pdf",
         "numero_nf": body.get("numero_nf"),
         "chave_nfe": body.get("chave_nfe"),
+        "hora": body.get("hora"),
         "cnpj": body.get("cnpj"),
         "fornecedor": body.get("fornecedor"),
-        "origem": "pdf",
-        "valor_total": round(valor_total, 2),
-        "km_rodados": km_rodados,
-        "media_km_l": round(media_km_l, 2) if media_km_l else None,
-        "veiculo_label": f"{veiculo['placa']} - {veiculo.get('modelo', '')}",
-        "created_by": user["nome"],
         "created_at": now_iso()
     }
-    
-    await db.abastecimentos.insert_one(dict(doc))
-    await audit(user, "importar", "abastecimentos", doc["id"], f"NF: {doc['numero_nf']}", request)
+
+    await db.abastecimentos.insert_one(doc)
     return doc
 
 @router.post("", response_model=Abastecimento, status_code=201)
