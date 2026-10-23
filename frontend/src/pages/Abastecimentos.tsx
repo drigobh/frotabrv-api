@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
@@ -65,12 +65,16 @@ export default function Abastecimentos() {
   const resumo = useMemo(() => {
     const litros = rowsOrdenadas.reduce((s, r) => s + r.litros, 0);
     const valor = rowsOrdenadas.reduce((s, r) => s + r.valor_total, 0);
-    const comKm = rowsOrdenadas.filter((r) => r.km_rodados != null);
+    
+    // Filtra km_rodados válidos (ignorando os absurdos > 5000)
+    const comKm = rowsOrdenadas.filter((r) => r.km_rodados != null && r.km_rodados > 0 && r.km_rodados < 5000);
+    
     const km = comKm.reduce((s, r) => s + (r.km_rodados ?? 0), 0);
     const litrosKm = comKm.reduce((s, r) => s + r.litros, 0);
     
     const maior = rowsOrdenadas.reduce((max, r) => r.valor_total > (max?.valor_total || 0) ? r : max, null as Abastecimento | null);
     const menor = rowsOrdenadas.reduce((min, r) => r.valor_total < (min?.valor_total || Infinity) ? r : min, null as Abastecimento | null);
+    
     const mediaValor = rowsOrdenadas.length ? valor / rowsOrdenadas.length : 0;
     const mediaKm = comKm.length ? km / comKm.length : 0;
     const custoPorKm = km > 0 ? valor / km : 0;
@@ -79,8 +83,8 @@ export default function Abastecimentos() {
       litros, 
       valor, 
       km, 
-      media: litrosKm > 0 ? km / litrosKm : 0, // MÃ©dia Geral (KM/L) 
-      preco: litros > 0 ? valor / litros : 0, // PreÃ§o MÃ©dio (R$/L)
+      media: litrosKm > 0 ? km / litrosKm : 0, // Média Geral (KM/L) 
+      preco: litros > 0 ? valor / litros : 0, // Preço Médio (R$/L)
       total: rowsOrdenadas.length, 
       maior, 
       menor, 
@@ -93,8 +97,8 @@ export default function Abastecimentos() {
   const ranking = useMemo(() => {
     const porVeiculo: Record<string, { label: string, litros: number, km: number }> = {};
     rowsOrdenadas.forEach(r => {
-      if (r.km_rodados != null) {
-        if (!porVeiculo[r.veiculo_id]) porVeiculo[r.veiculo_id] = { label: r.veiculo_label.split(" Â· ")[0], litros: 0, km: 0 };
+      if (r.km_rodados != null && r.km_rodados > 0 && r.km_rodados < 5000) {
+        if (!porVeiculo[r.veiculo_id]) porVeiculo[r.veiculo_id] = { label: r.veiculo_label.split(" · ")[0], litros: 0, km: 0 };
         porVeiculo[r.veiculo_id].litros += r.litros;
         porVeiculo[r.veiculo_id].km += r.km_rodados;
       }
@@ -162,7 +166,7 @@ export default function Abastecimentos() {
         }
       }
 
-      if (startRow === -1) { toast.error("CabeÃ§alho nÃ£o encontrado."); return; }
+      if (startRow === -1) { toast.error("Cabeçalho não encontrado."); return; }
 
       const findIdx = (name: string) => headerRow.findIndex(h => h.includes(name.toUpperCase()));
       
@@ -174,7 +178,7 @@ export default function Abastecimentos() {
       const idxPreco = findIdx("V. LITRO");
 
       if (idxData === -1 || idxPlaca === -1 || idxLitros === -1 || idxPreco === -1) {
-        toast.error("Colunas essenciais nÃ£o encontradas no cabeÃ§alho."); return;
+        toast.error("Colunas essenciais não encontradas no cabeçalho."); return;
       }
 
       const totalLinhas = rows.length - startRow;
@@ -198,11 +202,8 @@ export default function Abastecimentos() {
         const placaRaw = String(row[idxPlaca] || "").trim();
         const placa = placaRaw.split("/")[0].replace("-", "").toUpperCase();
 
-        const parseNum = (val: any) => Number(String(val).replace(/[^0-9]/g, ""));
-        
         const litrosNum = typeof row[idxLitros] === "number" ? row[idxLitros] : Number(String(row[idxLitros]).replace(",", "."));
         const precoNum = typeof row[idxPreco] === "number" ? row[idxPreco] : Number(String(row[idxPreco]).replace(",", "."));
-        
         const kmStr = String(row[idxKm] || "0");
         
         const payload = {
@@ -248,13 +249,13 @@ export default function Abastecimentos() {
 
   const excluir = useMutation({
     mutationFn: (id: string) => apiDelete<void>(`/abastecimentos/${id}`),
-    onSuccess: () => { toast.success("ExcluÃ­do"); setExcluirId(null); invalidate(); },
+    onSuccess: () => { toast.success("Excluído"); setExcluirId(null); invalidate(); },
     onError: (e) => toast.error(errMsg(e)),
   });
 
   const total = Number(form.litros.replace(",", ".")) * Number(form.preco_litro.replace(",", "."));
   const set = (k: keyof ReturnType<typeof vazio>) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
-  const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} Â· ${v.modelo}` }));
+  const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
   const abrirNovo = () => { setEditingId(null); setForm(vazio(hoje)); setOpen(true); };
   const abrirEdicao = (r: Abastecimento) => { setEditingId(r.id); setForm({ data: r.data, veiculo_id: r.veiculo_id, motorista_id: r.motorista_id || NENHUM, litros: String(r.litros), preco_litro: String(r.preco_litro), posto: r.posto, km: String(r.km), observacoes: r.observacoes || "", numero_nf: r.numero_nf || "", chave_nfe: r.chave_nfe || "", hora: r.hora || "", cnpj: r.cnpj || "", fornecedor: r.fornecedor || "", origem: r.origem || "excel" }); setOpen(true); };
 
@@ -268,22 +269,22 @@ export default function Abastecimentos() {
   };
 
   const cards = [
-    { label: "Abastecimentos", valor: resumo.total, icon: List, color: "#38bdf8", sub: "registros", tip: "Total de abastecimentos no perÃ­odo." },
+    { label: "Abastecimentos", valor: resumo.total, icon: List, color: "#38bdf8", sub: "registros", tip: "Total de abastecimentos no período." },
     { label: "Total Abastecido", valor: `${num(resumo.litros, 2)} L`, icon: Droplets, color: "#2dd4bf", sub: "volume", tip: "Soma de todos os litros." },
     { label: "Valor Total", valor: brl(resumo.valor), icon: DollarSign, color: "#fbbf24", sub: "custo", tip: "Soma de todo o valor pago." },
-    { label: "MÃ©dia Geral", valor: `${num(resumo.media, 2)} km/L`, icon: TrendingUp, color: "#a78bfa", sub: "eficiÃªncia", tip: "CÃ¡lculo: (Soma KM Rodados) / (Soma Litros)." },
-    { label: "PreÃ§o MÃ©dio", valor: `${brl(resumo.preco)}/L`, icon: Target, color: "#f87171", sub: "por litro", tip: "CÃ¡lculo: (Valor Total) / (Total Litros)." },
-    { label: "Maior Abastecimento", valor: resumo.maior ? brl(resumo.maior.valor_total) : "â€”", icon: ArrowUpRight, color: "#4ade80", sub: resumo.maior?.veiculo_label.split(" Â· ")[0], tip: "O abastecimento de maior valor." },
-    { label: "Menor Abastecimento", valor: resumo.menor ? brl(resumo.menor.valor_total) : "â€”", icon: ArrowDownRight, color: "#f87171", sub: resumo.menor?.motorista_label || resumo.menor?.veiculo_label.split(" Â· ")[0], tip: "O abastecimento de menor valor." },
-    { label: "MÃ©dia por Abast.", valor: brl(resumo.mediaValor), icon: DollarSign, color: "#fb923c", sub: "R$ / registro", tip: "CÃ¡lculo: (Valor Total) / (Qtd Abastecimentos)." },
-    { label: "MÃ©dia de KM", valor: `${num(resumo.mediaKm, 0)} km`, icon: TrendingUp, color: "#60a5fa", sub: "por abastecimento", tip: "CÃ¡lculo: (Soma KM Rodados) / (Qtd Abastecimentos)." },
-    { label: "Custo por KM", valor: brl(resumo.custoPorKm), icon: DollarSign, color: "#34d399", sub: "combustÃ­vel", tip: "CÃ¡lculo: (Valor Total) / (Soma KM Rodados)." },
+    { label: "Média Geral", valor: `${num(resumo.media, 2)} km/L`, icon: TrendingUp, color: "#a78bfa", sub: "eficiência", tip: "Cálculo: (Soma KM Rodados) / (Soma Litros)." },
+    { label: "Preço Médio", valor: `${brl(resumo.preco)}/L`, icon: Target, color: "#f87171", sub: "por litro", tip: "Cálculo: (Valor Total) / (Total Litros)." },
+    { label: "Maior Abastecimento", valor: resumo.maior ? brl(resumo.maior.valor_total) : "—", icon: ArrowUpRight, color: "#4ade80", sub: resumo.maior?.veiculo_label.split(" · ")[0], tip: "O abastecimento de maior valor." },
+    { label: "Menor Abastecimento", valor: resumo.menor ? brl(resumo.menor.valor_total) : "—", icon: ArrowDownRight, color: "#f87171", sub: resumo.menor?.motorista_label || resumo.menor?.veiculo_label.split(" · ")[0], tip: "O abastecimento de menor valor." },
+    { label: "Média por Abast.", valor: brl(resumo.mediaValor), icon: DollarSign, color: "#fb923c", sub: "R$ / registro", tip: "Cálculo: (Valor Total) / (Qtd Abastecimentos)." },
+    { label: "Média de KM", valor: `${num(resumo.mediaKm, 0)} km`, icon: TrendingUp, color: "#60a5fa", sub: "por abastecimento", tip: "Cálculo: (Soma KM Rodados) / (Qtd Abastecimentos)." },
+    { label: "Custo por KM", valor: brl(resumo.custoPorKm), icon: DollarSign, color: "#34d399", sub: "combustível", tip: "Cálculo: (Valor Total) / (Soma KM Rodados)." },
   ];
 
   return (
     <TooltipProvider>
       <div>
-        <PageHeader eyebrow="OperaÃ§Ã£o" title="Abastecimentos" description="Registro detalhado." actions={
+        <PageHeader eyebrow="Operação" title="Abastecimentos" description="Registro detalhado." actions={
           <div className="flex gap-2">
             <input type="file" accept=".xls,.xlsx" ref={xlsInputRef} onChange={handleImportXLS} className="hidden" />
             <Button variant="outline" onClick={() => xlsInputRef.current?.click()}><Upload className="size-4 mr-2" /> Importar XLS</Button>
@@ -299,7 +300,9 @@ export default function Abastecimentos() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '8px', backgroundColor: `${c.color}20`, color: c.color }}><c.icon size={16} /></div>
                 <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, fontWeight: 500 }}>{c.label}</p>
                 <Tooltip>
-                  <TooltipTrigger render={<Info className="size-3 text-slate-500 cursor-help ml-auto" />} />
+                  <TooltipTrigger asChild>
+                    <button className="cursor-help ml-auto text-slate-500 hover:text-slate-300"><Info className="size-3" /></button>
+                  </TooltipTrigger>
                   <TooltipContent><p>{c.tip}</p></TooltipContent>
                 </Tooltip>
               </div>
@@ -310,14 +313,21 @@ export default function Abastecimentos() {
             </div>
           ))}
         </div>
+        
         <div className="mb-5 glass rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2"><TrendingUp className="size-4 text-emerald-400" /> TermÃ´metro (Top 5 KM/L)</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2"><TrendingUp className="size-4 text-emerald-400" /> Termômetro (Top 5 KM/L)</h3>
+            <div className="flex gap-3 text-xs">
+              <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Bom (≥ 2.5)</span>
+              <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div> Ruim (&lt; 2.5)</span>
+            </div>
+          </div>
           <div className="space-y-2 w-full">
             {ranking.length === 0 ? <p className="text-sm text-slate-500">Sem dados.</p> : ranking.map((r, i) => {
                 const p = Math.min((r.media / 5) * 100, 100); const good = r.media >= 2.5;
                 return (
                   <div key={r.label} className="flex items-center gap-3 w-full">
-                    <span className="w-6 text-xs text-slate-500 font-mono">{i + 1}Âº</span>
+                    <span className="w-6 text-xs text-slate-500 font-mono">{i + 1}º</span>
                     <span className="w-20 text-sm font-medium text-slate-300 font-mono">{r.label.split(" ")[0]}</span>
                     <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden"><div className={`h-full ${good ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${p}%` }} /></div>
                     <span className="w-12 text-right text-sm font-bold text-slate-200">{num(r.media, 2)}</span>
@@ -326,33 +336,35 @@ export default function Abastecimentos() {
             })}
           </div>
         </div>
+        
         <div className="mb-4 flex flex-wrap items-end gap-3">
-          <div className="grid w-64 gap-1.5"><Label>VeÃ­culo</Label><FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} testId="filtro-veiculo" /></div>
-          <div className="grid gap-1.5"><Label>MÃªs</Label><Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" /></div>
+          <div className="grid w-64 gap-1.5"><Label>Veículo</Label><FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} testId="filtro-veiculo" /></div>
+          <div className="grid gap-1.5"><Label>Mês</Label><Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" /></div>
           {(mes || filtroVeiculo !== TODOS) && <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); }}>Limpar</Button>}
         </div>
+        
         <div className="glass overflow-hidden rounded-2xl">
           <Table className="text-xs">
             <TableHeader>
               <TableRow className="border-slate-800">
-                {["Data", "Origem", "VeÃ­culo", "Motorista", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "MÃ©dia", "AÃ§Ãµes"].map(h => <TableHead key={h} className="text-[10px] uppercase text-slate-500 px-2">{h}</TableHead>)}
+                {["Data", "Origem", "Veículo", "Motorista", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "Média", "Ações"].map(h => <TableHead key={h} className="text-[10px] uppercase text-slate-500 px-2 text-center">{h}</TableHead>)}
               </TableRow>
             </TableHeader>
             <TableBody>
               {rowsOrdenadas.length === 0 && <TableRow><TableCell colSpan={12} className="py-10 text-center text-slate-500">Nenhum abastecimento.</TableCell></TableRow>}
               {rowsOrdenadas.map(r => (
                 <TableRow key={r.id} className="border-slate-800/70">
-                  <TableCell className="font-mono px-2">{dataBR(r.data)}</TableCell>
+                  <TableCell className="font-mono px-2 text-center">{dataBR(r.data)}</TableCell>
                   <TableCell className="text-center px-2">{r.origem === "pdf" ? <span className="bg-red-500/20 text-red-400 px-2 py-0.5 font-bold rounded">PDF</span> : r.origem === "excel" ? <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 font-bold rounded">XLS</span> : <span className="bg-slate-500/20 text-slate-400 px-2 py-0.5 font-bold rounded">M</span>}</TableCell>
-                  <TableCell className="font-mono px-2">{r.veiculo_label.split(" Â· ")[0]}</TableCell>
-                  <TableCell className="text-slate-300 px-2 truncate max-w-[150px]">{r.motorista_label ?? "â€”"}</TableCell>
-                  <TableCell className="tabular-nums px-2 text-right">{num(r.litros, 2)}</TableCell>
-                  <TableCell className="tabular-nums px-2 text-right">{brl(r.preco_litro)}</TableCell>
-                  <TableCell className="tabular-nums font-medium px-2 text-right">{brl(r.valor_total)}</TableCell>
-                  <TableCell className="truncate max-w-[100px] text-slate-400 px-2">{r.posto}</TableCell>
-                  <TableCell className="font-mono tabular-nums px-2 text-right">{num(r.km)}</TableCell>
-                  <TableCell className="tabular-nums px-2 text-right">{r.km_rodados != null ? num(r.km_rodados) : "â€”"}</TableCell>
-                  <TableCell className="tabular-nums text-sky-300 px-2 text-right">{r.media_km_l != null ? num(r.media_km_l, 2) : "â€”"}</TableCell>
+                  <TableCell className="font-mono px-2 text-center">{r.veiculo_label.split(" · ")[0]}</TableCell>
+                  <TableCell className="text-slate-300 px-2 truncate max-w-[150px] text-center">{r.motorista_label ?? "—"}</TableCell>
+                  <TableCell className="tabular-nums px-2 text-center">{num(r.litros, 3)}</TableCell>
+                  <TableCell className="tabular-nums px-2 text-center">{brl(r.preco_litro)}</TableCell>
+                  <TableCell className="tabular-nums font-medium px-2 text-center">{brl(r.valor_total)}</TableCell>
+                  <TableCell className="truncate max-w-[100px] text-slate-400 px-2 text-center">{r.posto}</TableCell>
+                  <TableCell className="font-mono tabular-nums px-2 text-center">{num(r.km)}</TableCell>
+                  <TableCell className="tabular-nums px-2 text-center">{r.km_rodados != null ? num(r.km_rodados) : "—"}</TableCell>
+                  <TableCell className="tabular-nums text-sky-300 px-2 text-center">{r.media_km_l != null ? num(r.media_km_l, 2) : "—"}</TableCell>
                   <TableCell className="text-center px-2">
                     <div className="flex gap-1 justify-center">
                       <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
@@ -370,30 +382,30 @@ export default function Abastecimentos() {
             <DialogHeader><DialogTitle>{editingId ? "Editar" : "Novo"} Abastecimento</DialogTitle></DialogHeader>
             <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
               <div className="grid gap-1.5"><Label>Data *</Label><Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} required /></div>
-              <div className="grid gap-1.5"><Label>HodÃ´metro *</Label><Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} required /></div>
-              <div className="col-span-2 grid gap-1.5"><Label>VeÃ­culo *</Label><FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione" testId="form-veiculo" /></div>
-              <div className="col-span-2 grid gap-1.5"><Label>Motorista</Label><FieldSelect value={form.motorista_id} onChange={set("motorista_id")} options={[{ value: NENHUM, label: "â€” Nenhum â€”" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="form-motorista" /></div>
+              <div className="grid gap-1.5"><Label>Hodômetro *</Label><Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} required /></div>
+              <div className="col-span-2 grid gap-1.5"><Label>Veículo *</Label><FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione" testId="form-veiculo" /></div>
+              <div className="col-span-2 grid gap-1.5"><Label>Motorista</Label><FieldSelect value={form.motorista_id} onChange={set("motorista_id")} options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="form-motorista" /></div>
               <div className="grid gap-1.5"><Label>Litros *</Label><Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} required /></div>
-              <div className="grid gap-1.5"><Label>PreÃ§o/L *</Label><Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} required /></div>
+              <div className="grid gap-1.5"><Label>Preço/L *</Label><Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} required /></div>
               <div className="col-span-2 grid gap-1.5"><Label>Posto *</Label><Input value={form.posto} onChange={(e) => set("posto")(e.target.value)} required /></div>
-              <div className="grid gap-1.5"><Label>NÂº NF</Label><Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} /></div>
+              <div className="grid gap-1.5"><Label>Nº NF</Label><Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} /></div>
               <div className="grid gap-1.5"><Label>Hora</Label><Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} /></div>
               <div className="col-span-2 grid gap-1.5"><Label>Chave NF-e</Label><Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} /></div>
               <div className="grid gap-1.5"><Label>CNPJ Emitente</Label><Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: e.target.value }))} /></div>
               <div className="grid gap-1.5"><Label>Fornecedor</Label><Input value={form.fornecedor} onChange={(e) => setForm(s => ({ ...s, fornecedor: e.target.value }))} /></div>
-              <p className="col-span-2 rounded-lg bg-slate-950/60 p-3 text-sm">Valor total: <span className="font-semibold text-slate-50">{Number.isFinite(total) ? brl(total) : "â€”"}</span></p>
+              <p className="col-span-2 rounded-lg bg-slate-950/60 p-3 text-sm">Valor total: <span className="font-semibold text-slate-50">{Number.isFinite(total) ? brl(total) : "—"}</span></p>
               <DialogFooter className="col-span-2"><Button type="submit" disabled={salvar.isPending || !form.veiculo_id}>{editingId ? "Salvar" : "Registrar"}</Button></DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
 
-        <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir?" description="AÃ§Ã£o irreversÃ­vel." confirmLabel="Excluir" destructive pending={excluir.isPending} onConfirm={() => excluirId && excluir.mutate(excluirId)} testId="excluir" />
+        <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir?" description="Ação irreversível." confirmLabel="Excluir" destructive pending={excluir.isPending} onConfirm={() => excluirId && excluir.mutate(excluirId)} testId="excluir" />
 
         <Dialog open={importProgress !== null} onOpenChange={() => {}}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Importando Planilha</DialogTitle>
-              <DialogDescription>{importProgress && importProgress.current < importProgress.total ? "Processando..." : "ConcluÃ­do!"}</DialogDescription>
+              <DialogDescription>{importProgress && importProgress.current < importProgress.total ? "Processando..." : "Concluído!"}</DialogDescription>
             </DialogHeader>
             {importProgress && (
               <div className="space-y-4 py-4">
