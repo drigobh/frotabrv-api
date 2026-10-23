@@ -93,6 +93,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     }
 
     await db.abastecimentos.insert_one(doc)
+    doc.pop("_id", None)
     return doc
 
 @router.post("", response_model=Abastecimento, status_code=201)
