@@ -38,12 +38,13 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         raise HTTPException(status_code=404, detail=f"Veículo com placa {placa_limpa} não encontrado.")
 
     # O Frontend já envia litros e preco_litro divididos corretamente.
-    # NÃO dividir novamente aqui!
     litros = body.get("litros") or 0
     preco_litro = body.get("preco_litro") or 0
+    data_abast = body.get("data")
 
+    # Busca o último abastecimento ANTES da data atual para calcular os KM rodados
     ultimo = await db.abastecimentos.find_one(
-        {"veiculo_id": veiculo["id"], "data": {"$lt": body.get("data")}},
+        {"veiculo_id": veiculo["id"], "data": {"$lt": data_abast}},
         {"_id": 0},
         sort=[("data", -1)]
     )
@@ -62,7 +63,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     doc = {
         "id": str(uuid.uuid4()),
-        "data": body.get("data"),
+        "data": data_abast,
         "veiculo_id": veiculo["id"],
         "veiculo_label": f"{veiculo['placa']} · {veiculo['modelo']}",
         "motorista_id": None,
