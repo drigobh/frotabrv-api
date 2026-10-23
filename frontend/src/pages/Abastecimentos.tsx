@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload } from "lucide-react";
+import * as XLSX from "xlsx";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { toast } from "sonner";
@@ -400,7 +401,7 @@ export default function Abastecimentos() {
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="grid w-64 gap-1.5">
           <Label>Veículo</Label>
-          <FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos os veículos" }, ...veicOpts]} />
+          <FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos os veículos" }, ...veicOpts]} testId="abastecimento-filtro-veiculo" />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="filtro-mes">Mês</Label>
@@ -489,7 +490,7 @@ export default function Abastecimentos() {
             </div>
             <div className="col-span-2 grid gap-1.5">
               <Label>Veículo *</Label>
-              <FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione o veículo" />
+              <FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione o veículo" testId="abastecimento-form-veiculo" />
             </div>
             <div className="col-span-2 grid gap-1.5">
               <Label>Motorista</Label>
@@ -550,6 +551,7 @@ export default function Abastecimentos() {
         destructive
         pending={excluir.isPending}
         onConfirm={() => excluirId && excluir.mutate(excluirId)}
+        testId="abastecimento-excluir"
       />
     </div>
   );

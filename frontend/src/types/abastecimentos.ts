@@ -19,4 +19,10 @@ export interface Abastecimento extends AbastecimentoCreate {
   motorista_label: string | null;
   created_by: string;
   created_at: string;
+  numero_nf?: string | null;
+  chave_nfe?: string | null;
+  hora?: string | null;
+  cnpj?: string | null;
+  fornecedor?: string | null;
+  origem?: "manual" | "pdf";
 }
