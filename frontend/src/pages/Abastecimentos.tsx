@@ -18,7 +18,6 @@ import { useMotoristas, useVeiculos } from "@/hooks/useCadastros";
 import { useHoje, useMe } from "@/hooks/useSession";
 import type { Abastecimento } from "@/types/abastecimentos";
 
-// Configura o worker do PDF
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 const TODOS = "__all__";
@@ -110,33 +109,15 @@ export default function Abastecimentos() {
         text += content.items.map((item: any) => item.str).join(" ") + "\n";
       }
 
-      // --- REGEX INTELIGENTE ---
-
-      // 1. Placa (Procura "PLACA:" e pega 7 caracteres alfanuméricos)
+      // Regex Posicional (mais tolerante a variações de texto)
       const placaMatch = text.match(/PLACA[:\s]*([A-Z]{3}[0-9][A-Z0-9][0-9]{2})/i) || text.match(/PLACA[:\s]*([A-Z0-9]{7})/i);
-      
-      // 2. KM (Procura "KM:" seguido de números)
       const kmMatch = text.match(/KM[:\s]*(\d+)/i);
-      
-      // 3. Litros e Preço (Busca os números pela posição na tabela de produtos)
-      // O padrão é: ... L   QUANTIDADE   VALOR_UNITARIO   VALOR_TOTAL ...
-      // Ex: L 264,5700 6,990000 1.849,34  ou  L 297,350 6,840 2.033,87
-      const litrosMatch = text.match(/L\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i) 
-                       || text.match(/L\s+([\d.,]+)\s+([\d.,]+)/i); // Fallback
-
-      // 4. Nº NF
+      const litrosMatch = text.match(/L\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i) || text.match(/L\s+([\d.,]+)\s+([\d.,]+)/i);
       const nfMatch = text.match(/Nº\s*(\d+)/);
-      
-      // 5. Chave NF-e
       const chaveMatch = text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/i);
-      
-      // 6. CNPJ (Procura o CNPJ do emitente, que fica antes do destinatário)
       const cnpjMatch = text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/i);
-      
-      // 7. Fornecedor
       const fornecedorMatch = text.match(/RECEBEMOS DE\s*(.*?)\s*OS PRODUTOS/i);
 
-      // Limpeza dos números (remove pontos de milhar e troca vírgula por ponto)
       const parseNum = (val: string) => Number(val.replace(/\./g, "").replace(",", "."));
 
       const payload = {
@@ -151,18 +132,6 @@ export default function Abastecimentos() {
         preco_litro: litrosMatch ? parseNum(litrosMatch[2]) : 0,
         km: kmMatch ? Number(kmMatch[1]) : 0,
       };
-
-      console.log("Dados extraídos:", payload);
-
-      await apiPost("/abastecimentos/importar", payload);
-      
-      toast.success("Nota Fiscal importada e registrada com sucesso!");
-      invalidate();
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao importar o PDF. Verifique se o veículo está cadastrado.");
-    }
-  }
 
       await apiPost("/abastecimentos/importar", payload);
       
