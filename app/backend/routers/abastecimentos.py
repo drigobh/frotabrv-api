@@ -88,6 +88,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         "hora": body.get("hora"),
         "cnpj": body.get("cnpj"),
         "fornecedor": body.get("fornecedor"),
+        "created_by": user.get("id", "sistema"),
         "created_at": now_iso()
     }
 
@@ -124,6 +125,7 @@ async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depend
         "veiculo_label": f"{veiculo['placa']} - {veiculo.get('modelo', '')}",
         "motorista_label": motorista_label,
         "created_by": user["nome"],
+        "created_by": user.get("id", "sistema"),
         "created_at": now_iso()
     }
     
