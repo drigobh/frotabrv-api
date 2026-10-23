@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText } from "lucide-react";
+import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { toast } from "sonner";
@@ -183,6 +183,87 @@ export default function Abastecimentos() {
   const set = (k: keyof ReturnType<typeof vazio>) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
   const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
 
+
+  const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      
+      // Converte para JSON
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+      
+      // Encontra a linha de cabeçalho (onde tem "Data" e "Placa")
+      let startRow = -1;
+      for (let i = 0; i < data.length; i++) {
+        if (data[i] && data[i].includes("Data") && data[i].includes("Placa")) {
+          startRow = i + 1;
+          break;
+        }
+      }
+
+      if (startRow === -1) {
+        toast.error("Cabeçalho da planilha não encontrado.");
+        return;
+      }
+
+      let importados = 0;
+      const importadosComSucesso = [];
+
+      for (let i = startRow; i < data.length; i++) {
+        const row = data[i];
+        // Pula linhas vazias ou totais
+        if (!row || !row[0] || String(row[0]).includes("Totais") || String(row[0]).includes("Bsoft")) continue;
+
+        // Formata a data (YYYY-MM-DD)
+        let dataStr = String(row[0]).trim();
+        if (dataStr.includes("/")) {
+           const [d, m, y] = dataStr.split("/");
+           dataStr = `${y}-${m}-${d}`;
+        }
+
+        // Formata a placa (remove /MG e traço)
+        const placaRaw = String(row[1] || "").trim();
+        const placa = placaRaw.split("/")[0].replace("-", "").toUpperCase();
+
+        // Formata os números (Litros e Valor)
+        const litrosRaw = Number(row[8] || 0) / 1000;
+        const valorLitroRaw = Number(row[10] || 0) / 100;
+        
+        const payload = {
+          data: dataStr,
+          placa: placa,
+          km: Number(row[4] || 0), // Leitura
+          fornecedor: String(row[6] || "").trim(), // Posto
+          litros: litrosRaw,
+          preco_litro: valorLitroRaw,
+          hora: null,
+          numero_nf: null,
+          chave_nfe: null,
+          cnpj: null
+        };
+
+        try {
+          await apiPost("/abastecimentos/importar", payload);
+          importados++;
+          importadosComSucesso.push(placa);
+        } catch (err) {
+          console.error(`Erro na linha ${i + 1} (${placa}):`, err);
+        }
+      }
+
+      toast.success(`${importados} abastecimentos importados com sucesso!`);
+      invalidate();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao ler a planilha.");
+    }
+  };
+
   const abrirNovo = () => {
     setEditingId(null);
     setForm(vazio(hoje));
@@ -252,7 +333,12 @@ export default function Abastecimentos() {
         description="Registro detalhado com cálculo automático de KM rodados e média KM/L a partir do hodômetro."
         actions={
           <div className="flex gap-2">
-            <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
+            
+            <input type="file" accept=".xls,.xlsx" onChange={handleImportXLS} className="hidden" id="xls-input" />
+            <Button variant="outline" onClick={() => document.getElementById('xls-input')?.click()}>
+              <Upload className="size-4 mr-2" /> Importar XLS
+            </Button>
+<input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
             <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
               <FileText className="size-4 mr-2" /> Importar NF
             </Button>
