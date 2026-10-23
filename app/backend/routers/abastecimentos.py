@@ -33,8 +33,9 @@ async def ultimo_km(veiculo_id: str, _u: dict = Depends(require("read"))):
 @router.post("/importar", response_model=None, status_code=201)
 async def importar_pdf(body: dict, request: Request, user: dict = Depends(require("write"))):
     placa_limpa = body.get("placa", "").strip().upper()
-    veiculo = await db.veiculos.find_one({"placa": placa_limpa}, {"_id": 0})
     
+    # BUSCA 1: Veículo (com projeção _id: 0)
+    veiculo = await db.veiculos.find_one({"placa": placa_limpa}, {"_id": 0})
     if not veiculo:
         raise HTTPException(status_code=404, detail=f"Veículo com placa {placa_limpa} não encontrado.")
 
@@ -48,9 +49,10 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     if preco_corrigido == 0 and body.get("preco_litro", 0) > 0:
         preco_corrigido = body.get("preco_litro")
 
-    # Busca último abastecimento para calcular KM Rodados
+    # BUSCA 2: Último abastecimento (com projeção _id: 0)
     ultimo = await db.abastecimentos.find_one(
         {"veiculo_id": veiculo["id"], "data": {"$lt": body.get("data")}},
+        {"_id": 0},
         sort=[("data", -1)]
     )
 
