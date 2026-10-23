@@ -52,8 +52,16 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     km_rodados = None
     media_km_l = None
 
+    # Se tiver um abastecimento anterior, usa a Leitura dele. Senão, usa o Hodômetro Inicial do Veículo.
     if ultimo and ultimo.get("km") and body.get("km"):
         km_rodados = body.get("km") - ultimo["km"]
+        if km_rodados > 0 and litros > 0:
+            media_km_l = km_rodados / litros
+        else:
+            km_rodados = None
+    elif body.get("km") and veiculo.get("hodometro_km"):
+        # Primeiro abastecimento: usa o Hodômetro Inicial do Veículo
+        km_rodados = body.get("km") - veiculo["hodometro_km"]
         if km_rodados > 0 and litros > 0:
             media_km_l = km_rodados / litros
         else:
@@ -61,19 +69,6 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     valor_total = litros * preco_litro
 
-    
-    # Busca o acoplamento ativo para pegar o motorista
-    acoplamento = await db.acoplamentos.find_one(
-        {"veiculo_id": veiculo["id"], "ativo": True},
-        {"_id": 0}
-    )
-    motorista_id = acoplamento.get("motorista_id") if acoplamento else None
-    motorista_label = None
-    if motorista_id:
-        mot = await db.motoristas.find_one({"id": motorista_id}, {"_id": 0})
-        motorista_label = mot["nome"] if mot else None
-
-    
     # Busca o acoplamento ativo para pegar o motorista
     acoplamento = await db.acoplamentos.find_one(
         {"veiculo_id": veiculo["id"], "ativo": True},
@@ -99,7 +94,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         "km": body.get("km"),
         "km_rodados": km_rodados,
         "media_km_l": media_km_l,
-        "origem": body.get("origem", "excel"),
+        "origem": "excel",
         "numero_nf": body.get("numero_nf"),
         "chave_nfe": body.get("chave_nfe"),
         "hora": body.get("hora"),

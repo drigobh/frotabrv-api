@@ -77,6 +77,15 @@ export default function Abastecimentos() {
               atual.media_km_l = atual.km_rodados / atual.litros;
             }
           }
+        } else {
+          // Primeiro abastecimento: usa o HodÃ´metro Inicial do VeÃ­culo
+          const veiculo = veiculos.data?.find(v => v.id === atual.veiculo_id);
+          if (veiculo && veiculo.hodometro_km && atual.km > veiculo.hodometro_km) {
+            atual.km_rodados = atual.km - veiculo.hodometro_km;
+            if (atual.litros > 0) {
+              atual.media_km_l = atual.km_rodados / atual.litros;
+            }
+          }
         }
         rowsFinais.push(atual);
       }
@@ -366,8 +375,8 @@ export default function Abastecimentos() {
                 <TableCell className="text-center px-2">{r.origem === "pdf" ? <span className="bg-red-500/20 text-red-400 px-2 py-0.5 font-bold rounded">PDF</span> : <span className="bg-slate-500/20 text-slate-400 px-2 py-0.5 font-bold rounded">M</span>}</TableCell>
                 <TableCell className="font-mono px-2 text-center">{r.veiculo_label.split(" · ")[0]}</TableCell>
                 <TableCell className="text-slate-300 px-2 truncate max-w-[150px]">{r.motorista_label ?? "—"}</TableCell>
-                <TableCell className="tabular-nums px-2 text-right">{num(r.litros, 1)}</TableCell>
-                <TableCell className="tabular-nums px-2 text-right">{num(r.preco_litro, 2)}</TableCell>
+                <TableCell className="tabular-nums px-2 text-right">{num(r.litros, 3)}</TableCell>
+                <TableCell className="tabular-nums px-2 text-right">{brl(r.preco_litro)}</TableCell>
                 <TableCell className="tabular-nums font-medium px-2 text-right">{brl(r.valor_total)}</TableCell>
                 <TableCell className="truncate max-w-[100px] text-slate-400 px-2">{r.posto}</TableCell>
                 <TableCell className="font-mono tabular-nums px-2 text-right">{num(r.km)}</TableCell>
@@ -439,4 +448,5 @@ export default function Abastecimentos() {
     </div>
   );
 }
+
 
