@@ -33,7 +33,7 @@ async def ultimo_km(veiculo_id: str, _u: dict = Depends(require("read"))):
 @router.post("/importar", response_model=None, status_code=201)
 async def importar_pdf(body: dict, request: Request, user: dict = Depends(require("write"))):
     placa_limpa = body.get("placa", "").strip().upper()
-    veiculo = await db.veiculos.find_one({"placa": placa_limpa})
+    veiculo = await db.veiculos.find_one({"placa": placa_limpa}, {"_id": 0})
     
     if not veiculo:
         raise HTTPException(status_code=404, detail=f"Veículo com placa {placa_limpa} não encontrado.")
