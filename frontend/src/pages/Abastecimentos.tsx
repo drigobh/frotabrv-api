@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { FieldSelect } from "@/components/common/FieldSelect";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { useMotoristas, useVeiculos } from "@/hooks/useCadastros";
+import { useQuery as useQueryComb } from "@tanstack/react-query";
 import { useHoje, useMe } from "@/hooks/useSession";
 import type { Abastecimento } from "@/types/abastecimentos";
 
@@ -35,6 +36,8 @@ export default function Abastecimentos() {
   const { data: me } = useMe();
   const veiculos = useVeiculos();
   const motoristas = useMotoristas();
+  const combQ = useQueryComb({ queryKey: ["combustiveis"], queryFn: () => apiGet<any[]>("/combustiveis") });
+  const combOpts = (combQ.data ?? []).filter(c => c.ativo).map(c => ({ value: c.id, label: c.nome }));
   const [filtroVeiculo, setFiltroVeiculo] = useState(TODOS);
   const [mes, setMes] = useState("");
   const [open, setOpen] = useState(false);
@@ -240,7 +243,7 @@ export default function Abastecimentos() {
 
   const salvar = useMutation({
     mutationFn: () => {
-      const payload = { ...form, motorista_id: form.motorista_id === NENHUM ? null : form.motorista_id, litros: Number(form.litros.replace(",", ".")), preco_litro: Number(form.preco_litro.replace(",", ".")), km: Number(form.km) };
+      const payload = { ...form, combustivel_id: form.combustivel_id, motorista_id: form.motorista_id === NENHUM ? null : form.motorista_id, litros: Number(form.litros.replace(",", ".")), preco_litro: Number(form.preco_litro.replace(",", ".")), km: Number(form.km) };
       if (editingId) return apiPut<Abastecimento>(`/abastecimentos/${editingId}`, payload);
       return apiPost<Abastecimento>("/abastecimentos", payload);
     },
@@ -375,6 +378,10 @@ export default function Abastecimentos() {
             <div className="grid gap-1.5"><Label>Data *</Label><Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} required /></div>
             <div className="grid gap-1.5"><Label>Hodômetro *</Label><Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} required /></div>
             <div className="col-span-2 grid gap-1.5"><Label>Veículo *</Label><FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione" testId="form-veiculo" /></div>
+            <div className="col-span-2 grid gap-1.5">
+              <Label>Combustível *</Label>
+              <FieldSelect value={form.combustivel_id || ""} onChange={(v) => setForm(s => ({ ...s, combustivel_id: v }))} options={combOpts} placeholder="Selecione o combustível" testId="form-combustivel" />
+            </div>
             <div className="col-span-2 grid gap-1.5"><Label>Motorista</Label><FieldSelect value={form.motorista_id} onChange={set("motorista_id")} options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="form-motorista" /></div>
             <div className="grid gap-1.5"><Label>Litros *</Label><Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} required /></div>
             <div className="grid gap-1.5"><Label>Preço/L *</Label><Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} required /></div>
