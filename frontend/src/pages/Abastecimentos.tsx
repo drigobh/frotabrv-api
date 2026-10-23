@@ -55,21 +55,65 @@ export default function Abastecimentos() {
   });
   const rows = q.isError ? [] : (q.data ?? []);
 
+    // Calcula os KM Rodados e a MÃ©dia no Frontend, com base nos dados da tabela
+  const rowsComCalculo = useMemo(() => {
+    // Agrupa por veÃ­culo
+    const porVeiculo: Record<string, any[]> = {};
+    rows.forEach(r => {
+      if (!porVeiculo[r.veiculo_id]) porVeiculo[r.veiculo_id] = [];
+      porVeiculo[r.veiculo_id].push(r);
+    });
+
+    // Ordena cada grupo por data e KM para calcular a diferenÃ§a
+    const rowsFinais: any[] = [];
+    Object.values(porVeiculo).forEach(lista => {
+      lista.sort((a, b) => a.data.localeCompare(b.data) || a.km - b.km);
+      
+      for (let i = 0; i < lista.length; i++) {
+        const atual = { ...lista[i] };
+        if (i > 0) {
+          const anterior = lista[i - 1];
+          if (atual.km > anterior.km) {
+            atual.km_rodados = atual.km - anterior.km;
+            if (atual.litros > 0) {
+              atual.media_km_l = atual.km_rodados / atual.litros;
+            }
+          }
+        }
+        rowsFinais.push(atual);
+      }
+    });
+
+    return rowsFinais.sort((a, b) => b.data.localeCompare(a.data));
+  }, [rows]);
+
   const resumo = useMemo(() => {
-    const litros = rows.reduce((s, r) => s + r.litros, 0);
-    const valor = rows.reduce((s, r) => s + r.valor_total, 0);
-    const comKm = rows.filter((r) => r.km_rodados != null);
+    const litros = rowsComCalculo.reduce((s, r) => s + r.litros, 0);
+    const valor = rowsComCalculo.reduce((s, r) => s + r.valor_total, 0);
+    const comKm = rowsComCalculo.filter((r) => r.km_rodados != null);
     const km = comKm.reduce((s, r) => s + (r.km_rodados ?? 0), 0);
     const litrosKm = comKm.reduce((s, r) => s + r.litros, 0);
     
-    const maior = rows.reduce((max, r) => r.valor_total > (max?.valor_total || 0) ? r : max, null as Abastecimento | null);
-    const menor = rows.reduce((min, r) => r.valor_total < (min?.valor_total || Infinity) ? r : min, null as Abastecimento | null);
-    const mediaValor = rows.length ? valor / rows.length : 0;
+    const maior = rowsComCalculo.reduce((max, r) => r.valor_total > (max?.valor_total || 0) ? r : max, null as Abastecimento | null);
+    const menor = rowsComCalculo.reduce((min, r) => r.valor_total < (min?.valor_total || Infinity) ? r : min, null as Abastecimento | null);
+    const mediaValor = rowsComCalculo.length ? valor / rowsComCalculo.length : 0;
     const mediaKm = comKm.length ? km / comKm.length : 0;
     const custoPorKm = km > 0 ? valor / km : 0;
 
-    return { litros, valor, km, media: litrosKm ? km / litrosKm : 0, preco: litros ? valor / litros : 0, total: rows.length, maior, menor, mediaValor, mediaKm, custoPorKm };
-  }, [rows]);
+    return { litros, valor, km, media: litrosKm ? km / litrosKm : 0, preco: litros ? valor / litros : 0, total: rowsComCalculo.length, maior, menor, mediaValor, mediaKm, custoPorKm };
+  }, [rowsComCalculo]);
+
+  const ranking = useMemo(() => {
+    const porVeiculo: Record<string, { label: string, litros: number, km: number }> = {};
+    rowsComCalculo.forEach(r => {
+      if (r.km_rodados != null) {
+        if (!porVeiculo[r.veiculo_id]) porVeiculo[r.veiculo_id] = { label: r.veiculo_label.split(" Â· ")[0], litros: 0, km: 0 };
+        porVeiculo[r.veiculo_id].litros += r.litros;
+        porVeiculo[r.veiculo_id].km += r.km_rodados;
+      }
+    });
+    return Object.values(porVeiculo).map(v => ({ label: v.label, media: v.litros > 0 ? v.km / v.litros : 0 })).sort((a, b) => b.media - a.media).slice(0, 5);
+  }, [rowsComCalculo]);
 
   const ranking = useMemo(() => {
     const porVeiculo: Record<string, { label: string, litros: number, km: number }> = {};
@@ -127,7 +171,7 @@ export default function Abastecimentos() {
       const sheet = workbook.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: false });
 
-      if (rows.length === 0) { toast.error("Nenhuma linha encontrada."); return; }
+      if (rowsComCalculo.length === 0) { toast.error("Nenhuma linha encontrada."); return; }
 
       let headerRow: string[] = [];
       let startRow = -1;
@@ -333,7 +377,7 @@ export default function Abastecimentos() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 && <TableRow><TableCell colSpan={12} className="py-10 text-center text-slate-500">Nenhum abastecimento.</TableCell></TableRow>}
+            {rowsComCalculo.length === 0 && <TableRow><TableCell colSpan={12} className="py-10 text-center text-slate-500">Nenhum abastecimento.</TableCell></TableRow>}
             {rows.map(r => (
               <TableRow key={r.id} className="border-slate-800/70">
                 <TableCell className="font-mono px-2">{dataBR(r.data)}</TableCell>
@@ -413,4 +457,5 @@ export default function Abastecimentos() {
     </div>
   );
 }
+
 
