@@ -42,7 +42,6 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     data_abast = body.get("data")
     km_atual = body.get("km") or 0
 
-    # Busca o último abastecimento ANTES da data atual para calcular os KM rodados
     ultimo = await db.abastecimentos.find_one(
         {"veiculo_id": veiculo["id"], "data": {"$lt": data_abast}},
         {"_id": 0},
@@ -64,7 +63,6 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     valor_total = litros * preco_litro
 
-    # Busca o acoplamento ativo para pegar o motorista
     acoplamento = await db.acoplamentos.find_one(
         {"veiculo_id": veiculo["id"], "ativo": True},
         {"_id": 0}
