@@ -91,7 +91,7 @@ export default function Abastecimentos() {
       }
     });
 
-    return rowsFinais.sort((a, b) => b.data.localeCompare(a.data));
+    return rowsFinais.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }, [rows]);
 
   const resumo = useMemo(() => {
@@ -448,6 +448,7 @@ export default function Abastecimentos() {
     </div>
   );
 }
+
 
 
 

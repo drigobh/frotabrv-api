@@ -36,6 +36,7 @@ def corrigir(raiz):
     litros = body.get("litros") or 0
     preco_litro = body.get("preco_litro") or 0
     data_abast = body.get("data")
+    km_atual = body.get("km") or 0
 
     # Busca o último abastecimento ANTES da data atual para calcular os KM rodados
     ultimo = await db.abastecimentos.find_one(
@@ -47,12 +48,10 @@ def corrigir(raiz):
     km_rodados = None
     media_km_l = None
 
-    if ultimo and ultimo.get("km") and body.get("km"):
-        # Se tem abastecimento anterior, subtrai a leitura atual pela anterior
-        km_rodados = body.get("km") - ultimo["km"]
-    elif body.get("km") and veiculo.get("hodometro_km"):
-        # Se é o primeiro abastecimento, subtrai a leitura atual pelo Hodômetro Inicial do Veículo
-        km_rodados = body.get("km") - veiculo["hodometro_km"]
+    if ultimo and ultimo.get("km"):
+        km_rodados = km_atual - ultimo["km"]
+    elif km_atual > 0 and veiculo.get("hodometro_km"):
+        km_rodados = km_atual - veiculo["hodometro_km"]
 
     if km_rodados and km_rodados > 0 and litros > 0:
         media_km_l = km_rodados / litros
@@ -83,7 +82,7 @@ def corrigir(raiz):
         "preco_litro": preco_litro,
         "valor_total": valor_total,
         "posto": body.get("fornecedor") or "Importado",
-        "km": body.get("km"),
+        "km": km_atual,
         "km_rodados": km_rodados,
         "media_km_l": media_km_l,
         "origem": "excel",
@@ -106,7 +105,7 @@ def corrigir(raiz):
     
     with open(caminho, 'w', encoding='utf-8') as f:
         f.writelines(novas_linhas)
-    print("✅ Backend: Cálculo de KM Rodados com Hodômetro Inicial corrigido.")
+    print("✅ Backend: Motorista e Cálculo corrigidos.")
 
 if __name__ == "__main__":
     corrigir(os.getcwd())

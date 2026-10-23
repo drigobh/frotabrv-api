@@ -52,11 +52,6 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     km_rodados = None
     media_km_l = None
 
-    # Lógica de Cálculo:
-    # 1. Se tem abastecimento anterior, subtrai a leitura atual pela anterior.
-    # 2. Se não tem, subtrai a leitura atual pelo Hodômetro Inicial do Veículo.
-    # 3. Se o resultado for negativo, ignora (mostra None).
-    
     if ultimo and ultimo.get("km"):
         km_rodados = km_atual - ultimo["km"]
     elif km_atual > 0 and veiculo.get("hodometro_km"):
