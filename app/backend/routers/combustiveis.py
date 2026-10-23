@@ -21,3 +21,28 @@ async def criar(body: CombustivelCreate, _u: dict = Depends(require("write"))):
     doc["created_at"] = now_iso()
     await db.combustiveis.insert_one(doc)
     return doc
+
+@router.put("/{id}", response_model=Combustivel)
+async def atualizar(id: str, body: CombustivelCreate, _u: dict = Depends(require("write"))):
+    existe = await db.combustiveis.find_one({"id": id})
+    if not existe:
+        raise HTTPException(404, "Combustível não encontrado")
+    
+    # Verifica se o novo nome já existe em outro registro
+    if await db.combustiveis.find_one({"nome": body.nome, "id": {"$ne": id}}):
+        raise HTTPException(409, "Já existe outro combustível com este nome")
+    
+    doc = body.model_dump()
+    await db.combustiveis.update_one({"id": id}, {"$set": doc})
+    doc["id"] = id
+    return doc
+
+@router.delete("/{id}")
+async def excluir(id: str, _u: dict = Depends(require("delete"))):
+    # Verifica se está em uso em algum abastecimento
+    em_uso = await db.abastecimentos.find_one({"combustivel_id": id})
+    if em_uso:
+        raise HTTPException(400, "Não é possível excluir: combustível em uso em abastecimentos.")
+    
+    await db.combustiveis.delete_one({"id": id})
+    return {"ok": True}
