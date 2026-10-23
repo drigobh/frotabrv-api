@@ -7,6 +7,7 @@ import Veiculos from "@/pages/Veiculos";
 import Carretas from "@/pages/Carretas";
 import Motoristas from "@/pages/Motoristas";
 import Acoplamentos from "@/pages/Acoplamentos";
+import Base from '@/pages/Base';
 import Abastecimentos from "@/pages/Abastecimentos";
 import Manutencoes from "@/pages/Manutencoes";
 import Documentos from "@/pages/Documentos";
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route element={<AppLayout />}>
           <Route index element={<Dashboard />} />
+          <Route path="/admin/base" element={<Base />} />
           <Route path="cadastros/veiculos" element={<Veiculos />} />
           <Route path="cadastros/carretas" element={<Carretas />} />
           <Route path="cadastros/motoristas" element={<Motoristas />} />

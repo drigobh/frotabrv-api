@@ -1,9 +1,9 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload } from "lucide-react";
-import * as XLSX from "xlsx";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { brl, dataBR, errMsg, num } from "@/lib/format";
@@ -41,7 +41,6 @@ export default function Abastecimentos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const params = new URLSearchParams();
   if (filtroVeiculo !== TODOS) params.set("veiculo_id", filtroVeiculo);
@@ -94,8 +93,7 @@ export default function Abastecimentos() {
     void qc.invalidateQueries({ queryKey: ["financeiro"] });
     void qc.invalidateQueries({ queryKey: ["ranking"] });
   };
-
-  const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -110,7 +108,6 @@ export default function Abastecimentos() {
         text += content.items.map((item: any) => item.str).join(" ") + "\n";
       }
 
-      // Regex Posicional (mais tolerante a variações de texto)
       const placaMatch = text.match(/PLACA[:\s]*([A-Z]{3}[0-9][A-Z0-9][0-9]{2})/i) || text.match(/PLACA[:\s]*([A-Z0-9]{7})/i);
       const kmMatch = text.match(/KM[:\s]*(\d+)/i);
       const litrosMatch = text.match(/L\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i) || text.match(/L\s+([\d.,]+)\s+([\d.,]+)/i);
@@ -135,16 +132,118 @@ export default function Abastecimentos() {
       };
 
       await apiPost("/abastecimentos/importar", payload);
-      
-      toast.success("Nota Fiscal importada e registrada com sucesso!");
+      toast.success("Nota Fiscal importada com sucesso!");
       invalidate();
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao importar o PDF. Verifique se o veículo está cadastrado.");
+      toast.error("Erro ao importar o PDF.");
     }
   };
 
-  const salvar = useMutation({
+  const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      const rows: string[][] = [];
+      let rowMatch;
+
+      while ((rowMatch = rowRegex.exec(text)) !== null) {
+        const cells: string[] = [];
+        let cellMatch;
+        const cellRegexLocal = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+        while ((cellMatch = cellRegexLocal.exec(rowMatch[1])) !== null) {
+          let cellText = cellMatch[1];
+          cellText = cellText.replace(/<[^>]+>/g, "").trim();
+          cellText = cellText.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+          cells.push(cellText);
+        }
+        if (cells.length > 0) rows.push(cells);
+      }
+
+      if (rows.length === 0) {
+        toast.error("Nenhuma linha encontrada no arquivo HTML.");
+        return;
+      }
+
+      let startRow = -1;
+      for (let i = 0; i < rows.length; i++) {
+        const rowStr = rows[i].join(" ").toLowerCase();
+        if (rowStr.includes("data") && rowStr.includes("placa") && rowStr.includes("litros")) {
+          startRow = i + 1;
+          break;
+        }
+      }
+
+      if (startRow === -1) {
+        toast.error("Cabeçalho da planilha não encontrado. Verifique se as colunas 'Data', 'Placa' e 'Litros' estão na planilha.");
+        return;
+      }
+
+      const headerRow = rows[startRow - 1];
+      const colIndex = (name: string) => headerRow.findIndex(h => h.toLowerCase().includes(name.toLowerCase()));
+
+      const idxData = colIndex("data");
+      const idxPlaca = colIndex("placa");
+      const idxKm = colIndex("leitura");
+      const idxPosto = colIndex("posto");
+      const idxLitros = colIndex("litros");
+      const idxPreco = colIndex("v. litro");
+
+      if (idxData === -1 || idxPlaca === -1 || idxLitros === -1 || idxPreco === -1) {
+        toast.error("Colunas essenciais não encontradas (Data, Placa, Litros, V. Litro).");
+        return;
+      }
+
+      let importados = 0;
+
+      for (let i = startRow; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[idxData] || row[idxData].toLowerCase().includes("total") || row[idxData].includes("Bsoft")) continue;
+
+        let dataStr = row[idxData];
+        if (dataStr.includes("/")) {
+           const [d, m, y] = dataStr.split("/");
+           dataStr = `${y}-${m}-${d}`;
+        }
+
+        const placaRaw = row[idxPlaca] || "";
+        const placa = placaRaw.split("/")[0].replace("-", "").toUpperCase();
+
+        const litrosRaw = Number(row[idxLitros].replace(/\./g, "").replace(",", ".")) / 1000;
+        const valorLitroRaw = Number(row[idxPreco].replace(/\./g, "").replace(",", ".")) / 100;
+        
+        const payload = {
+          data: dataStr,
+          placa: placa,
+          km: Number((row[idxKm] || "0").replace(/\./g, "").replace(",", ".")),
+          fornecedor: row[idxPosto] || "",
+          litros: litrosRaw,
+          preco_litro: valorLitroRaw,
+          hora: null,
+          numero_nf: null,
+          chave_nfe: null,
+          cnpj: null
+        };
+
+        try {
+          await apiPost("/abastecimentos/importar", payload);
+          importados++;
+        } catch (err) {
+          console.error(`Erro na linha ${i + 1}:`, err);
+        }
+      }
+
+      toast.success(`${importados} abastecimentos importados com sucesso!`);
+      invalidate();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao ler o arquivo.");
+    }
+  };
+    const salvar = useMutation({
     mutationFn: () => {
       const payload = {
         data: form.data,
@@ -183,87 +282,6 @@ export default function Abastecimentos() {
   const total = Number(form.litros.replace(",", ".")) * Number(form.preco_litro.replace(",", "."));
   const set = (k: keyof ReturnType<typeof vazio>) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
   const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
-
-
-  const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: "array" });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      
-      // Converte para JSON
-      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-      
-      // Encontra a linha de cabeçalho (onde tem "Data" e "Placa")
-      let startRow = -1;
-      for (let i = 0; i < data.length; i++) {
-        if (data[i] && data[i].includes("Data") && data[i].includes("Placa")) {
-          startRow = i + 1;
-          break;
-        }
-      }
-
-      if (startRow === -1) {
-        toast.error("Cabeçalho da planilha não encontrado.");
-        return;
-      }
-
-      let importados = 0;
-      const importadosComSucesso = [];
-
-      for (let i = startRow; i < data.length; i++) {
-        const row = data[i];
-        // Pula linhas vazias ou totais
-        if (!row || !row[0] || String(row[0]).includes("Totais") || String(row[0]).includes("Bsoft")) continue;
-
-        // Formata a data (YYYY-MM-DD)
-        let dataStr = String(row[0]).trim();
-        if (dataStr.includes("/")) {
-           const [d, m, y] = dataStr.split("/");
-           dataStr = `${y}-${m}-${d}`;
-        }
-
-        // Formata a placa (remove /MG e traço)
-        const placaRaw = String(row[1] || "").trim();
-        const placa = placaRaw.split("/")[0].replace("-", "").toUpperCase();
-
-        // Formata os números (Litros e Valor)
-        const litrosRaw = Number(row[8] || 0) / 1000;
-        const valorLitroRaw = Number(row[10] || 0) / 100;
-        
-        const payload = {
-          data: dataStr,
-          placa: placa,
-          km: Number(row[4] || 0), // Leitura
-          fornecedor: String(row[6] || "").trim(), // Posto
-          litros: litrosRaw,
-          preco_litro: valorLitroRaw,
-          hora: null,
-          numero_nf: null,
-          chave_nfe: null,
-          cnpj: null
-        };
-
-        try {
-          await apiPost("/abastecimentos/importar", payload);
-          importados++;
-          importadosComSucesso.push(placa);
-        } catch (err) {
-          console.error(`Erro na linha ${i + 1} (${placa}):`, err);
-        }
-      }
-
-      toast.success(`${importados} abastecimentos importados com sucesso!`);
-      invalidate();
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao ler a planilha.");
-    }
-  };
 
   const abrirNovo = () => {
     setEditingId(null);
@@ -325,8 +343,7 @@ export default function Abastecimentos() {
     { label: "Média de KM", valor: `${num(resumo.mediaKm, 0)} km`, icon: TrendingUp, color: "#60a5fa", sub: "por abastecimento" },
     { label: "Custo por KM", valor: brl(resumo.custoPorKm), icon: DollarSign, color: "#34d399", sub: "combustível por km" },
   ];
-
-  return (
+    return (
     <div>
       <PageHeader
         eyebrow="Operação"
@@ -334,15 +351,14 @@ export default function Abastecimentos() {
         description="Registro detalhado com cálculo automático de KM rodados e média KM/L a partir do hodômetro."
         actions={
           <div className="flex gap-2">
-            
-            <input type="file" accept=".xls,.xlsx" onChange={handleImportXLS} className="hidden" id="xls-input" />
-            <Button variant="outline" onClick={() => document.getElementById('xls-input')?.click()}>
+            <label className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 cursor-pointer">
+              <input type="file" accept=".xls,.xlsx" onChange={handleImportXLS} className="hidden" />
               <Upload className="size-4 mr-2" /> Importar XLS
-            </Button>
-<input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
-            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+            </label>
+            <label className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 cursor-pointer">
+              <input type="file" accept=".pdf" onChange={handleImportPDF} className="hidden" />
               <FileText className="size-4 mr-2" /> Importar NF
-            </Button>
+            </label>
             <Button onClick={abrirNovo}>
               <Plus className="size-4" /> Novo abastecimento
             </Button>
@@ -416,18 +432,9 @@ export default function Abastecimentos() {
         <Table className="text-xs">
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap px-2 text-left">Data</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-center px-2">Origem</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 px-2 text-left">Veículo</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 px-2 text-left">Motorista</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">Litros</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">R$/L</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">Total</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 px-2 text-left">Posto</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">KM</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">Rodados</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-right px-2">Média</TableHead>
-              <TableHead className="text-[10px] uppercase tracking-wider text-slate-500 text-center px-2">Ações</TableHead>
+              {["Data", "Origem", "Veículo", "Motorista", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "Média", "Ações"].map((h) => (
+                <TableHead key={h} className="text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap px-2 text-left">{h}</TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -497,7 +504,8 @@ export default function Abastecimentos() {
               <FieldSelect
                 value={form.motorista_id}
                 onChange={set("motorista_id")}
-                options={[{ value: NENHUM, label: "— Não informado —" }, ...(motoristas.data ?? []).filter(m => m.ativo).map((m) => ({ value: m.id, label: m.nome }))]}
+                options={[{ value: NENHUM, label: "— Não informado —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]}
+                testId="abastecimento-form-motorista"
               />
             </div>
             <div className="grid gap-1.5">
