@@ -4,7 +4,7 @@ import zipfile
 
 def backup():
     agora = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    caminho_zip = os.path.join(os.getcwd(), "_automacao", "backups", f"BACKUP_KM_LIMPO_{agora}.zip")
+    caminho_zip = os.path.join(os.getcwd(), "_automacao", "backups", f"BACKUP_EDENRED_{agora}.zip")
     os.makedirs(os.path.dirname(caminho_zip), exist_ok=True)
     with zipfile.ZipFile(caminho_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for pasta in ["app", "frontend"]:
