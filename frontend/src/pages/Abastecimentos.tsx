@@ -40,6 +40,10 @@ export default function Abastecimentos() {
   const combOpts = (combQ.data ?? []).filter(c => c.ativo).map(c => ({ value: c.id, label: c.nome }));
   const [filtroVeiculo, setFiltroVeiculo] = useState(TODOS);
   const [mes, setMes] = useState("");
+  const [filtroMotorista, setFiltroMotorista] = useState(TODOS);
+  const [filtroPosto, setFiltroPosto] = useState("");
+  const [filtroProduto, setFiltroProduto] = useState("");
+  const [filtroOrigem, setFiltroOrigem] = useState(TODOS);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
@@ -53,8 +57,12 @@ export default function Abastecimentos() {
   const params = new URLSearchParams();
   if (filtroVeiculo !== TODOS) params.set("veiculo_id", filtroVeiculo);
   if (mes) params.set("mes", mes);
+  if (filtroMotorista !== TODOS) params.set("motorista_id", filtroMotorista);
+  if (filtroPosto) params.set("posto", filtroPosto);
+  if (filtroProduto) params.set("produto", filtroProduto);
+  if (filtroOrigem !== TODOS) params.set("origem", filtroOrigem);
   const q = useQuery({
-    queryKey: ["abastecimentos", filtroVeiculo, mes],
+    queryKey: ["abastecimentos", filtroVeiculo, mes, filtroMotorista, filtroPosto, filtroProduto, filtroOrigem],
     queryFn: () => apiGet<Abastecimento[]>(`/abastecimentos?${params.toString()}`),
   });
   const rows = q.isError ? [] : (q.data ?? []);
@@ -502,7 +510,15 @@ export default function Abastecimentos() {
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="grid w-64 gap-1.5"><Label>Veículo</Label><FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} testId="filtro-veiculo" /></div>
         <div className="grid gap-1.5"><Label>Mês</Label><Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" /></div>
-        {(mes || filtroVeiculo !== TODOS) && <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); }}>Limpar</Button>}
+        <div className="grid w-48 gap-1.5"><Label>Motorista</Label><FieldSelect value={filtroMotorista} onChange={setFiltroMotorista} options={[{ value: TODOS, label: "Todos" }, ...(motoristas.data ?? []).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="filtro-motorista" /></div>
+        <div className="grid w-40 gap-1.5"><Label>Posto</Label><Input value={filtroPosto} onChange={(e) => setFiltroPosto(e.target.value)} placeholder="Nome do posto..." className="h-9" /></div>
+        <div className="grid w-36 gap-1.5"><Label>Produto</Label><Input value={filtroProduto} onChange={(e) => setFiltroProduto(e.target.value)} placeholder="Ex: Diesel..." className="h-9" /></div>
+        <div className="grid w-36 gap-1.5"><Label>Origem</Label><FieldSelect value={filtroOrigem} onChange={setFiltroOrigem} options={[{ value: TODOS, label: "Todas" }, { value: "manual", label: "Manual" }, { value: "bsoft", label: "BSOFT" }, { value: "edenred", label: "Edenred" }, { value: "pdf", label: "PDF" }]} testId="filtro-origem" /></div>
+        {(mes || filtroVeiculo !== TODOS || filtroMotorista !== TODOS || filtroPosto || filtroProduto || filtroOrigem !== TODOS) && (
+          <Button variant="ghost" onClick={() => { 
+            setMes(""); setFiltroVeiculo(TODOS); setFiltroMotorista(TODOS); setFiltroPosto(""); setFiltroProduto(""); setFiltroOrigem(TODOS); 
+          }} className="mb-[2px]">Limpar Filtros</Button>
+        )}
       </div>
       <div className="glass overflow-hidden rounded-2xl">
         <Table className="text-xs">

@@ -12,18 +12,26 @@ router = APIRouter(prefix="/abastecimentos", tags=["abastecimentos"])
 async def listar(
     veiculo_id: str = Query(None),
     mes: str = Query(None),
+    motorista_id: str = Query(None),
+    posto: str = Query(None),
+    produto: str = Query(None),
+    origem: str = Query(None),
     _u: dict = Depends(require("read"))
 ):
-    # Monta a query do MongoDB dinamicamente
     query = {}
     
-    # Filtro por Veículo (ignora o valor "__all__" da tela)
     if veiculo_id and veiculo_id != "__all__":
         query["veiculo_id"] = veiculo_id
-        
-    # Filtro por Mês (formato YYYY-MM)
     if mes:
         query["data"] = {"$regex": f"^{mes}"}
+    if motorista_id and motorista_id != "__all__":
+        query["motorista_id"] = motorista_id
+    if posto:
+        query["posto"] = {"$regex": posto, "$options": "i"}
+    if produto:
+        query["produto"] = {"$regex": produto, "$options": "i"}
+    if origem and origem != "__all__":
+        query["origem"] = origem
         
     docs = await db.abastecimentos.find(query, {"_id": 0}).sort("data", -1).to_list(5000)
     return docs
