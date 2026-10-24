@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from lib.dates import now_iso
 from lib.db import db
 from lib.security import require
@@ -9,8 +9,23 @@ from datetime import datetime
 router = APIRouter(prefix="/abastecimentos", tags=["abastecimentos"])
 
 @router.get("", response_model=None)
-async def listar(_u: dict = Depends(require("read"))):
-    docs = await db.abastecimentos.find({}, {"_id": 0}).sort("data", -1).to_list(5000)
+async def listar(
+    veiculo_id: str = Query(None),
+    mes: str = Query(None),
+    _u: dict = Depends(require("read"))
+):
+    # Monta a query do MongoDB dinamicamente
+    query = {}
+    
+    # Filtro por Veículo (ignora o valor "__all__" da tela)
+    if veiculo_id and veiculo_id != "__all__":
+        query["veiculo_id"] = veiculo_id
+        
+    # Filtro por Mês (formato YYYY-MM)
+    if mes:
+        query["data"] = {"$regex": f"^{mes}"}
+        
+    docs = await db.abastecimentos.find(query, {"_id": 0}).sort("data", -1).to_list(5000)
     return docs
 
 @router.get("/ultimo-km/{veiculo_id}")
