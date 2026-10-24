@@ -40,10 +40,10 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     litros = body.get("litros") or 0
     preco_litro = body.get("preco_litro") or 0
-    data_recebida = body.get("data") # DD/MM/YYYY
+    data_recebida = body.get("data")
     km_atual = body.get("km") or 0
+    produto = body.get("produto", "DIESEL").upper()
 
-    # Converte a data para ISO (YYYY-MM-DD) para o MongoDB ordenar corretamente
     try:
         if "/" in data_recebida:
             data_abast = datetime.strptime(data_recebida, "%d/%m/%Y").strftime("%Y-%m-%d")
@@ -52,7 +52,6 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     except:
         data_abast = data_recebida
 
-    # Busca o último abastecimento com data ANTERIOR
     ultimo = await db.abastecimentos.find_one(
         {"veiculo_id": veiculo["id"], "data": {"$lt": data_abast}},
         {"_id": 0},
@@ -64,27 +63,22 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     if ultimo and ultimo.get("km"):
         km_rodados = km_atual - ultimo["km"]
-        # Validação: não permite valores absurdos ou negativos
         if km_rodados < 0 or km_rodados > 5000:
             km_rodados = None
     
-    if km_rodados and km_rodados > 0 and litros > 0:
+    if km_rodados and km_rodados > 0 and litros > 0 and "ARLA" not in produto:
         media_km_l = km_rodados / litros
 
-    # Usa o valor total EXATO enviado pelo frontend (da coluna J do Excel)
     valor_total = body.get("valor_total")
     if not valor_total:
         valor_total = litros * preco_litro
     valor_total = round(valor_total, 2)
 
-    # Busca o motorista no acoplamento ativo
     acoplamento = await db.acoplamentos.find_one(
-        {"veiculo_id": veiculo["id"], "ativo": True},
-        {"_id": 0}
+        {"veiculo_id": veiculo["id"]},
+        {"_id": 0},
+        sort=[("created_at", -1)]
     )
-    if not acoplamento:
-        # Se não achar ativo, pega o último criado
-        acoplamento = await db.acoplamentos.find_one({"veiculo_id": veiculo["id"]}, {"_id": 0}, sort=[("created_at", -1)])
         
     motorista_id = acoplamento.get("motorista_id") if acoplamento else None
     motorista_label = None
@@ -94,7 +88,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     doc = {
         "id": str(uuid.uuid4()),
-        "data": data_abast, # Salva como YYYY-MM-DD
+        "data": data_abast,
         "veiculo_id": veiculo["id"],
         "veiculo_label": f"{veiculo['placa']} · {veiculo['modelo']}",
         "motorista_id": motorista_id,
@@ -107,6 +101,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         "km_rodados": km_rodados,
         "media_km_l": media_km_l,
         "origem": body.get("origem", "excel"),
+        "produto": produto,
         "numero_nf": body.get("numero_nf"),
         "chave_nfe": body.get("chave_nfe"),
         "hora": body.get("hora"),
@@ -119,3 +114,94 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     await db.abastecimentos.insert_one(doc)
     doc.pop("_id", None)
     return doc
+
+@router.post("", response_model=Abastecimento, status_code=201)
+async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depends(require("write"))):
+    veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
+    if not veiculo:
+        raise HTTPException(404, "Veículo não encontrado")
+
+    # Converte a data (YYYY-MM-DD do input date) para manter o padrão
+    ultimo = await db.abastecimentos.find_one(
+        {"veiculo_id": body.veiculo_id, "data": {"$lt": body.data}},
+        {"_id": 0},
+        sort=[("data", -1)]
+    )
+
+    km_rodados = None
+    media_km_l = None
+
+    if ultimo and ultimo.get("km") and body.km > ultimo["km"]:
+        km_rodados = body.km - ultimo["km"]
+        if body.litros > 0 and "ARLA" not in (body.produto or "").upper():
+            media_km_l = km_rodados / body.litros
+
+    doc = body.model_dump()
+    doc["id"] = str(uuid.uuid4())
+    doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
+    doc["valor_total"] = round(body.litros * body.preco_litro, 2)
+    doc["km_rodados"] = km_rodados
+    doc["media_km_l"] = media_km_l
+    doc["created_by"] = user["id"]
+    doc["created_at"] = now_iso()
+
+    if body.motorista_id:
+        mot = await db.motoristas.find_one({"id": body.motorista_id}, {"_id": 0})
+        doc["motorista_label"] = mot["nome"] if mot else None
+    else:
+        doc["motorista_label"] = None
+        
+    if body.combustivel_id and not body.produto:
+        comb = await db.combustiveis.find_one({"id": body.combustivel_id}, {"_id": 0})
+        doc["produto"] = comb["nome"] if comb else "Diesel S-10"
+
+    await db.abastecimentos.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@router.put("/{id}", response_model=Abastecimento)
+async def atualizar(id: str, body: AbastecimentoCreate, request: Request, user: dict = Depends(require("write"))):
+    veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
+    if not veiculo:
+        raise HTTPException(404, "Veículo não encontrado")
+        
+    ultimo = await db.abastecimentos.find_one(
+        {"veiculo_id": body.veiculo_id, "data": {"$lt": body.data}, "id": {"$ne": id}},
+        {"_id": 0},
+        sort=[("data", -1)]
+    )
+    
+    km_rodados = None
+    media_km_l = None
+    
+    if ultimo and ultimo.get("km") and body.km > ultimo["km"]:
+        km_rodados = body.km - ultimo["km"]
+        if body.litros > 0 and "ARLA" not in (body.produto or "").upper():
+            media_km_l = km_rodados / body.litros
+
+    doc = body.model_dump()
+    doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
+    doc["valor_total"] = round(body.litros * body.preco_litro, 2)
+    doc["km_rodados"] = km_rodados
+    doc["media_km_l"] = media_km_l
+    
+    if body.motorista_id:
+        mot = await db.motoristas.find_one({"id": body.motorista_id}, {"_id": 0})
+        doc["motorista_label"] = mot["nome"] if mot else None
+    else:
+        doc["motorista_label"] = None
+        
+    if body.combustivel_id and not body.produto:
+        comb = await db.combustiveis.find_one({"id": body.combustivel_id}, {"_id": 0})
+        doc["produto"] = comb["nome"] if comb else "Diesel S-10"
+
+    await db.abastecimentos.update_one({"id": id}, {"$set": doc})
+    doc["id"] = id
+    doc["created_by"] = user["id"]
+    doc["created_at"] = now_iso()
+    return doc
+
+@router.delete("/{id}")
+async def excluir(id: str, _u: dict = Depends(require("delete"))):
+    await db.abastecimentos.delete_one({"id": id})
+    return {"ok": True}

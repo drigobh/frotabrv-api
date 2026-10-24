@@ -1,11 +1,12 @@
 from typing import Literal
 from pydantic import BaseModel, Field
 
-
 class AbastecimentoCreate(BaseModel):
     data: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     veiculo_id: str
     motorista_id: str | None = None
+    combustivel_id: str | None = None
+    produto: str | None = None
     litros: float = Field(gt=0)
     preco_litro: float = Field(gt=0)
     posto: str = Field(min_length=1)
@@ -16,8 +17,7 @@ class AbastecimentoCreate(BaseModel):
     hora: str | None = None
     cnpj: str | None = None
     fornecedor: str | None = None
-    origem: Literal["manual", "pdf"] = "manual"
-
+    origem: Literal["manual", "pdf", "excel"] = "manual"
 
 class Abastecimento(AbastecimentoCreate):
     id: str
