@@ -41,8 +41,8 @@ def calcular_km(km_atual, litros, produto, ultimo, veiculo):
         km_rodados = km_atual - veiculo["hodometro_km"]
 
     if km_rodados is not None:
-        if km_rodados < 0 or km_rodados > 5000:
-            km_rodados = None # Ignora valores absurdos ou negativos
+        if km_rodados < 0:
+            km_rodados = None
         elif km_rodados > 0 and litros > 0 and "ARLA" not in (produto or "").upper():
             media_km_l = km_rodados / litros
         elif km_rodados == 0:

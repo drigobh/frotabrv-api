@@ -139,10 +139,10 @@ export default function Abastecimentos() {
       const litrosMatch = text.match(/L\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i) || text.match(/L\s+([\d.,]+)\s+([\d.,]+)/i);
       
       // 4. Extração do Posto (Emitente)
-      const postoMatch = text.match(/RECEBEMOS DE\s+([A-Z0-9\s\-.]+)\s*\(/i) || text.match(/RECEBEMOS DE\s+([A-Z0-9\s\-.]+)/i);
+      const postoMatch = text.match(/RECEBEMOS DE\s+([^,]+)/i);
       
       // 5. Extração do Produto
-      const produtoMatch = text.match(/(OLEO DIESEL[A-Z0-9\s]*|DIESEL[A-Z0-9\s]*|ARLA[A-Z0-9\s]*)/i);
+      const produtoMatch = text.match(/(OLEO DIESEL[^\d]*|DIESEL[^\d]*|ARLA[^\d]*)/i);
 
       // 6. Extração da Data de Emissão
       const dateMatch = text.match(/DATA DA EMISSÃO\s*(\d{2}\/\d{2}\/\d{4})/i);
