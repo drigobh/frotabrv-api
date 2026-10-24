@@ -30,15 +30,24 @@ async def ultimo_km(veiculo_id: str, _u: dict = Depends(require("read"))):
     
     return {"ultimo_km": max(km_veiculo, km_abast)}
 
+def limpar_km(val):
+    if val is None: return 0
+    s = str(val).strip()
+    if s.endswith(".0"): s = s[:-2]
+    s = "".join(filter(str.isdigit, s))
+    return int(s) if s else 0
+
 def calcular_km(km_atual, litros, produto, ultimo, veiculo):
+    km_atual = limpar_km(km_atual)
     km_rodados = None
     media_km_l = None
 
-    # Lógica: Tenta o anterior. Se não tiver, pega o hodômetro inicial.
     if ultimo and ultimo.get("km"):
-        km_rodados = km_atual - ultimo["km"]
+        ultimo_km = limpar_km(ultimo["km"])
+        km_rodados = km_atual - ultimo_km
     elif veiculo.get("hodometro_km") is not None:
-        km_rodados = km_atual - veiculo["hodometro_km"]
+        veiculo_km = limpar_km(veiculo["hodometro_km"])
+        km_rodados = km_atual - veiculo_km
 
     if km_rodados is not None:
         if km_rodados < 0:
