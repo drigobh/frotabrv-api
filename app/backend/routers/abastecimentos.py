@@ -30,6 +30,26 @@ async def ultimo_km(veiculo_id: str, _u: dict = Depends(require("read"))):
     
     return {"ultimo_km": max(km_veiculo, km_abast)}
 
+def calcular_km(km_atual, litros, produto, ultimo, veiculo):
+    km_rodados = None
+    media_km_l = None
+
+    # Lógica: Tenta o anterior. Se não tiver, pega o hodômetro inicial.
+    if ultimo and ultimo.get("km"):
+        km_rodados = km_atual - ultimo["km"]
+    elif veiculo.get("hodometro_km") is not None:
+        km_rodados = km_atual - veiculo["hodometro_km"]
+
+    if km_rodados is not None:
+        if km_rodados < 0 or km_rodados > 5000:
+            km_rodados = None # Ignora valores absurdos ou negativos
+        elif km_rodados > 0 and litros > 0 and "ARLA" not in (produto or "").upper():
+            media_km_l = km_rodados / litros
+        elif km_rodados == 0:
+            media_km_l = 0
+
+    return km_rodados, media_km_l
+
 @router.post("/importar", response_model=None, status_code=201)
 async def importar_pdf(body: dict, request: Request, user: dict = Depends(require("write"))):
     placa_limpa = body.get("placa", "").strip().upper()
@@ -58,16 +78,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         sort=[("data", -1)]
     )
 
-    km_rodados = None
-    media_km_l = None
-
-    if ultimo and ultimo.get("km"):
-        km_rodados = km_atual - ultimo["km"]
-        if km_rodados < 0 or km_rodados > 5000:
-            km_rodados = None
-    
-    if km_rodados and km_rodados > 0 and litros > 0 and "ARLA" not in produto:
-        media_km_l = km_rodados / litros
+    km_rodados, media_km_l = calcular_km(km_atual, litros, produto, ultimo, veiculo)
 
     valor_total = body.get("valor_total")
     if not valor_total:
@@ -121,20 +132,13 @@ async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depend
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
 
-    # Converte a data (YYYY-MM-DD do input date) para manter o padrão
     ultimo = await db.abastecimentos.find_one(
         {"veiculo_id": body.veiculo_id, "data": {"$lt": body.data}},
         {"_id": 0},
         sort=[("data", -1)]
     )
 
-    km_rodados = None
-    media_km_l = None
-
-    if ultimo and ultimo.get("km") and body.km > ultimo["km"]:
-        km_rodados = body.km - ultimo["km"]
-        if body.litros > 0 and "ARLA" not in (body.produto or "").upper():
-            media_km_l = km_rodados / body.litros
+    km_rodados, media_km_l = calcular_km(body.km, body.litros, body.produto, ultimo, veiculo)
 
     doc = body.model_dump()
     doc["id"] = str(uuid.uuid4())
@@ -171,13 +175,7 @@ async def atualizar(id: str, body: AbastecimentoCreate, request: Request, user: 
         sort=[("data", -1)]
     )
     
-    km_rodados = None
-    media_km_l = None
-    
-    if ultimo and ultimo.get("km") and body.km > ultimo["km"]:
-        km_rodados = body.km - ultimo["km"]
-        if body.litros > 0 and "ARLA" not in (body.produto or "").upper():
-            media_km_l = km_rodados / body.litros
+    km_rodados, media_km_l = calcular_km(body.km, body.litros, body.produto, ultimo, veiculo)
 
     doc = body.model_dump()
     doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"

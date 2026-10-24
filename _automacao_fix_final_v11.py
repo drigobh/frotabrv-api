@@ -1,44 +1,8 @@
 import os
 
-def fix_models(raiz):
-    caminho = os.path.join(raiz, "app", "backend", "models", "abastecimentos.py")
-    codigo = '''from typing import Literal
-from pydantic import BaseModel, Field
-
-class AbastecimentoCreate(BaseModel):
-    data: str = Field(pattern=r"^\\d{4}-\\d{2}-\\d{2}$")
-    veiculo_id: str
-    motorista_id: str | None = None
-    combustivel_id: str | None = None
-    produto: str | None = None
-    litros: float = Field(gt=0)
-    preco_litro: float = Field(gt=0)
-    posto: str = Field(min_length=1)
-    km: float = Field(ge=0)
-    observacoes: str = ""
-    numero_nf: str | None = None
-    chave_nfe: str | None = None
-    hora: str | None = None
-    cnpj: str | None = None
-    fornecedor: str | None = None
-    origem: Literal["manual", "pdf", "excel"] = "manual"
-
-class Abastecimento(AbastecimentoCreate):
-    id: str
-    valor_total: float
-    km_rodados: float | None = None
-    media_km_l: float | None = None
-    veiculo_label: str
-    motorista_label: str | None = None
-    created_by: str
-    created_at: str
-'''
-    with open(caminho, 'w', encoding='utf-8') as f:
-        f.write(codigo)
-    print("✅ Modelo AbastecimentoCreate atualizado.")
-
-def fix_router(raiz):
+def fix_backend(raiz):
     caminho = os.path.join(raiz, "app", "backend", "routers", "abastecimentos.py")
+    
     codigo = '''from fastapi import APIRouter, Depends, HTTPException, Request
 from lib.dates import now_iso
 from lib.db import db
@@ -71,6 +35,26 @@ async def ultimo_km(veiculo_id: str, _u: dict = Depends(require("read"))):
     
     return {"ultimo_km": max(km_veiculo, km_abast)}
 
+def calcular_km(km_atual, litros, produto, ultimo, veiculo):
+    km_rodados = None
+    media_km_l = None
+
+    # Lógica: Tenta o anterior. Se não tiver, pega o hodômetro inicial.
+    if ultimo and ultimo.get("km"):
+        km_rodados = km_atual - ultimo["km"]
+    elif veiculo.get("hodometro_km") is not None:
+        km_rodados = km_atual - veiculo["hodometro_km"]
+
+    if km_rodados is not None:
+        if km_rodados < 0 or km_rodados > 5000:
+            km_rodados = None # Ignora valores absurdos ou negativos
+        elif km_rodados > 0 and litros > 0 and "ARLA" not in (produto or "").upper():
+            media_km_l = km_rodados / litros
+        elif km_rodados == 0:
+            media_km_l = 0
+
+    return km_rodados, media_km_l
+
 @router.post("/importar", response_model=None, status_code=201)
 async def importar_pdf(body: dict, request: Request, user: dict = Depends(require("write"))):
     placa_limpa = body.get("placa", "").strip().upper()
@@ -99,16 +83,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         sort=[("data", -1)]
     )
 
-    km_rodados = None
-    media_km_l = None
-
-    if ultimo and ultimo.get("km"):
-        km_rodados = km_atual - ultimo["km"]
-        if km_rodados < 0 or km_rodados > 5000:
-            km_rodados = None
-    
-    if km_rodados and km_rodados > 0 and litros > 0 and "ARLA" not in produto:
-        media_km_l = km_rodados / litros
+    km_rodados, media_km_l = calcular_km(km_atual, litros, produto, ultimo, veiculo)
 
     valor_total = body.get("valor_total")
     if not valor_total:
@@ -162,20 +137,13 @@ async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depend
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
 
-    # Converte a data (YYYY-MM-DD do input date) para manter o padrão
     ultimo = await db.abastecimentos.find_one(
         {"veiculo_id": body.veiculo_id, "data": {"$lt": body.data}},
         {"_id": 0},
         sort=[("data", -1)]
     )
 
-    km_rodados = None
-    media_km_l = None
-
-    if ultimo and ultimo.get("km") and body.km > ultimo["km"]:
-        km_rodados = body.km - ultimo["km"]
-        if body.litros > 0 and "ARLA" not in (body.produto or "").upper():
-            media_km_l = km_rodados / body.litros
+    km_rodados, media_km_l = calcular_km(body.km, body.litros, body.produto, ultimo, veiculo)
 
     doc = body.model_dump()
     doc["id"] = str(uuid.uuid4())
@@ -212,13 +180,7 @@ async def atualizar(id: str, body: AbastecimentoCreate, request: Request, user: 
         sort=[("data", -1)]
     )
     
-    km_rodados = None
-    media_km_l = None
-    
-    if ultimo and ultimo.get("km") and body.km > ultimo["km"]:
-        km_rodados = body.km - ultimo["km"]
-        if body.litros > 0 and "ARLA" not in (body.produto or "").upper():
-            media_km_l = km_rodados / body.litros
+    km_rodados, media_km_l = calcular_km(body.km, body.litros, body.produto, ultimo, veiculo)
 
     doc = body.model_dump()
     doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
@@ -249,9 +211,87 @@ async def excluir(id: str, _u: dict = Depends(require("delete"))):
 '''
     with open(caminho, 'w', encoding='utf-8') as f:
         f.write(codigo)
-    print("✅ Router de abastecimentos recriado com as rotas POST, PUT e DELETE.")
+    print("✅ Backend atualizado com validação de 0 km.")
+
+def fix_frontend(raiz):
+    caminho = os.path.join(raiz, "frontend", "src", "pages", "Abastecimentos.tsx")
+    with open(caminho, 'r', encoding='utf-8') as f:
+        c = f.read()
+
+    # 1. Ajustar a altura do Dialog (Responsividade)
+    if 'max-h-[90vh] overflow-y-auto' not in c:
+        c = c.replace('<DialogContent className="sm:max-w-lg">', '<DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">')
+
+    # 2. Impedir que o handleVeiculoChange sobrescreva o KM já digitado
+    old_change = '''const handleVeiculoChange = async (veiculoId: string) => {
+    set("veiculo_id")(veiculoId); if (!veiculoId) return;
+    try {
+      if (!editingId) { const d = await apiGet<{ultimo_km: number}>(`/abastecimentos/ultimo-km/${veiculoId}`); setForm(s => ({ ...s, km: String(d.ultimo_km) })); }
+      const a = await apiGet<any[]>("/acoplamentos"); const ativo = a.find(x => x.veiculo_id === veiculoId);
+      if (ativo && ativo.motorista_id && !editingId) setForm(s => ({ ...s, motorista_id: ativo.motorista_id }));
+    } catch (e) { console.error(e); }
+  };'''
+    
+    new_change = '''const handleVeiculoChange = async (veiculoId: string) => {
+    set("veiculo_id")(veiculoId); if (!veiculoId) return;
+    try {
+      if (!editingId && !form.km) { 
+        const d = await apiGet<{ultimo_km: number}>(`/abastecimentos/ultimo-km/${veiculoId}`); 
+        setForm(s => ({ ...s, km: String(Math.round(d.ultimo_km)) })); 
+      }
+      const a = await apiGet<any[]>("/acoplamentos"); const ativo = a.find(x => x.veiculo_id === veiculoId);
+      if (ativo && ativo.motorista_id && !editingId) setForm(s => ({ ...s, motorista_id: ativo.motorista_id }));
+    } catch (e) { console.error(e); }
+  };'''
+    
+    if old_change in c:
+        c = c.replace(old_change, new_change)
+
+    # 3. Corrigir a abertura de edição para carregar a data YYYY-MM-DD e o Combustível
+    old_edit = '''const abrirEdicao = (r: Abastecimento) => { setEditingId(r.id); setForm({ data: r.data, veiculo_id: r.veiculo_id, motorista_id: r.motorista_id || NENHUM, litros: String(r.litros), preco_litro: String(r.preco_litro), posto: r.posto, km: String(r.km), observacoes: r.observacoes || "", numero_nf: r.numero_nf || "", chave_nfe: r.chave_nfe || "", hora: r.hora || "", cnpj: r.cnpj || "", fornecedor: r.fornecedor || "", origem: r.origem || "excel", produto: (r as any).produto || "DIESEL" }); setOpen(true); };'''
+    
+    new_edit = '''const abrirEdicao = (r: Abastecimento) => { 
+    setEditingId(r.id); 
+    let dataStr = r.data;
+    if (dataStr.includes("/")) {
+      const [d, m, y] = dataStr.split("/");
+      dataStr = `${y}-${m}-${d}`;
+    } else {
+      dataStr = dataStr.split("T")[0];
+    }
+    setForm({ 
+      data: dataStr, 
+      veiculo_id: r.veiculo_id, 
+      motorista_id: r.motorista_id || NENHUM, 
+      combustivel_id: (r as any).combustivel_id || "",
+      litros: String(r.litros), 
+      preco_litro: String(r.preco_litro), 
+      posto: r.posto, 
+      km: String(r.km), 
+      observacoes: r.observacoes || "", 
+      numero_nf: r.numero_nf || "", 
+      chave_nfe: r.chave_nfe || "", 
+      hora: r.hora || "", 
+      cnpj: r.cnpj || "", 
+      fornecedor: r.fornecedor || "", 
+      origem: r.origem || "excel", 
+      produto: (r as any).produto || "DIESEL" 
+    }); 
+    setOpen(true); 
+  };'''
+    
+    if old_edit in c:
+        c = c.replace(old_edit, new_edit)
+
+    # 4. Exibir 0 em vez de traço caso rodados seja 0 (primeiro abastecimento na mesma km)
+    if 'r.km_rodados != null ? num(r.km_rodados) : "—"' in c:
+        c = c.replace('r.km_rodados != null ? num(r.km_rodados) : "—"', 'r.km_rodados != null ? num(r.km_rodados) : "—"') # Mantém o traço, apenas confirma
+
+    with open(caminho, 'w', encoding='utf-8') as f:
+        f.write(c)
+    print("✅ Frontend atualizado (Responsividade e preservação do KM digitado).")
 
 if __name__ == "__main__":
     raiz = os.getcwd()
-    fix_models(raiz)
-    fix_router(raiz)
+    fix_backend(raiz)
+    fix_frontend(raiz)

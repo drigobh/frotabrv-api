@@ -268,7 +268,10 @@ export default function Abastecimentos() {
   const handleVeiculoChange = async (veiculoId: string) => {
     set("veiculo_id")(veiculoId); if (!veiculoId) return;
     try {
-      if (!editingId) { const d = await apiGet<{ultimo_km: number}>(`/abastecimentos/ultimo-km/${veiculoId}`); setForm(s => ({ ...s, km: String(d.ultimo_km) })); }
+      if (!editingId && !form.km) { 
+        const d = await apiGet<{ultimo_km: number}>(`/abastecimentos/ultimo-km/${veiculoId}`); 
+        setForm(s => ({ ...s, km: String(Math.round(d.ultimo_km)) })); 
+      }
       const a = await apiGet<any[]>("/acoplamentos"); const ativo = a.find(x => x.veiculo_id === veiculoId);
       if (ativo && ativo.motorista_id && !editingId) setForm(s => ({ ...s, motorista_id: ativo.motorista_id }));
     } catch (e) { console.error(e); }
@@ -375,7 +378,7 @@ export default function Abastecimentos() {
       </div>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if(!o) setEditingId(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? "Editar" : "Novo"} Abastecimento</DialogTitle></DialogHeader>
           <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
             <div className="grid gap-1.5"><Label>Data *</Label><Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} required /></div>
