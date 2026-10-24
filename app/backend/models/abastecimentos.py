@@ -17,7 +17,7 @@ class AbastecimentoCreate(BaseModel):
     hora: str | None = None
     cnpj: str | None = None
     fornecedor: str | None = None
-    origem: Literal["manual", "pdf", "excel"] = "manual"
+    origem: str = "manual"
 
 class Abastecimento(AbastecimentoCreate):
     id: str
