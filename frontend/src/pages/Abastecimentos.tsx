@@ -1,23 +1,23 @@
-import { useMemo, useState, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle } from "lucide-react";
+import { Info, useMemo, useState, useRef } from "react";
+import { Info, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Info, Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
-import { toast } from "sonner";
-import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
-import { brl, dataBR, errMsg, num } from "@/lib/format";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PageHeader } from "@/components/common/PageHeader";
-import { FieldSelect } from "@/components/common/FieldSelect";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
-import { useMotoristas, useVeiculos } from "@/hooks/useCadastros";
-import { useQuery as useQueryComb } from "@tanstack/react-query";
-import { useHoje, useMe } from "@/hooks/useSession";
+import { Info, toast } from "sonner";
+import { Info, apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
+import { Info, brl, dataBR, errMsg, num } from "@/lib/format";
+import { Info, Button } from "@/components/ui/button";
+import { Info, Input } from "@/components/ui/input";
+import { Info, Label } from "@/components/ui/label";
+import { Info, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Info, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Info, PageHeader } from "@/components/common/PageHeader";
+import { Info, FieldSelect } from "@/components/common/FieldSelect";
+import { Info, ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { Info, useMotoristas, useVeiculos } from "@/hooks/useCadastros";
+import { Info, useQuery as useQueryComb } from "@tanstack/react-query";
+import { Info, useHoje, useMe } from "@/hooks/useSession";
 import type { Abastecimento } from "@/types/abastecimentos";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -27,7 +27,7 @@ const NENHUM = "__none__";
 
 const vazio = (hoje: string) => ({ 
   data: hoje, veiculo_id: "", motorista_id: NENHUM, litros: "", preco_litro: "", posto: "", km: "", observacoes: "",
-  numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "excel"
+  numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "edenred"
 });
 
 export default function Abastecimentos() {
@@ -269,7 +269,7 @@ export default function Abastecimentos() {
           numero_nf: null,
           chave_nfe: null,
           cnpj: null,
-          origem: "excel"
+          origem: "bsoft"
         };
 
         try {
@@ -355,7 +355,7 @@ export default function Abastecimentos() {
           numero_nf: null,
           chave_nfe: null,
           cnpj: null,
-          origem: "excel"
+          origem: "edenred"
         };
 
         try {
@@ -493,7 +493,17 @@ export default function Abastecimentos() {
             {rowsOrdenadas.map(r => (
               <TableRow key={r.id} className="border-slate-800/70">
                 <TableCell className="font-mono px-2 text-center">{dataBR(r.data)}</TableCell>
-                <TableCell className="text-center px-2">{r.origem === "pdf" ? <span className="bg-red-500/20 text-red-400 px-2 py-0.5 font-bold rounded">PDF</span> : r.origem === "excel" ? <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 font-bold rounded">XLS</span> : <span className="bg-slate-500/20 text-slate-400 px-2 py-0.5 font-bold rounded">M</span>}</TableCell>
+                <TableCell className="text-center px-2">{r.origem === "pdf" ? (
+                  <span title="Importado PDF (NF)" className="bg-red-500/20 text-red-400 px-2 py-0.5 text-[10px] font-bold rounded">NF</span>
+                ) : r.origem === "bsoft" ? (
+                  <span title="Importado BSOFT" className="bg-sky-500/20 text-sky-400 px-2 py-0.5 text-[10px] font-bold rounded">BS</span>
+                ) : r.origem === "edenred" ? (
+                  <span title="Importado Edenred" className="bg-purple-500/20 text-purple-400 px-2 py-0.5 text-[10px] font-bold rounded">ED</span>
+                ) : r.origem === "excel" ? (
+                  <span title="Excel Antigo" className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 text-[10px] font-bold rounded">XLS</span>
+                ) : (
+                  <span title="Manual" className="bg-slate-500/20 text-slate-400 px-2 py-0.5 text-[10px] font-bold rounded">MA</span>
+                )}</TableCell>
                 <TableCell className="font-mono px-2 text-center">{r.veiculo_label.split(" · ")[0]}</TableCell>
                 <TableCell className="text-slate-300 px-2 truncate max-w-[150px] text-center">{r.motorista_label ?? "—"}</TableCell>
                 <TableCell className="text-slate-300 px-2 truncate max-w-[150px] text-center">{r.produto || "—"}</TableCell>
@@ -506,6 +516,9 @@ export default function Abastecimentos() {
                 <TableCell className="tabular-nums text-sky-300 px-2 text-center">{r.media_km_l != null ? num(r.media_km_l, 2) : "—"}</TableCell>
                 <TableCell className="text-center px-2">
                   <div className="flex gap-1 justify-center">
+                    <Button size="icon-sm" variant="ghost" className="cursor-help" title={`Criado/Importado por: ${(r as any).created_by_name || 'Sistema'}`}>
+                      <Info className="size-4 text-slate-400" />
+                    </Button>
                     <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
                     {me?.perfil === "admin" && <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4" /></Button>}
                   </div>

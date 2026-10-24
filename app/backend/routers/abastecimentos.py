@@ -143,6 +143,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         "cnpj": body.get("cnpj"),
         "fornecedor": body.get("fornecedor"),
         "created_by": user.get("id", "sistema"),
+        "created_by_name": user.get("nome", user.get("email", "Sistema")),
         "created_at": now_iso()
     }
 
