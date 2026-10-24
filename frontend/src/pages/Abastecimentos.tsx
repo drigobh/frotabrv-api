@@ -27,7 +27,7 @@ const NENHUM = "__none__";
 
 const vazio = (hoje: string) => ({ 
   data: hoje, veiculo_id: "", motorista_id: NENHUM, litros: "", preco_litro: "", posto: "", km: "", observacoes: "",
-  numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "edenred"
+  numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "manual"
 });
 
 export default function Abastecimentos() {
@@ -302,8 +302,9 @@ export default function Abastecimentos() {
 
       if (rows.length < 2) { toast.error("Planilha vazia ou inválida."); return; }
 
-      const headerRow = rows[0].map((c: any) => String(c).toUpperCase().trim());
-      const findIdx = (name: string) => headerRow.findIndex(h => h.includes(name));
+      const cleanName = (s: string) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const headerRow = rows[0].map((col: any) => String(col));
+      const findIdx = (name: string) => headerRow.findIndex(h => cleanName(h).includes(cleanName(name)));
 
       const idxData = findIdx("DATA TRANSACAO");
       const idxPlaca = findIdx("PLACA");
@@ -312,7 +313,8 @@ export default function Abastecimentos() {
       const idxPreco = findIdx("VL/LITRO");
       const idxKm = findIdx("HODOMETRO");
       const idxPosto = findIdx("NOME ESTABELECIMENTO");
-      const idxValor = findIdx("VALOR EMISSAO");
+      let idxValor = findIdx("VALOR EMISSAO");
+      if (idxValor === -1) idxValor = findIdx("VALOR");
 
       if (idxData === -1 || idxPlaca === -1 || idxLitros === -1) {
         toast.error("Colunas essenciais do Edenred não encontradas."); return;
@@ -322,6 +324,17 @@ export default function Abastecimentos() {
       setImportProgress({ total: totalLinhas, current: 0, errors: [] });
       let importados = 0;
       const erros: any[] = [];
+
+      const parseNum = (val: any) => {
+        if (val === undefined || val === null) return 0;
+        let str = String(val).trim().replace(/[^\d.,]/g, "");
+        if (str.includes('.') && str.includes(',')) {
+            str = str.replace(/\./g, '').replace(',', '.');
+        } else if (str.includes(',')) {
+            str = str.replace(',', '.');
+        }
+        return Number(str);
+      };
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
@@ -334,12 +347,12 @@ export default function Abastecimentos() {
         let dataFinal = dataStr.split(" ")[0];
         let horaFinal = dataStr.includes(" ") ? dataStr.split(" ")[1].substring(0, 5) : null;
 
-        const kmStr = String(row[idxKm] || "0");
-        const kmNum = Number(kmStr.replace(/[^\d]/g, ""));
-
-        const litrosNum = Number(String(row[idxLitros] || "0").replace(",", "."));
-        const precoNum = Number(String(row[idxPreco] || "0").replace(",", "."));
-        const valorNum = Number(String(row[idxValor] || "0").replace(",", "."));
+        const kmNum = parseNum(row[idxKm]);
+        const litrosNum = parseNum(row[idxLitros]);
+        const precoNum = parseNum(row[idxPreco]);
+        let valorNum = parseNum(row[idxValor]);
+        
+        if (valorNum === 0) valorNum = litrosNum * precoNum;
         const produtoStr = String(row[idxProduto] || "DIESEL").toUpperCase();
 
         const payload = {
@@ -464,18 +477,28 @@ export default function Abastecimentos() {
         </div>
         <div className="space-y-2 w-full">
           {ranking.length === 0 ? <p className="text-sm text-slate-500">Sem dados.</p> : ranking.map((r, i) => {
-              const p = Math.min((r.media / 5) * 100, 100); const good = r.media >= 2.5;
+              const p = Math.min((r.media / 5) * 100, 100);
               return (
-                <div key={r.label} className="flex items-center gap-3 w-full">
-                  <span className="w-6 text-xs text-slate-500 font-mono">{i + 1}º</span>
-                  <span className="w-20 text-sm font-medium text-slate-300 font-mono">{r.label.split(" ")[0]}</span>
-                  <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden"><div className={`h-full ${good ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${p}%` }} /></div>
-                  <span className="w-12 text-right text-sm font-bold text-slate-200">{num(r.media, 2)}</span>
+                <div key={r.label} className="flex items-center gap-3 w-full bg-slate-900/60 p-2 rounded-lg border border-slate-800/80">
+                  <span className="w-6 text-xs text-slate-500 font-mono text-center">{i + 1}º</span>
+                  <span className="w-20 text-sm font-semibold text-slate-300 font-mono truncate">{r.label.split(" ")[0]}</span>
+                  <div className="flex-1 h-4 bg-slate-950 rounded-full overflow-hidden shadow-inner border border-slate-700 relative">
+                    <div 
+                      className="h-full rounded-full transition-all duration-500" 
+                      style={{ 
+                        width: `${p}%`, 
+                        background: 'linear-gradient(90deg, #ef4444 0%, #f59e0b 30%, #eab308 50%, #22c55e 80%, #10b981 100%)',
+                        boxShadow: '0 0 10px rgba(16, 185, 129, 0.3)'
+                      }} 
+                    />
+                  </div>
+                  <span className="w-14 text-right text-sm font-bold text-slate-100 bg-slate-800/80 py-0.5 px-2 rounded">{num(r.media, 2)}</span>
                 </div>
               );
           })}
         </div>
       </div>
+
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="grid w-64 gap-1.5"><Label>Veículo</Label><FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} testId="filtro-veiculo" /></div>
         <div className="grid gap-1.5"><Label>Mês</Label><Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" /></div>

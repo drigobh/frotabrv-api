@@ -57,15 +57,23 @@ def calcular_km(km_atual, litros, produto, ultimo, veiculo):
     km_rodados = None
     media_km_l = None
 
+    def normalizar_km(val_str):
+        val = limpar_km(val_str)
+        # Se o hodômetro for menor que 10000 (ex: 290, 304), multiplica por 1000 (290000, 304000)
+        if 0 < val < 10000:
+            val = val * 1000
+        return val
+
     if ultimo and ultimo.get("km"):
-        ultimo_km = limpar_km(ultimo["km"])
+        ultimo_km = normalizar_km(ultimo["km"])
         km_rodados = km_atual - ultimo_km
     elif veiculo.get("hodometro_km") is not None:
-        veiculo_km = limpar_km(veiculo["hodometro_km"])
+        veiculo_km = normalizar_km(veiculo["hodometro_km"])
         km_rodados = km_atual - veiculo_km
 
+    # Trava de segurança
     if km_rodados is not None:
-        if km_rodados < 0:
+        if km_rodados <= 0 or km_rodados > 50000:
             km_rodados = None
         elif km_rodados > 0 and litros > 0 and "ARLA" not in (produto or "").upper():
             media_km_l = km_rodados / litros
@@ -148,6 +156,8 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     }
 
     await db.abastecimentos.insert_one(doc)
+    if km_atual > 0:
+        await db.veiculos.update_one({"id": veiculo["id"]}, {"$set": {"hodometro_km": km_atual}})
     doc.pop("_id", None)
     return doc
 
@@ -185,6 +195,8 @@ async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depend
         doc["produto"] = comb["nome"] if comb else "Diesel S-10"
 
     await db.abastecimentos.insert_one(doc)
+    if km_atual > 0:
+        await db.veiculos.update_one({"id": veiculo["id"]}, {"$set": {"hodometro_km": km_atual}})
     doc.pop("_id", None)
     return doc
 
