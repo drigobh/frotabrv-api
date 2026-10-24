@@ -129,11 +129,13 @@ export default function Abastecimentos() {
       const placaMatch = text.match(/PLACA[:\s]*([A-Z]{3}[0-9][A-Z0-9][0-9]{2})/i) || text.match(/PLACA[:\s]*([A-Z0-9]{7})/i);
       const kmMatch = text.match(/KM[:\s]*(\d+)/i);
       const litrosMatch = text.match(/L\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i) || text.match(/L\s+([\d.,]+)\s+([\d.,]+)/i);
+      const produtoMatch = text.match(/DESCRIÇÃO DOS PRODUTOS \/ SERVIÇOS\s+([A-Z0-9\s]+)/i) || text.match(/(OLEO DIESEL|DIESEL|ARLA)[A-Z0-9\s]*/i);
+      const produtoStr = produtoMatch ? produtoMatch[1] || produtoMatch[0] : "DIESEL S-10";
       const parseNum = (val: string) => Number(val.replace(/\./g, "").replace(",", "."));
       const payload = {
         data: new Date().toISOString().split('T')[0], hora: null, numero_nf: null, chave_nfe: null, cnpj: null, fornecedor: null,
         placa: placaMatch ? placaMatch[1].toUpperCase() : null, litros: litrosMatch ? parseNum(litrosMatch[1]) : 0,
-        preco_litro: litrosMatch ? parseNum(litrosMatch[2]) : 0, km: kmMatch ? Number(kmMatch[1]) : 0, origem: "pdf"
+        preco_litro: litrosMatch ? parseNum(litrosMatch[2]) : 0, km: kmMatch ? Number(kmMatch[1]) : 0, origem: "pdf", produto: produtoStr
       };
       await apiPost("/abastecimentos/importar", payload);
       toast.success("Nota Fiscal importada com sucesso!"); invalidate();
@@ -341,17 +343,18 @@ export default function Abastecimentos() {
         <Table className="text-xs">
           <TableHeader>
             <TableRow className="border-slate-800">
-              {["Data", "Origem", "Veículo", "Motorista", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "Média", "Ações"].map(h => <TableHead key={h} className="text-[10px] uppercase text-slate-500 px-2 text-center">{h}</TableHead>)}
+              {["Data", "Origem", "Veículo", "Motorista", "Produto", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "Média", "Ações"].map(h => <TableHead key={h} className="text-[10px] uppercase text-slate-500 px-2 text-center">{h}</TableHead>)}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rowsOrdenadas.length === 0 && <TableRow><TableCell colSpan={12} className="py-10 text-center text-slate-500">Nenhum abastecimento.</TableCell></TableRow>}
+            {rowsOrdenadas.length === 0 && <TableRow><TableCell colSpan={13} className="py-10 text-center text-slate-500">Nenhum abastecimento.</TableCell></TableRow>}
             {rowsOrdenadas.map(r => (
               <TableRow key={r.id} className="border-slate-800/70">
                 <TableCell className="font-mono px-2 text-center">{dataBR(r.data)}</TableCell>
                 <TableCell className="text-center px-2">{r.origem === "pdf" ? <span className="bg-red-500/20 text-red-400 px-2 py-0.5 font-bold rounded">PDF</span> : r.origem === "excel" ? <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 font-bold rounded">XLS</span> : <span className="bg-slate-500/20 text-slate-400 px-2 py-0.5 font-bold rounded">M</span>}</TableCell>
                 <TableCell className="font-mono px-2 text-center">{r.veiculo_label.split(" · ")[0]}</TableCell>
                 <TableCell className="text-slate-300 px-2 truncate max-w-[150px] text-center">{r.motorista_label ?? "—"}</TableCell>
+                <TableCell className="text-slate-300 px-2 truncate max-w-[150px] text-center">{r.produto || "—"}</TableCell>
                 <TableCell className="tabular-nums px-2 text-center">{num(r.litros, 3)}</TableCell>
                 <TableCell className="tabular-nums px-2 text-center">{brl(r.preco_litro)}</TableCell>
                 <TableCell className="tabular-nums font-medium px-2 text-center">{brl(r.valor_total)}</TableCell>
