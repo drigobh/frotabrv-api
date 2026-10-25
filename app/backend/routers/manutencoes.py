@@ -21,7 +21,9 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     doc = body.model_dump()
     doc["id"] = str(uuid.uuid4())
     doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
+    doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
     doc["created_by"] = user["id"]
+    doc["criado_por"] = user.get("nome", "Sistema")
     doc["created_at"] = now_iso()
 
     await db.manutencoes.insert_one(doc)
@@ -40,6 +42,7 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
 
     doc = body.model_dump()
     doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
+    doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
     
     await db.manutencoes.update_one({"id": id}, {"$set": doc})
     

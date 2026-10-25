@@ -4,6 +4,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Veiculos from "@/pages/Veiculos";
+import Fornecedores from '@/pages/Fornecedores';
 import Combustiveis from '@/pages/Combustiveis';
 import Carretas from "@/pages/Carretas";
 import Motoristas from "@/pages/Motoristas";
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/admin/base" element={<Base />} />
           <Route path="cadastros/veiculos" element={<Veiculos />} />
           <Route path="cadastros/carretas" element={<Carretas />} />
+          <Route path="cadastros/fornecedores" element={<Fornecedores />} />
           <Route path="cadastros/combustiveis" element={<Combustiveis />} />
           <Route path="cadastros/motoristas" element={<Motoristas />} />
           <Route path="acoplamentos" element={<Acoplamentos />} />
