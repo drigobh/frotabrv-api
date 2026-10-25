@@ -11,6 +11,7 @@ class PecaCreate(BaseModel):
     codigo: Optional[str] = None
     quantidade_estoque: int = 0
     estoque_minimo: int = 5
+    fornecedor_atual_id: Optional[str] = None
     fornecedores_precos: List[FornecedorPreco] = []
     ativo: bool = True
 
