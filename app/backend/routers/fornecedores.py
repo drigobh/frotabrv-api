@@ -14,8 +14,8 @@ async def listar(_u: dict = Depends(require("read"))):
 
 @router.post("", response_model=Fornecedor, status_code=201)
 async def criar(body: FornecedorCreate, _u: dict = Depends(require("write"))):
-    if await db.fornecedores.find_one({"nome": body.nome}):
-        raise HTTPException(409, "Fornecedor já cadastrado")
+    if body.documento and await db.fornecedores.find_one({"documento": body.documento}):
+        raise HTTPException(409, "Fornecedor com este documento já cadastrado")
     doc = body.model_dump()
     doc["id"] = str(uuid.uuid4())
     doc["created_at"] = now_iso()
