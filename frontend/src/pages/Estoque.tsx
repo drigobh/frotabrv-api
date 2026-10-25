@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Search, MapPin, Info, Star, Barcode, Box, ArrowUpRight, ArrowDownRight, ClipboardList, RefreshCw } from "lucide-react";
+import { Package, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Search, MapPin, Info, Star, Barcode, Box, ArrowDownRight, ClipboardList, RefreshCw, Printer, FileSpreadsheet, Eye } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
-import { brl, dataBR } from "@/lib/format";
+import { brl } from "@/lib/format";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { FieldSelect } from "@/components/common/FieldSelect";
+import { useVeiculos, useCarretas } from "@/hooks/useCadastros";
 
 export default function Estoque() {
   const qc = useQueryClient();
@@ -28,32 +30,36 @@ export default function Estoque() {
   });
   const [listaFornecedores, setListaFornecedores] = useState<{ fornecedor_id: string, preco_atual: string, historico: number[] }[]>([]);
 
-  // Estados de Movimentação
+  // Estados de Baixa de Estoque (Saída)
   const [openMov, setOpenMov] = useState(false);
-  const [movForm, setMovForm] = useState({ peca_id: "", tipo: "entrada", quantidade: "", motivo: "", observacao: "" });
+  const [movForm, setMovForm] = useState({ peca_id: "", fornecedor_id: "", destino_tipo: "veiculo", veiculo_id: "", carreta_id: "", quantidade: "", motivo: "", observacao: "" });
 
   // Estados de Inventário
   const [openInv, setOpenInv] = useState(false);
   const [invContagens, setInvContagens] = useState<Record<string, string>>({});
+  const [viewInv, setViewInv] = useState<any | null>(null);
+  const [excluirInvId, setExcluirInvId] = useState<string | null>(null);
 
   // Queries
   const q = useQuery({ queryKey: ["pecas"], queryFn: () => apiGet<any[]>("/pecas") });
   const fornQ = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
+  const veicQ = useVeiculos();
+  const carrQ = useCarretas();
   const movQ = useQuery({ queryKey: ["movimentacoes"], queryFn: () => apiGet<any[]>("/estoque/movimentacoes"), enabled: activeTab === "movimentacoes" });
+  const invQ = useQuery({ queryKey: ["inventarios"], queryFn: () => apiGet<any[]>("/estoque/inventarios"), enabled: activeTab === "inventarios" });
   
   const rows = q.data ?? [];
   const fornecedores = fornQ.data ?? [];
+  const veiculos = veicQ.data ?? [];
+  const carretas = carrQ.data ?? [];
   const movimentacoes = movQ.data ?? [];
+  const inventarios = invQ.data ?? [];
 
   const rowsFiltradas = useMemo(() => {
-    return rows.filter(r => 
-      r.nome.toLowerCase().includes(busca.toLowerCase()) || 
-      (r.codigo && r.codigo.toLowerCase().includes(busca.toLowerCase())) ||
-      (r.codigo_barras && r.codigo_barras.toLowerCase().includes(busca.toLowerCase()))
-    );
+    return rows.filter(r => r.nome.toLowerCase().includes(busca.toLowerCase()) || (r.codigo && r.codigo.toLowerCase().includes(busca.toLowerCase())) || (r.codigo_barras && r.codigo_barras.toLowerCase().includes(busca.toLowerCase())));
   }, [rows, busca]);
 
-  // Mutations da Peça
+  // Mutations
   const salvar = useMutation({
     mutationFn: () => {
       const payload = { 
@@ -72,32 +78,78 @@ export default function Estoque() {
     onSuccess: () => { toast.success("Peça excluída"); setExcluirId(null); qc.invalidateQueries({ queryKey: ["pecas"] }); },
   });
 
-  // Mutation de Movimentação
   const salvarMov = useMutation({
-    mutationFn: () => apiPost("/estoque/movimentacoes", { ...movForm, quantidade: Number(movForm.quantidade) }),
+    mutationFn: () => apiPost("/estoque/movimentacoes", { 
+      peca_id: movForm.peca_id, fornecedor_id: movForm.fornecedor_id,
+      veiculo_id: movForm.destino_tipo === "veiculo" ? movForm.veiculo_id : null,
+      carreta_id: movForm.destino_tipo === "carreta" ? movForm.carreta_id : null,
+      quantidade: Number(movForm.quantidade), motivo: movForm.motivo, observacao: movForm.observacao
+    }),
     onSuccess: () => { 
-      toast.success("Movimentação registrada!"); setOpenMov(false); 
-      setMovForm({ peca_id: "", tipo: "entrada", quantidade: "", motivo: "", observacao: "" });
+      toast.success("Baixa realizada com sucesso!"); setOpenMov(false); 
+      setMovForm({ peca_id: "", fornecedor_id: "", destino_tipo: "veiculo", veiculo_id: "", carreta_id: "", quantidade: "", motivo: "", observacao: "" });
       qc.invalidateQueries({ queryKey: ["pecas"] }); qc.invalidateQueries({ queryKey: ["movimentacoes"] }); 
     },
-    onError: (e: any) => toast.error(e.message || "Erro ao movimentar"),
+    onError: (e: any) => toast.error(e.message || "Erro na baixa"),
   });
 
-  // Mutation de Inventário
   const salvarInv = useMutation({
     mutationFn: () => {
-      const itens = Object.entries(invContagens)
-        .filter(([_, qtd]) => qtd !== "")
-        .map(([id, qtd]) => ({ peca_id: id, quantidade_fisica: Number(qtd) }));
+      const itens = Object.entries(invContagens).filter(([_, qtd]) => qtd !== "").map(([id, qtd]) => {
+        const p = rows.find((r:any) => r.id === id);
+        return { peca_id: id, peca_nome: p.nome, qtd_anterior: p.quantidade_estoque, qtd_fisica: Number(qtd) };
+      });
       return apiPost("/estoque/inventario", { itens });
     },
     onSuccess: (data: any) => { 
       toast.success(`Inventário concluído! ${data.ajustes} peças ajustadas.`); 
       setOpenInv(false); setInvContagens({}); 
-      qc.invalidateQueries({ queryKey: ["pecas"] }); qc.invalidateQueries({ queryKey: ["movimentacoes"] }); 
+      qc.invalidateQueries({ queryKey: ["pecas"] }); qc.invalidateQueries({ queryKey: ["movimentacoes"] }); qc.invalidateQueries({ queryKey: ["inventarios"] });
     },
     onError: (e: any) => toast.error(e.message || "Erro no inventário"),
   });
+
+  const excluirInv = useMutation({
+    mutationFn: (id: string) => apiDelete(`/estoque/inventarios/${id}`),
+    onSuccess: () => { toast.success("Histórico de inventário excluído"); setExcluirInvId(null); qc.invalidateQueries({ queryKey: ["inventarios"] }); },
+  });
+
+  // Exportações de Inventário
+  const exportarExcel = (inv: any) => {
+    const dados = inv.itens.map((i: any) => ({
+      "Peça": i.peca_nome, "Qtd Anterior": i.qtd_anterior, "Qtd Contada": i.qtd_fisica, "Diferença": i.qtd_fisica - i.qtd_anterior
+    }));
+    const ws = XLSX.utils.json_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+    XLSX.writeFile(wb, `Inventario_${inv.data_hora.split('T')[0]}.xlsx`);
+  };
+
+  const imprimirPDF = (inv: any) => {
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const rowsHtml = inv.itens.map((i: any) => `
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ddd;">${i.peca_nome}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${i.qtd_anterior}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold;">${i.qtd_fisica}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: center; color: ${i.qtd_fisica - i.qtd_anterior < 0 ? 'red' : 'green'};">${i.qtd_fisica - i.qtd_anterior}</td>
+      </tr>
+    `).join('');
+
+    win.document.write(`
+      <html><head><title>Inventário</title>
+      <style>body { font-family: sans-serif; margin: 40px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th { background: #f4f4f4; padding: 8px; border: 1px solid #ddd; text-align: left; }</style>
+      </head><body>
+      <h2>Relatório de Inventário - Bravus</h2>
+      <p>Data: ${new Date(inv.data_hora).toLocaleString('pt-BR')} | Responsável: ${inv.usuario_nome}</p>
+      <table><thead><tr><th>Peça</th><th style="text-align:center;">Qtd Sistema</th><th style="text-align:center;">Qtd Física</th><th style="text-align:center;">Diferença</th></tr></thead>
+      <tbody>${rowsHtml}</tbody></table>
+      <script>window.onload = () => { window.print(); window.close(); }</script>
+      </body></html>
+    `);
+    win.document.close();
+  };
 
   const abrirNovo = () => { 
     setEditingId(null); 
@@ -108,24 +160,22 @@ export default function Estoque() {
   const abrirEdicao = (r: any) => { 
     setEditingId(r.id); 
     setForm({ 
-      nome: r.nome, codigo: r.codigo || "", codigo_barras: r.codigo_barras || "", 
-      corredor: r.corredor || "", prateleira: r.prateleira || "", caixa: r.caixa || "",
-      quantidade_estoque: String(r.quantidade_estoque), estoque_minimo: String(r.estoque_minimo), 
-      fornecedor_atual_id: r.fornecedor_atual_id || "", ativo: r.ativo 
+      nome: r.nome, codigo: r.codigo || "", codigo_barras: r.codigo_barras || "", corredor: r.corredor || "", prateleira: r.prateleira || "", caixa: r.caixa || "",
+      quantidade_estoque: String(r.quantidade_estoque), estoque_minimo: String(r.estoque_minimo), fornecedor_atual_id: r.fornecedor_atual_id || "", ativo: r.ativo 
     }); 
-    setListaFornecedores((r.fornecedores_precos || []).map((f: any) => ({
-      fornecedor_id: f.fornecedor_id, preco_atual: String(f.preco_atual), historico: f.historico || []
-    })));
+    setListaFornecedores((r.fornecedores_precos || []).map((f: any) => ({ fornecedor_id: f.fornecedor_id, preco_atual: String(f.preco_atual), historico: f.historico || [] })));
     setOpen(true); 
+  };
+
+  const abrirMovimentacao = (peca_id: string = "") => {
+    setMovForm({ peca_id, fornecedor_id: "", destino_tipo: "veiculo", veiculo_id: "", carreta_id: "", quantidade: "", motivo: "", observacao: "" });
+    setOpenMov(true);
   };
 
   const adicionarFornecedor = () => setListaFornecedores([...listaFornecedores, { fornecedor_id: "", preco_atual: "", historico: [] }]);
   const removerFornecedor = (idx: number) => setListaFornecedores(listaFornecedores.filter((_, i) => i !== idx));
   
-  const atualizarPreco = (idx: number, novoPreco: string) => {
-    const nova = [...listaFornecedores]; nova[idx].preco_atual = novoPreco; setListaFornecedores(nova);
-  };
-
+  const atualizarPreco = (idx: number, novoPreco: string) => { const nova = [...listaFornecedores]; nova[idx].preco_atual = novoPreco; setListaFornecedores(nova); };
   const registrarPreco = (idx: number) => {
     const nova = [...listaFornecedores];
     const precoNum = Number(nova[idx].preco_atual.replace(",", "."));
@@ -144,14 +194,22 @@ export default function Estoque() {
   }, 0);
   const estadosOrigem = new Set(rows.flatMap(r => (r.fornecedores_precos || []).map((fp: any) => fornecedores.find((x: any) => x.id === fp.fornecedor_id)?.estado)).filter(Boolean)).size;
 
+  // Filtra os fornecedores que vendem a peça selecionada na baixa
+  const pecaSelecionada = rows.find((r:any) => r.id === movForm.peca_id);
+  const fornecedoresDaPeca = pecaSelecionada ? (pecaSelecionada.fornecedores_precos || []).map((fp:any) => {
+    const f = fornecedores.find((x:any) => x.id === fp.fornecedor_id);
+    return f ? { value: f.id, label: f.nome } : null;
+  }).filter(Boolean) : [];
+
   return (
     <div>
       <PageHeader 
         eyebrow="Operação" title="Estoque de Peças" description="Controle de almoxarifado." 
         actions={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setOpenInv(true)}><ClipboardList className="size-4 mr-2" /> Inventário</Button>
-            <Button onClick={abrirNovo}><Plus className="size-4 mr-2" /> Nova Peça</Button>
+            <Button variant="outline" onClick={() => setOpenInv(true)}><ClipboardList className="size-4 mr-2" /> Inventário</Button>
+            <Button variant="outline" onClick={() => abrirMovimentacao()}><ArrowDownRight className="size-4 mr-2" /> Baixa de Estoque</Button>
+            <Button onClick={abrirNovo}><Plus className="size-4 mr-2" /> Entrada / Cadastro de Peça</Button>
           </div>
         } 
       />
@@ -159,7 +217,8 @@ export default function Estoque() {
       {/* Abas */}
       <div className="flex gap-4 mb-4 border-b border-slate-800">
         <button onClick={() => setActiveTab("catalogo")} className={`pb-2 text-sm font-medium transition-colors ${activeTab === "catalogo" ? "text-sky-400 border-b-2 border-sky-400" : "text-slate-400 hover:text-slate-200"}`}>Catálogo de Peças</button>
-        <button onClick={() => setActiveTab("movimentacoes")} className={`pb-2 text-sm font-medium transition-colors ${activeTab === "movimentacoes" ? "text-sky-400 border-b-2 border-sky-400" : "text-slate-400 hover:text-slate-200"}`}>Histórico de Movimentações</button>
+        <button onClick={() => setActiveTab("movimentacoes")} className={`pb-2 text-sm font-medium transition-colors ${activeTab === "movimentacoes" ? "text-sky-400 border-b-2 border-sky-400" : "text-slate-400 hover:text-slate-200"}`}>Histórico de Saídas</button>
+        <button onClick={() => setActiveTab("inventarios")} className={`pb-2 text-sm font-medium transition-colors ${activeTab === "inventarios" ? "text-sky-400 border-b-2 border-sky-400" : "text-slate-400 hover:text-slate-200"}`}>Histórico de Inventários</button>
       </div>
 
       {activeTab === "catalogo" && (
@@ -183,14 +242,11 @@ export default function Estoque() {
             </div>
           </div>
 
-          <div className="mb-3 flex justify-between">
+          <div className="mb-3">
             <div className="relative w-72">
               <Search className="absolute left-2 top-2.5 size-4 text-slate-500" />
               <Input placeholder="Buscar peça..." value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-8 h-9 text-sm" />
             </div>
-            <Button variant="outline" onClick={() => { setMovForm({ ...movForm, peca_id: "", tipo: "entrada", quantidade: "", motivo: "", observacao: "" }); setOpenMov(true); }}>
-              <RefreshCw className="size-4 mr-2" /> Nova Movimentação
-            </Button>
           </div>
 
           <div className="glass overflow-hidden rounded-2xl">
@@ -237,6 +293,7 @@ export default function Estoque() {
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex gap-1 justify-center">
+                          <Button size="icon-sm" variant="ghost" className="text-emerald-400" onClick={() => abrirMovimentacao(r.id)} title="Baixa de Estoque"><ArrowDownRight className="size-4" /></Button>
                           <Button size="icon-sm" variant="ghost" className="cursor-help" title={`Cadastrado por: ${r.created_by_name || 'Sistema'}`}><Info className="size-4 text-slate-400" /></Button>
                           <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
                           <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4" /></Button>
@@ -258,28 +315,23 @@ export default function Estoque() {
               <TableRow className="border-slate-800 hover:bg-transparent">
                 <TableHead className="text-xs uppercase text-slate-500">Data/Hora</TableHead>
                 <TableHead className="text-xs uppercase text-slate-500">Peça</TableHead>
-                <TableHead className="text-xs uppercase text-slate-500 text-center">Tipo</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500">Fornecedor</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500">Destino</TableHead>
                 <TableHead className="text-xs uppercase text-slate-500 text-center">Qtd</TableHead>
-                <TableHead className="text-xs uppercase text-slate-500">Motivo / Obs</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500">Motivo</TableHead>
                 <TableHead className="text-xs uppercase text-slate-500">Usuário</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {movimentacoes.length === 0 && <TableRow><TableCell colSpan={6} className="py-10 text-center text-slate-500">Nenhuma movimentação registrada.</TableCell></TableRow>}
+              {movimentacoes.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-slate-500">Nenhuma baixa registrada.</TableCell></TableRow>}
               {movimentacoes.map((m) => (
                 <TableRow key={m.id} className="border-slate-800/70">
                   <TableCell className="text-xs text-slate-400 font-mono">{m.data_hora.replace("T", " ").substring(0, 16)}</TableCell>
                   <TableCell className="font-medium text-slate-200">{m.peca_nome}</TableCell>
-                  <TableCell className="text-center">
-                    {m.tipo === "entrada" ? <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-[10px] font-bold"><ArrowUpRight className="size-3"/> Entrada</span> : 
-                     m.tipo === "saida" ? <span className="inline-flex items-center gap-1 text-red-400 bg-red-500/10 px-2 py-0.5 rounded text-[10px] font-bold"><ArrowDownRight className="size-3"/> Saída</span> : 
-                     <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded text-[10px] font-bold"><RefreshCw className="size-3"/> Ajuste</span>}
-                  </TableCell>
-                  <TableCell className={`text-center font-bold ${m.tipo === 'entrada' ? 'text-emerald-400' : m.tipo === 'saida' ? 'text-red-400' : 'text-amber-400'}`}>{m.quantidade}</TableCell>
-                  <TableCell className="text-xs text-slate-300">
-                    {m.motivo}
-                    {m.observacao && <div className="text-[10px] text-slate-500">{m.observacao}</div>}
-                  </TableCell>
+                  <TableCell className="text-xs text-slate-400">{m.fornecedor_nome || "—"}</TableCell>
+                  <TableCell className="text-xs text-sky-400">{m.destino_nome || "—"}</TableCell>
+                  <TableCell className="text-center font-bold text-red-400">-{m.quantidade}</TableCell>
+                  <TableCell className="text-xs text-slate-300">{m.motivo} {m.observacao && <span className="text-[10px] text-slate-500">({m.observacao})</span>}</TableCell>
                   <TableCell className="text-xs text-slate-400">{m.usuario_nome}</TableCell>
                 </TableRow>
               ))}
@@ -288,76 +340,107 @@ export default function Estoque() {
         </div>
       )}
 
-      {/* Modal de Peça (Omitido para brevidade, mas mantido no script real) */}
+      {activeTab === "inventarios" && (
+        <div className="glass overflow-hidden rounded-2xl">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-slate-800 hover:bg-transparent">
+                <TableHead className="text-xs uppercase text-slate-500">Data/Hora</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500">Responsável</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500 text-center">Total de Ajustes</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500 text-center">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {inventarios.length === 0 && <TableRow><TableCell colSpan={4} className="py-10 text-center text-slate-500">Nenhum inventário registrado.</TableCell></TableRow>}
+              {inventarios.map((inv) => (
+                <TableRow key={inv.id} className="border-slate-800/70">
+                  <TableCell className="text-xs text-slate-400 font-mono">{inv.data_hora.replace("T", " ").substring(0, 16)}</TableCell>
+                  <TableCell className="font-medium text-slate-200">{inv.usuario_nome}</TableCell>
+                  <TableCell className="text-center font-bold text-amber-400">{inv.total_ajustes} itens</TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex gap-1 justify-center">
+                      <Button size="icon-sm" variant="ghost" onClick={() => setViewInv(inv)} title="Visualizar/Imprimir"><Eye className="size-4 text-sky-400" /></Button>
+                      <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirInvId(inv.id)} title="Excluir Histórico"><Trash2 className="size-4" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Modal de Cadastro de Peça (Mantido do script anterior, omitido aqui por brevidade) */}
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingId(null); }}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Package className="size-5 text-sky-400" /> {editingId ? "Editar Peça" : "Nova Peça"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Package className="size-5 text-sky-400" /> {editingId ? "Editar Peça" : "Entrada / Cadastro de Peça"}</DialogTitle></DialogHeader>
           <form className="grid grid-cols-2 gap-4" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
             <div className="col-span-2 md:col-span-1 grid gap-1.5"><Label>Nome da Peça *</Label><Input value={form.nome} onChange={(e) => setForm(s => ({ ...s, nome: e.target.value }))} required /></div>
             <div className="col-span-2 md:col-span-1 grid gap-1.5"><Label>Código Interno</Label><Input value={form.codigo} onChange={(e) => setForm(s => ({ ...s, codigo: e.target.value }))} /></div>
             <div className="col-span-2 md:col-span-1 grid gap-1.5"><Label>Código de Barras</Label><Input value={form.codigo_barras} onChange={(e) => setForm(s => ({ ...s, codigo_barras: e.target.value }))} placeholder="EAN-13..." /></div>
-            <div className="grid gap-1.5"><Label>Qtd. em Estoque</Label><Input type="number" value={form.quantidade_estoque} onChange={(e) => setForm(s => ({ ...s, quantidade_estoque: e.target.value }))} /></div>
+            <div className="grid gap-1.5"><Label>Qtd. a Adicionar</Label><Input type="number" value={form.quantidade_estoque} onChange={(e) => setForm(s => ({ ...s, quantidade_estoque: e.target.value }))} /></div>
             <div className="grid gap-1.5"><Label>Estoque Mínimo</Label><Input type="number" value={form.estoque_minimo} onChange={(e) => setForm(s => ({ ...s, estoque_minimo: e.target.value }))} /></div>
             <div className="col-span-2 grid grid-cols-3 gap-2 bg-slate-900/30 p-3 rounded-lg border border-slate-800">
-              <div className="grid gap-1.5"><Label>Corredor</Label><Input value={form.corredor} onChange={(e) => setForm(s => ({ ...s, corredor: e.target.value }))} placeholder="Ex: A" /></div>
-              <div className="grid gap-1.5"><Label>Prateleira</Label><Input value={form.prateleira} onChange={(e) => setForm(s => ({ ...s, prateleira: e.target.value }))} placeholder="Ex: 2" /></div>
-              <div className="grid gap-1.5"><Label>Caixa</Label><Input value={form.caixa} onChange={(e) => setForm(s => ({ ...s, caixa: e.target.value }))} placeholder="Ex: 3" /></div>
+              <div className="grid gap-1.5"><Label>Corredor</Label><Input value={form.corredor} onChange={(e) => setForm(s => ({ ...s, corredor: e.target.value }))} /></div>
+              <div className="grid gap-1.5"><Label>Prateleira</Label><Input value={form.prateleira} onChange={(e) => setForm(s => ({ ...s, prateleira: e.target.value }))} /></div>
+              <div className="grid gap-1.5"><Label>Caixa</Label><Input value={form.caixa} onChange={(e) => setForm(s => ({ ...s, caixa: e.target.value }))} /></div>
             </div>
             <div className="col-span-2 bg-sky-950/30 p-3 rounded-lg border border-sky-900/50">
               <Label className="text-sky-400 font-semibold mb-2 block">Fornecedor da Compra Atual</Label>
-              <FieldSelect value={form.fornecedor_atual_id} onChange={(v) => setForm(s => ({ ...s, fornecedor_atual_id: v }))} options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} placeholder="Selecione o fornecedor da compra atual" />
+              <FieldSelect value={form.fornecedor_atual_id} onChange={(v) => setForm(s => ({ ...s, fornecedor_atual_id: v }))} options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} placeholder="Selecione" />
             </div>
             <div className="col-span-2 border-t border-slate-800 pt-3 mt-2">
               <div className="flex justify-between items-center mb-3">
                 <Label className="text-sm font-semibold text-slate-200">Catálogo de Fornecedores e Cotações</Label>
                 <Button type="button" variant="outline" size="sm" onClick={adicionarFornecedor}><Plus className="size-3 mr-1" /> Adicionar Cotação</Button>
               </div>
-              {listaFornecedores.length === 0 ? <p className="text-xs text-slate-500 italic">Nenhum fornecedor cadastrado no catálogo.</p> : (
-                <div className="space-y-3">
-                  {listaFornecedores.map((lf, idx) => {
-                    const fornObj = fornecedores.find((x:any) => x.id === lf.fornecedor_id);
-                    const precosValidos = listaFornecedores.map(f => Number(f.preco_atual.replace(",", ".")) || Infinity);
-                    const menorPrecoGeral = Math.min(...precosValidos);
-                    const isMenorPreco = Number(lf.preco_atual.replace(",", ".")) === menorPrecoGeral && menorPrecoGeral !== Infinity;
-                    return (
-                      <div key={idx} className={`flex flex-col md:flex-row gap-2 bg-slate-900/50 p-2 rounded border items-end ${isMenorPreco ? 'border-emerald-500/50' : 'border-slate-800'}`}>
-                        <div className="flex-1 grid gap-1">
-                          <Label className="text-[10px] text-slate-400 flex items-center gap-2">Fornecedor {isMenorPreco && <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded text-[9px]">Menor Preço</span>}</Label>
-                          <FieldSelect value={lf.fornecedor_id} onChange={(v) => { const nova = [...listaFornecedores]; nova[idx].fornecedor_id = v; setListaFornecedores(nova); }} options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} placeholder="Selecione" />
-                          {fornObj && <div className="flex gap-0.5 ml-1">{[1,2,3,4,5].map(star => <Star key={star} className={`size-3 ${star <= (fornObj.avaliacao || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />)}</div>}
-                        </div>
-                        <div className="w-28 grid gap-1"><Label className="text-[10px] text-slate-400">Preço Atual</Label><Input value={lf.preco_atual} onChange={(e) => atualizarPreco(idx, e.target.value)} placeholder="R$ 0,00" /></div>
-                        <Button type="button" variant="secondary" size="sm" onClick={() => registrarPreco(idx)} className="h-9">Histórico</Button>
-                        <div className="flex-1 grid gap-1">
-                          <Label className="text-[10px] text-slate-400">Últimos 3 Preços</Label>
-                          <div className="flex flex-wrap gap-1 min-h-[36px] items-center">{lf.historico.length === 0 ? <span className="text-xs text-slate-600">—</span> : lf.historico.map((h, i) => <span key={i} className="text-[10px] bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded text-slate-400 flex items-center gap-1"><span className="text-slate-500 text-[8px]">#{i+1}</span> {brl(h)}</span>)}</div>
-                        </div>
-                        <Button type="button" variant="ghost" size="icon" className="text-red-400 h-9" onClick={() => removerFornecedor(idx)}><Trash2 className="size-4" /></Button>
-                      </div>
-                    );
-                  })}
+              {listaFornecedores.map((lf, idx) => (
+                <div key={idx} className="flex gap-2 bg-slate-900/50 p-2 rounded border border-slate-800 items-end mb-2">
+                  <div className="flex-1 grid gap-1">
+                    <Label className="text-[10px] text-slate-400">Fornecedor</Label>
+                    <FieldSelect value={lf.fornecedor_id} onChange={(v) => { const nova = [...listaFornecedores]; nova[idx].fornecedor_id = v; setListaFornecedores(nova); }} options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} placeholder="Selecione" />
+                  </div>
+                  <div className="w-28 grid gap-1"><Label className="text-[10px] text-slate-400">Preço Atual</Label><Input value={lf.preco_atual} onChange={(e) => atualizarPreco(idx, e.target.value)} placeholder="R$ 0,00" /></div>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => registrarPreco(idx)} className="h-9">Histórico</Button>
+                  <div className="flex-1 grid gap-1"><Label className="text-[10px] text-slate-400">Últimos 3</Label><div className="flex gap-1 h-9 items-center">{lf.historico.map((h, i) => <span key={i} className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">{brl(h)}</span>)}</div></div>
+                  <Button type="button" variant="ghost" size="icon" className="text-red-400 h-9" onClick={() => removerFornecedor(idx)}><Trash2 className="size-4" /></Button>
                 </div>
-              )}
+              ))}
             </div>
-            <div className="flex items-center gap-2 mt-2"><input type="checkbox" checked={form.ativo} onChange={(e) => setForm(s => ({ ...s, ativo: e.target.checked }))} className="size-4" /><Label>Peça Ativa</Label></div>
-            <DialogFooter className="col-span-2 mt-4"><Button type="submit" disabled={salvar.isPending || !form.nome}>{editingId ? "Salvar" : "Cadastrar"}</Button></DialogFooter>
+            <DialogFooter className="col-span-2 mt-4"><Button type="submit" disabled={salvar.isPending || !form.nome}>Salvar</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Movimentação */}
+      {/* Modal de Baixa de Estoque (Saída) */}
       <Dialog open={openMov} onOpenChange={setOpenMov}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><RefreshCw className="size-5 text-sky-400" /> Nova Movimentação</DialogTitle></DialogHeader>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><ArrowDownRight className="size-5 text-red-400" /> Baixa de Estoque (Saída)</DialogTitle></DialogHeader>
           <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); salvarMov.mutate(); }}>
-            <div className="grid gap-1.5"><Label>Peça *</Label><FieldSelect value={movForm.peca_id} onChange={(v) => setMovForm(s => ({ ...s, peca_id: v }))} options={rows.map((r: any) => ({ value: r.id, label: `${r.nome} (Estoque: ${r.quantidade_estoque})` }))} placeholder="Selecione a peça" /></div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5"><Label>Tipo *</Label><FieldSelect value={movForm.tipo} onChange={(v) => setMovForm(s => ({ ...s, tipo: v }))} options={[{ value: "entrada", label: "Entrada (+)" }, { value: "saida", label: "Saída (-)" }]} /></div>
-              <div className="grid gap-1.5"><Label>Quantidade *</Label><Input type="number" min="1" value={movForm.quantidade} onChange={(e) => setMovForm(s => ({ ...s, quantidade: e.target.value }))} required /></div>
+            <div className="grid gap-1.5"><Label>Peça *</Label><FieldSelect value={movForm.peca_id} onChange={(v) => setMovForm(s => ({ ...s, peca_id: v, fornecedor_id: "" }))} options={rows.map((r: any) => ({ value: r.id, label: `${r.nome} (Estoque: ${r.quantidade_estoque})` }))} placeholder="Selecione a peça" /></div>
+            
+            <div className="grid gap-1.5"><Label>Fornecedor de Origem *</Label><FieldSelect value={movForm.fornecedor_id} onChange={(v) => setMovForm(s => ({ ...s, fornecedor_id: v }))} options={fornecedoresDaPeca as any[]} placeholder="Selecione o fornecedor" disabled={!movForm.peca_id} /></div>
+            
+            <div className="grid gap-1.5">
+              <Label>Destino da Peça *</Label>
+              <div className="flex gap-2 mb-1">
+                <button type="button" onClick={() => setMovForm(s => ({ ...s, destino_tipo: "veiculo" }))} className={`px-3 py-1 text-xs rounded border ${movForm.destino_tipo === 'veiculo' ? 'bg-sky-500/20 border-sky-500 text-sky-300' : 'border-slate-700 text-slate-400'}`}>Veículo</button>
+                <button type="button" onClick={() => setMovForm(s => ({ ...s, destino_tipo: "carreta" }))} className={`px-3 py-1 text-xs rounded border ${movForm.destino_tipo === 'carreta' ? 'bg-sky-500/20 border-sky-500 text-sky-300' : 'border-slate-700 text-slate-400'}`}>Carreta</button>
+              </div>
+              {movForm.destino_tipo === "veiculo" ? (
+                <FieldSelect value={movForm.veiculo_id} onChange={(v) => setMovForm(s => ({ ...s, veiculo_id: v }))} options={veiculos.map((v:any) => ({ value: v.id, label: `${v.placa} - ${v.modelo}` }))} placeholder="Selecione o Veículo" />
+              ) : (
+                <FieldSelect value={movForm.carreta_id} onChange={(v) => setMovForm(s => ({ ...s, carreta_id: v }))} options={carretas.map((c:any) => ({ value: c.id, label: `${c.placa} - ${c.modelo}` }))} placeholder="Selecione a Carreta" />
+              )}
             </div>
-            <div className="grid gap-1.5"><Label>Motivo *</Label><Input value={movForm.motivo} onChange={(e) => setMovForm(s => ({ ...s, motivo: e.target.value }))} placeholder="Ex: Compra NF 123, Perda, Uso interno" required /></div>
-            <div className="grid gap-1.5"><Label>Observação</Label><Input value={movForm.observacao} onChange={(e) => setMovForm(s => ({ ...s, observacao: e.target.value }))} /></div>
-            <DialogFooter><Button type="submit" disabled={salvarMov.isPending || !movForm.peca_id || !movForm.quantidade || !movForm.motivo}>Registrar</Button></DialogFooter>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5"><Label>Quantidade *</Label><Input type="number" min="1" max={pecaSelecionada?.quantidade_estoque || 0} value={movForm.quantidade} onChange={(e) => setMovForm(s => ({ ...s, quantidade: e.target.value }))} required /></div>
+              <div className="grid gap-1.5"><Label>Motivo *</Label><Input value={movForm.motivo} onChange={(e) => setMovForm(s => ({ ...s, motivo: e.target.value }))} placeholder="Ex: Manutenção" required /></div>
+            </div>
+            
+            <DialogFooter><Button type="submit" variant="destructive" disabled={salvarMov.isPending || !movForm.peca_id || !movForm.quantidade || !movForm.motivo || (movForm.destino_tipo === 'veiculo' && !movForm.veiculo_id) || (movForm.destino_tipo === 'carreta' && !movForm.carreta_id)}>Confirmar Baixa</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
@@ -365,25 +448,19 @@ export default function Estoque() {
       {/* Modal de Inventário */}
       <Dialog open={openInv} onOpenChange={(o) => { setOpenInv(o); if (!o) setInvContagens({}); }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-sky-400" /> Inventário Cíclico</DialogTitle></DialogHeader>
-          <p className="text-sm text-slate-400 mb-4">Digite a quantidade física real de cada peça. O sistema ajustará automaticamente as diferenças.</p>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-sky-400" /> Inventário Cíclico</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-400 mb-4">Digite a quantidade física. O sistema salvará no histórico e ajustará as diferenças.</p>
           <div className="max-h-[50vh] overflow-y-auto border border-slate-800 rounded-lg">
             <Table>
-              <TableHeader>
-                <TableRow className="border-slate-800">
-                  <TableHead>Peça</TableHead>
-                  <TableHead className="text-center">Qtd. Sistema</TableHead>
-                  <TableHead className="text-center w-32">Qtd. Física</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableHeader><TableRow className="border-slate-800"><TableHead>Peça</TableHead><TableHead className="text-center">Qtd. Sistema</TableHead><TableHead className="text-center w-32">Qtd. Física</TableHead></TableRow></TableHeader>
               <TableBody>
                 {rows.map((r: any) => (
                   <TableRow key={r.id}>
                     <TableCell className="text-sm">{r.nome}</TableCell>
                     <TableCell className="text-center font-bold text-slate-400">{r.quantidade_estoque}</TableCell>
-                    <TableCell>
-                      <Input type="number" placeholder={`Atual: ${r.quantidade_estoque}`} value={invContagens[r.id] || ""} onChange={(e) => setInvContagens(s => ({ ...s, [r.id]: e.target.value }))} className="h-8 text-center" />
-                    </TableCell>
+                    <TableCell><Input type="number" placeholder={`Atual: ${r.quantidade_estoque}`} value={invContagens[r.id] || ""} onChange={(e) => setInvContagens(s => ({ ...s, [r.id]: e.target.value }))} className="h-8 text-center" /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -396,7 +473,43 @@ export default function Estoque() {
         </DialogContent>
       </Dialog>
 
+      {/* Modal de Visualização de Inventário (Histórico) */}
+      <Dialog open={viewInv !== null} onOpenChange={(o) => !o && setViewInv(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between w-full">
+              <span>Detalhes do Inventário</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => exportarExcel(viewInv)}><FileSpreadsheet className="size-4 mr-1" /> Excel</Button>
+                <Button size="sm" variant="outline" onClick={() => imprimirPDF(viewInv)}><Printer className="size-4 mr-1" /> PDF</Button>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          {viewInv && (
+            <div>
+              <p className="text-sm text-slate-400 mb-2">Responsável: <strong className="text-slate-200">{viewInv.usuario_nome}</strong> em {new Date(viewInv.data_hora).toLocaleString('pt-BR')}</p>
+              <div className="border border-slate-800 rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader><TableRow className="border-slate-800"><TableHead>Peça</TableHead><TableHead className="text-center">Sistema</TableHead><TableHead className="text-center">Física</TableHead><TableHead className="text-center">Diferença</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {viewInv.itens.map((i: any, idx: number) => (
+                      <TableRow key={idx}>
+                        <TableCell>{i.peca_nome}</TableCell>
+                        <TableCell className="text-center">{i.qtd_anterior}</TableCell>
+                        <TableCell className="text-center font-bold">{i.qtd_fisica}</TableCell>
+                        <TableCell className={`text-center font-bold ${i.qtd_fisica - i.qtd_anterior < 0 ? 'text-red-400' : 'text-emerald-400'}`}>{i.qtd_fisica - i.qtd_anterior}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir peça?" description="Ação irreversível." confirmLabel="Excluir" destructive pending={excluir.isPending} onConfirm={() => excluirId && excluir.mutate(excluirId)} testId="peca-excluir" />
+      <ConfirmDialog open={excluirInvId !== null} onOpenChange={(o) => !o && setExcluirInvId(null)} title="Excluir histórico de inventário?" description="O registro será apagado, mas o estoque atual NÃO será revertido." confirmLabel="Excluir" destructive pending={excluirInv.isPending} onConfirm={() => excluirInvId && excluirInv.mutate(excluirInvId)} testId="inventario-excluir" />
     </div>
   );
 }
