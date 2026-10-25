@@ -7,6 +7,9 @@ class FornecedorCreate(BaseModel):
     telefone: Optional[str] = None
     email: Optional[str] = None
     endereco: Optional[str] = None
+    cidade: Optional[str] = None
+    estado: Optional[str] = None
+    atividade: Optional[str] = None
     ativo: bool = True
 
 class Fornecedor(FornecedorCreate):
