@@ -1,58 +1,81 @@
-import { Navigate, Route, Routes } from "react-router-dom";
-import { Toaster } from "@/components/ui/sonner";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "sonner";
+
 import AppLayout from "@/components/layout/AppLayout";
 import Login from "@/pages/Login";
-import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
+
 import Dashboard from "@/pages/Dashboard";
-import Veiculos from "@/pages/Veiculos";
-import Fornecedores from '@/pages/Fornecedores';
-import Combustiveis from '@/pages/Combustiveis';
-import Carretas from "@/pages/Carretas";
-import Motoristas from "@/pages/Motoristas";
-import Acoplamentos from "@/pages/Acoplamentos";
-import Base from '@/pages/Base';
 import Abastecimentos from "@/pages/Abastecimentos";
 import Manutencoes from "@/pages/Manutencoes";
-import Documentos from "@/pages/Documentos";
+import Fornecedores from "@/pages/Fornecedores";
+import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
+import Veiculos from "@/pages/Veiculos";
+import Carretas from "@/pages/Carretas";
+import Motoristas from "@/pages/Motoristas";
+import Combustiveis from "@/pages/Combustiveis";
+import Acoplamentos from "@/pages/Acoplamentos";
+import Base from "@/pages/Base";
 import Financeiro from "@/pages/Financeiro";
-import Ranking from "@/pages/Ranking";
-import Relatorios from "@/pages/Relatorios";
+import Estoque from "@/pages/Estoque";
+import Pneus from "@/pages/Pneus";
+import Monitoramento from "@/pages/Monitoramento";
 import Usuarios from "@/pages/Usuarios";
 import Auditoria from "@/pages/Auditoria";
 import Avisos from "@/pages/Avisos";
 import Seguranca from "@/pages/Seguranca";
+import { useMe } from "@/hooks/useSession";
 
-// Uma rota por menu; cada tela vive em src/pages/<Menu>.tsx.
+const queryClient = new QueryClient();
+
+function ProtectedRoute() {
+  const { data: me, isLoading, isError } = useMe();
+
+  if (isLoading) {
+    return <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-400">Carregando...</div>;
+  }
+
+  // Se der erro (401) ou não tiver usuário, manda pro login
+  if (isError || !me) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Outlet />;
+}
+
 export default function App() {
   return (
-    <>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route element={<AppLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
-              <Route path="/relatorios/fornecedores" element={<RelatorioFornecedores />} />
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/abastecimentos" element={<Abastecimentos />} />
+              <Route path="/manutencoes" element={<Manutencoes />} />
+              <Route path="/financeiro" element={<Financeiro />} />
+              <Route path="/cadastros/veiculos" element={<Veiculos />} />
+              <Route path="/cadastros/carretas" element={<Carretas />} />
+              <Route path="/cadastros/motoristas" element={<Motoristas />} />
+              <Route path="/cadastros/combustiveis" element={<Combustiveis />} />
+              <Route path="/cadastros/fornecedores" element={<Fornecedores />} />
+              <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
               <Route path="/admin/base" element={<Base />} />
-          <Route path="cadastros/veiculos" element={<Veiculos />} />
-          <Route path="cadastros/carretas" element={<Carretas />} />
-          <Route path="cadastros/fornecedores" element={<Fornecedores />} />
-          <Route path="cadastros/combustiveis" element={<Combustiveis />} />
-          <Route path="cadastros/motoristas" element={<Motoristas />} />
-          <Route path="acoplamentos" element={<Acoplamentos />} />
-          <Route path="abastecimentos" element={<Abastecimentos />} />
-          <Route path="manutencoes" element={<Manutencoes />} />
-          <Route path="documentos" element={<Documentos />} />
-          <Route path="financeiro" element={<Financeiro />} />
-          <Route path="ranking" element={<Ranking />} />
-          <Route path="relatorios" element={<Relatorios />} />
-          <Route path="usuarios" element={<Usuarios />} />
-          <Route path="auditoria" element={<Auditoria />} />
-          <Route path="avisos" element={<Avisos />} />
-          <Route path="seguranca" element={<Seguranca />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      <Toaster richColors />
-    </>
+              <Route path="/admin/usuarios" element={<Usuarios />} />
+              <Route path="/admin/auditoria" element={<Auditoria />} />
+              <Route path="/admin/avisos" element={<Avisos />} />
+              <Route path="/admin/seguranca" element={<Seguranca />} />
+              <Route path="/relatorios/fornecedores" element={<RelatorioFornecedores />} />
+              <Route path="/operacao/estoque" element={<Estoque />} />
+              <Route path="/operacao/pneus" element={<Pneus />} />
+              <Route path="/operacao/monitoramento" element={<Monitoramento />} />
+            </Route>
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+      <Toaster position="top-right" richColors />
+    </QueryClientProvider>
   );
 }

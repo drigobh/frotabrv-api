@@ -7,6 +7,7 @@ class PecaCreate(BaseModel):
     preco_custo: float = 0.0
     quantidade_estoque: int = 0
     estoque_minimo: int = 5
+    fornecedor_id: Optional[str] = None
     ativo: bool = True
 
 class Peca(PecaCreate):
