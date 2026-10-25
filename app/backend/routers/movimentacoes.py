@@ -87,3 +87,32 @@ async def realizar_inventario(body: InventarioPayload, user: dict = Depends(requ
 async def excluir_inventario(id: str, _u: dict = Depends(require("delete"))):
     await db.inventarios.delete_one({"id": id})
     return {"ok": True}
+
+
+@router.post("/inventarios/{id}/reverter")
+async def reverter_inventario(id: str, user: dict = Depends(require("write"))):
+    inv = await db.inventarios.find_one({"id": id}, {"_id": 0})
+    if not inv:
+        raise HTTPException(404, "Inventário não encontrado")
+    
+    for item in inv["itens"]:
+        diff = item["qtd_fisica"] - item["qtd_anterior"]
+        if diff != 0:
+            # Reverte a quantidade (se diminuiu no inventario, agora adiciona de volta, e vice-versa)
+            await db.pecas.update_one({"id": item["peca_id"]}, {"$inc": {"quantidade_estoque": -diff}})
+            
+            # Registra a movimentação de reversão
+            doc_mov = {
+                "id": str(uuid.uuid4()),
+                "peca_id": item["peca_id"],
+                "peca_nome": item["peca_nome"],
+                "quantidade": abs(diff),
+                "motivo": "Reversão de Inventário",
+                "observacao": f"Revertendo ajuste do inventário de {inv['data_hora'][:10]}",
+                "usuario_nome": user.get("nome", "Sistema"),
+                "data_hora": now_iso()
+            }
+            await db.movimentacoes.insert_one(doc_mov)
+
+    await db.inventarios.delete_one({"id": id})
+    return {"ok": True}

@@ -39,9 +39,10 @@ export default function Estoque() {
   const [invContagens, setInvContagens] = useState<Record<string, string>>({});
   const [viewInv, setViewInv] = useState<any | null>(null);
   const [excluirInvId, setExcluirInvId] = useState<string | null>(null);
+  const [openInvConfirm, setOpenInvConfirm] = useState(false);
 
   // Queries
-  const q = useQuery({ queryKey: ["pecas"], queryFn: () => apiGet<any[]>("/pecas") });
+  const q = useQuery({ queryKey: ["pecas"], queryFn: () => apiGet<any[]>("/pecas"), staleTime: 0, refetchOnMount: true });
   const fornQ = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
   const veicQ = useVeiculos();
   const carrQ = useCarretas();
@@ -107,6 +108,12 @@ export default function Estoque() {
       qc.invalidateQueries({ queryKey: ["pecas"] }); qc.invalidateQueries({ queryKey: ["movimentacoes"] }); qc.invalidateQueries({ queryKey: ["inventarios"] });
     },
     onError: (e: any) => toast.error(e.message || "Erro no inventário"),
+  });
+
+  const reverterInv = useMutation({
+    mutationFn: (id: string) => apiPost(`/estoque/inventarios/${id}/reverter`),
+    onSuccess: () => { toast.success("Inventário revertido e estoque restaurado!"); qc.invalidateQueries({ queryKey: ["pecas"] }); qc.invalidateQueries({ queryKey: ["movimentacoes"] }); qc.invalidateQueries({ queryKey: ["inventarios"] }); },
+    onError: (e: any) => toast.error(e.message || "Erro ao reverter"),
   });
 
   const excluirInv = useMutation({
@@ -198,7 +205,7 @@ export default function Estoque() {
   const pecaSelecionada = rows.find((r:any) => r.id === movForm.peca_id);
   const fornecedoresDaPeca = pecaSelecionada ? (pecaSelecionada.fornecedores_precos || []).map((fp:any) => {
     const f = fornecedores.find((x:any) => x.id === fp.fornecedor_id);
-    return f ? { value: f.id, label: f.nome } : null;
+    return f ? { value: f.id, label: `${f.nome} (${f.avaliacao || 0}★)` } : null;
   }).filter(Boolean) : [];
 
   return (
@@ -361,6 +368,7 @@ export default function Estoque() {
                   <TableCell className="text-center">
                     <div className="flex gap-1 justify-center">
                       <Button size="icon-sm" variant="ghost" onClick={() => setViewInv(inv)} title="Visualizar/Imprimir"><Eye className="size-4 text-sky-400" /></Button>
+                      <Button size="icon-sm" variant="ghost" className="text-amber-400" onClick={() => { if(confirm("Deseja reverter este inventário? O estoque voltará ao estado anterior.")) reverterInv.mutate(inv.id); }} title="Reverter Inventário"><RefreshCw className="size-4" /></Button>
                       <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirInvId(inv.id)} title="Excluir Histórico"><Trash2 className="size-4" /></Button>
                     </div>
                   </TableCell>
@@ -435,6 +443,11 @@ export default function Estoque() {
               )}
             </div>
 
+            <div className="grid gap-1.5 bg-slate-900/50 p-2 rounded border border-slate-800">
+              <Label className="text-xs text-slate-400">Responsável pela Baixa</Label>
+              <Input value={me?.nome || "Usuário Logado"} disabled className="h-8 bg-transparent border-0 px-0 text-sky-400 font-medium" />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5"><Label>Quantidade *</Label><Input type="number" min="1" max={pecaSelecionada?.quantidade_estoque || 0} value={movForm.quantidade} onChange={(e) => setMovForm(s => ({ ...s, quantidade: e.target.value }))} required /></div>
               <div className="grid gap-1.5"><Label>Motivo *</Label><Input value={movForm.motivo} onChange={(e) => setMovForm(s => ({ ...s, motivo: e.target.value }))} placeholder="Ex: Manutenção" required /></div>
@@ -446,6 +459,8 @@ export default function Estoque() {
       </Dialog>
 
       {/* Modal de Inventário */}
+      <ConfirmDialog open={openInvConfirm} onOpenChange={setOpenInvConfirm} title="Confirmar Ajuste de Estoque?" description="Isso alterará a quantidade atual das peças para os valores informados e gerará um histórico." confirmLabel="Confirmar Ajuste" pending={salvarInv.isPending} onConfirm={() => { setOpenInvConfirm(false); salvarInv.mutate(); }} testId="inventario-confirmar" />
+
       <Dialog open={openInv} onOpenChange={(o) => { setOpenInv(o); if (!o) setInvContagens({}); }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -468,7 +483,7 @@ export default function Estoque() {
           </div>
           <DialogFooter className="mt-4">
             <Button variant="ghost" onClick={() => setOpenInv(false)}>Cancelar</Button>
-            <Button onClick={() => salvarInv.mutate()} disabled={salvarInv.isPending || Object.keys(invContagens).length === 0}>Salvar Inventário</Button>
+            <Button onClick={() => setOpenInvConfirm(true)} disabled={salvarInv.isPending || Object.keys(invContagens).length === 0}>Salvar Inventário</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
