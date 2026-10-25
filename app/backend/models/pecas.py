@@ -9,6 +9,10 @@ class FornecedorPreco(BaseModel):
 class PecaCreate(BaseModel):
     nome: str = Field(min_length=2)
     codigo: Optional[str] = None
+    codigo_barras: Optional[str] = None
+    corredor: Optional[str] = None
+    prateleira: Optional[str] = None
+    caixa: Optional[str] = None
     quantidade_estoque: int = 0
     estoque_minimo: int = 5
     fornecedor_atual_id: Optional[str] = None

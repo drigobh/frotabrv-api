@@ -13,6 +13,10 @@ class FornecedorPreco(BaseModel):
 class PecaCreate(BaseModel):
     nome: str = Field(min_length=2)
     codigo: Optional[str] = None
+    codigo_barras: Optional[str] = None
+    corredor: Optional[str] = None
+    prateleira: Optional[str] = None
+    caixa: Optional[str] = None
     quantidade_estoque: int = 0
     estoque_minimo: int = 5
     fornecedor_atual_id: Optional[str] = None
@@ -26,14 +30,14 @@ class Peca(PecaCreate):
 '''
     with open(caminho, 'w', encoding='utf-8') as f:
         f.write(codigo)
-    print("✅ Backend atualizado: Adicionado 'fornecedor_atual_id'.")
+    print("✅ Backend atualizado: Endereçamento e Código de Barras adicionados.")
 
 def fix_frontend(raiz):
     caminho = os.path.join(raiz, "frontend", "src", "pages", "Estoque.tsx")
     
     codigo = r'''import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Search, MapPin, Info, Star } from "lucide-react";
+import { Package, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Search, MapPin, Info, Star, Barcode, Box } from "lucide-react";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { brl } from "@/lib/format";
@@ -53,7 +57,10 @@ export default function Estoque() {
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
 
-  const [form, setForm] = useState({ nome: "", codigo: "", quantidade_estoque: "", estoque_minimo: "5", fornecedor_atual_id: "", ativo: true });
+  const [form, setForm] = useState({ 
+    nome: "", codigo: "", codigo_barras: "", corredor: "", prateleira: "", caixa: "", 
+    quantidade_estoque: "", estoque_minimo: "5", fornecedor_atual_id: "", ativo: true 
+  });
   const [listaFornecedores, setListaFornecedores] = useState<{ fornecedor_id: string, preco_atual: string, historico: number[] }[]>([]);
 
   const q = useQuery({ queryKey: ["pecas"], queryFn: () => apiGet<any[]>("/pecas") });
@@ -63,7 +70,11 @@ export default function Estoque() {
   const fornecedores = fornQ.data ?? [];
 
   const rowsFiltradas = useMemo(() => {
-    return rows.filter(r => r.nome.toLowerCase().includes(busca.toLowerCase()) || (r.codigo && r.codigo.toLowerCase().includes(busca.toLowerCase())));
+    return rows.filter(r => 
+      r.nome.toLowerCase().includes(busca.toLowerCase()) || 
+      (r.codigo && r.codigo.toLowerCase().includes(busca.toLowerCase())) ||
+      (r.codigo_barras && r.codigo_barras.toLowerCase().includes(busca.toLowerCase()))
+    );
   }, [rows, busca]);
 
   const salvar = useMutation({
@@ -96,7 +107,7 @@ export default function Estoque() {
 
   const abrirNovo = () => { 
     setEditingId(null); 
-    setForm({ nome: "", codigo: "", quantidade_estoque: "", estoque_minimo: "5", fornecedor_atual_id: "", ativo: true }); 
+    setForm({ nome: "", codigo: "", codigo_barras: "", corredor: "", prateleira: "", caixa: "", quantidade_estoque: "", estoque_minimo: "5", fornecedor_atual_id: "", ativo: true }); 
     setListaFornecedores([]);
     setOpen(true); 
   };
@@ -104,8 +115,10 @@ export default function Estoque() {
   const abrirEdicao = (r: any) => { 
     setEditingId(r.id); 
     setForm({ 
-      nome: r.nome, codigo: r.codigo || "", quantidade_estoque: String(r.quantidade_estoque), 
-      estoque_minimo: String(r.estoque_minimo), fornecedor_atual_id: r.fornecedor_atual_id || "", ativo: r.ativo 
+      nome: r.nome, codigo: r.codigo || "", codigo_barras: r.codigo_barras || "", 
+      corredor: r.corredor || "", prateleira: r.prateleira || "", caixa: r.caixa || "",
+      quantidade_estoque: String(r.quantidade_estoque), estoque_minimo: String(r.estoque_minimo), 
+      fornecedor_atual_id: r.fornecedor_atual_id || "", ativo: r.ativo 
     }); 
     setListaFornecedores((r.fornecedores_precos || []).map((f: any) => ({
       fornecedor_id: f.fornecedor_id,
@@ -128,7 +141,6 @@ export default function Estoque() {
     const nova = [...listaFornecedores];
     const precoNum = Number(nova[idx].preco_atual.replace(",", "."));
     if (isNaN(precoNum) || precoNum <= 0) { toast.error("Preço inválido"); return; }
-    
     if (precoNum > 0) {
       nova[idx].historico = [precoNum, ...nova[idx].historico].slice(0, 3);
     }
@@ -179,7 +191,7 @@ export default function Estoque() {
       <div className="mb-3">
         <div className="relative w-72">
           <Search className="absolute left-2 top-2.5 size-4 text-slate-500" />
-          <Input placeholder="Buscar peça..." value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-8 h-9 text-sm" />
+          <Input placeholder="Buscar peça, código ou cód. barras..." value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
       </div>
 
@@ -187,7 +199,7 @@ export default function Estoque() {
         <Table>
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
-              <TableHead className="text-xs uppercase text-slate-500">Peça / Fornecedores</TableHead>
+              <TableHead className="text-xs uppercase text-slate-500">Peça / Localização</TableHead>
               <TableHead className="text-xs uppercase text-slate-500 text-center">Qtd. Atual</TableHead>
               <TableHead className="text-xs uppercase text-slate-500 text-center">Qtd. Mínima</TableHead>
               <TableHead className="text-xs uppercase text-slate-500 text-right">Preço (Compra Atual)</TableHead>
@@ -204,38 +216,26 @@ export default function Estoque() {
               const fpAtual = (r.fornecedores_precos || []).find((f: any) => f.fornecedor_id === r.fornecedor_atual_id);
               const precoAtual = fpAtual ? fpAtual.preco_atual : 0;
               
-              // Achar o mais barato do catálogo
-              let menorPrecoForn = null;
-              if (r.fornecedores_precos && r.fornecedores_precos.length > 0) {
-                const validos = r.fornecedores_precos.filter((f:any) => f.fornecedor_id && f.preco_atual > 0);
-                if (validos.length > 0) {
-                  const menor = validos.reduce((min:any, f:any) => f.preco_atual < min.preco_atual ? f : min, validos[0]);
-                  const fObj = fornecedores.find((x:any) => x.id === menor.fornecedor_id);
-                  if (fObj) menorPrecoForn = { nome: fObj.nome, preco: menor.preco_atual, avaliacao: fObj.avaliacao };
-                }
-              }
+              const temLocalizacao = r.corredor || r.prateleira || r.caixa;
+              const localizacaoStr = [r.corredor && `C: ${r.corredor}`, r.prateleira && `P: ${r.prateleira}`, r.caixa && `Cx: ${r.caixa}`].filter(Boolean).join(" | ");
               
               return (
                 <TableRow key={r.id} className="border-slate-800/70">
                   <TableCell className="font-medium text-slate-200">
                     <div>{r.nome}</div>
-                    <div className="text-slate-500 font-mono text-xs">{r.codigo || "—"}</div>
-                    
-                    {fornAtual ? (
-                      <div className="text-[10px] text-emerald-400 mt-1">Estoque comprado de: {fornAtual.nome}</div>
-                    ) : (
-                      <div className="text-[10px] text-slate-500 mt-1">Fornecedor do estoque não informado</div>
-                    )}
-
-                    {menorPrecoForn && (
-                      <div className="text-[10px] text-sky-400 mt-0.5 flex items-center gap-1">
-                        Melhor preço p/ compra: {menorPrecoForn.nome} ({brl(menorPrecoForn.preco)})
-                        <span className="flex gap-0.5">
-                          {[1,2,3,4,5].map(star => (
-                            <Star key={star} className={`size-2.5 ${star <= (menorPrecoForn.avaliacao || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
-                          ))}
-                        </span>
+                    <div className="text-slate-500 font-mono text-xs flex gap-2">
+                      {r.codigo && <span>{r.codigo}</span>}
+                      {r.codigo_barras && <span className="flex items-center gap-0.5"><Barcode className="size-3"/> {r.codigo_barras}</span>}
+                    </div>
+                    {temLocalizacao && (
+                      <div className="text-[10px] text-amber-400 mt-1 flex items-center gap-1">
+                        <Box className="size-3" /> {localizacaoStr}
                       </div>
+                    )}
+                    {fornAtual ? (
+                      <div className="text-[10px] text-emerald-400 mt-1">Estoque de: {fornAtual.nome}</div>
+                    ) : (
+                      <div className="text-[10px] text-slate-500 mt-1">Fornecedor não informado</div>
                     )}
                   </TableCell>
                   <TableCell className={`text-center font-bold ${estoqueBaixo ? 'text-red-400' : 'text-emerald-400'}`}>{r.quantidade_estoque}</TableCell>
@@ -270,13 +270,18 @@ export default function Estoque() {
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Package className="size-5 text-sky-400" /> {editingId ? "Editar Peça" : "Nova Peça"}</DialogTitle></DialogHeader>
           <form className="grid grid-cols-2 gap-4" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
             
-            {/* Dados Básicos */}
             <div className="col-span-2 md:col-span-1 grid gap-1.5"><Label>Nome da Peça *</Label><Input value={form.nome} onChange={(e) => setForm(s => ({ ...s, nome: e.target.value }))} required /></div>
-            <div className="col-span-2 md:col-span-1 grid gap-1.5"><Label>Código / Referência</Label><Input value={form.codigo} onChange={(e) => setForm(s => ({ ...s, codigo: e.target.value }))} /></div>
+            <div className="col-span-2 md:col-span-1 grid gap-1.5"><Label>Código Interno</Label><Input value={form.codigo} onChange={(e) => setForm(s => ({ ...s, codigo: e.target.value }))} /></div>
+            <div className="col-span-2 md:col-span-1 grid gap-1.5"><Label>Código de Barras</Label><Input value={form.codigo_barras} onChange={(e) => setForm(s => ({ ...s, codigo_barras: e.target.value }))} placeholder="EAN-13..." /></div>
             <div className="grid gap-1.5"><Label>Qtd. em Estoque</Label><Input type="number" value={form.quantidade_estoque} onChange={(e) => setForm(s => ({ ...s, quantidade_estoque: e.target.value }))} /></div>
             <div className="grid gap-1.5"><Label>Estoque Mínimo</Label><Input type="number" value={form.estoque_minimo} onChange={(e) => setForm(s => ({ ...s, estoque_minimo: e.target.value }))} /></div>
             
-            {/* Fornecedor do Estoque Atual */}
+            <div className="col-span-2 grid grid-cols-3 gap-2 bg-slate-900/30 p-3 rounded-lg border border-slate-800">
+              <div className="grid gap-1.5"><Label>Corredor</Label><Input value={form.corredor} onChange={(e) => setForm(s => ({ ...s, corredor: e.target.value }))} placeholder="Ex: A" /></div>
+              <div className="grid gap-1.5"><Label>Prateleira</Label><Input value={form.prateleira} onChange={(e) => setForm(s => ({ ...s, prateleira: e.target.value }))} placeholder="Ex: 2" /></div>
+              <div className="grid gap-1.5"><Label>Caixa</Label><Input value={form.caixa} onChange={(e) => setForm(s => ({ ...s, caixa: e.target.value }))} placeholder="Ex: 3" /></div>
+            </div>
+
             <div className="col-span-2 bg-sky-950/30 p-3 rounded-lg border border-sky-900/50">
               <Label className="text-sky-400 font-semibold mb-2 block">Fornecedor da Compra Atual</Label>
               <p className="text-[11px] text-slate-400 mb-2">De qual fornecedor você comprou as {form.quantidade_estoque || "0"} peças que estão no estoque agora?</p>
@@ -288,12 +293,10 @@ export default function Estoque() {
               />
             </div>
             
-            {/* Catálogo de Cotações */}
             <div className="col-span-2 border-t border-slate-800 pt-3 mt-2">
               <div className="flex justify-between items-center mb-3">
                 <div>
                   <Label className="text-sm font-semibold text-slate-200">Catálogo de Fornecedores e Cotações</Label>
-                  <p className="text-[10px] text-slate-500">Adicione os fornecedores que vendem esta peça para comparar preços.</p>
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={adicionarFornecedor}><Plus className="size-3 mr-1" /> Adicionar Cotação</Button>
               </div>
@@ -304,7 +307,6 @@ export default function Estoque() {
                 <div className="space-y-3">
                   {listaFornecedores.map((lf, idx) => {
                     const fornObj = fornecedores.find((x:any) => x.id === lf.fornecedor_id);
-                    // Descobre o menor preço do catálogo para dar o selo
                     const precosValidos = listaFornecedores.map(f => Number(f.preco_atual.replace(",", ".")) || Infinity);
                     const menorPrecoGeral = Math.min(...precosValidos);
                     const isMenorPreco = Number(lf.preco_atual.replace(",", ".")) === menorPrecoGeral && menorPrecoGeral !== Infinity;
@@ -343,8 +345,12 @@ export default function Estoque() {
                         </Button>
                         <div className="flex-1 grid gap-1">
                           <Label className="text-[10px] text-slate-400">Últimos 3 Preços</Label>
-                          <div className="flex gap-1 h-9 items-center">
-                            {lf.historico.length === 0 ? <span className="text-xs text-slate-600">—</span> : lf.historico.map((h, i) => <span key={i} className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">{brl(h)}</span>)}
+                          <div className="flex flex-wrap gap-1 min-h-[36px] items-center">
+                            {lf.historico.length === 0 ? <span className="text-xs text-slate-600">—</span> : lf.historico.map((h, i) => (
+                              <span key={i} className="text-[10px] bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded text-slate-400 flex items-center gap-1">
+                                <span className="text-slate-500 text-[8px]">#{i+1}</span> {brl(h)}
+                              </span>
+                            ))}
                           </div>
                         </div>
                         <Button type="button" variant="ghost" size="icon" className="text-red-400 h-9" onClick={() => removerFornecedor(idx)}>
@@ -373,7 +379,7 @@ export default function Estoque() {
 '''
     with open(caminho, 'w', encoding='utf-8') as f:
         f.write(codigo)
-    print("✅ Estoque.tsx reescrito: Separado Fornecedor Atual do Catálogo, com Estrelas e Melhor Preço.")
+    print("✅ Frontend: Estoque atualizado com Código de Barras, Localização e Visualização do Histórico.")
 
 if __name__ == "__main__":
     raiz = os.getcwd()
