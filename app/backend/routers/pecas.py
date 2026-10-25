@@ -13,11 +13,12 @@ async def listar(_u: dict = Depends(require("read"))):
     return docs
 
 @router.post("", response_model=Peca, status_code=201)
-async def criar(body: PecaCreate, _u: dict = Depends(require("write"))):
+async def criar(body: PecaCreate, user: dict = Depends(require("write"))):
     if body.codigo and await db.pecas.find_one({"codigo": body.codigo}):
         raise HTTPException(409, "Já existe uma peça com este código")
     doc = body.model_dump()
     doc["id"] = str(uuid.uuid4())
+    doc["created_by_name"] = user.get("nome", user.get("email", "Sistema"))
     doc["created_at"] = now_iso()
     await db.pecas.insert_one(doc)
     return doc
@@ -31,6 +32,8 @@ async def atualizar(id: str, body: PecaCreate, _u: dict = Depends(require("write
         raise HTTPException(409, "Já existe outra peça com este código")
     
     doc = body.model_dump()
+    doc["created_by_name"] = existe.get("created_by_name", "Sistema")
+    doc["created_at"] = existe.get("created_at", now_iso())
     await db.pecas.update_one({"id": id}, {"$set": doc})
     doc["id"] = id
     return doc

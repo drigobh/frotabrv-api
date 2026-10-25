@@ -17,6 +17,7 @@ import Combustiveis from "@/pages/Combustiveis";
 import Acoplamentos from "@/pages/Acoplamentos";
 import Base from "@/pages/Base";
 import Financeiro from "@/pages/Financeiro";
+import RelatorioEstoque from "@/pages/RelatorioEstoque";
 import Estoque from "@/pages/Estoque";
 import Pneus from "@/pages/Pneus";
 import Monitoramento from "@/pages/Monitoramento";
@@ -66,6 +67,7 @@ export default function App() {
               <Route path="/admin/auditoria" element={<Auditoria />} />
               <Route path="/admin/avisos" element={<Avisos />} />
               <Route path="/admin/seguranca" element={<Seguranca />} />
+              <Route path="/relatorios/estoque" element={<RelatorioEstoque />} />
               <Route path="/relatorios/fornecedores" element={<RelatorioFornecedores />} />
               <Route path="/operacao/estoque" element={<Estoque />} />
               <Route path="/operacao/pneus" element={<Pneus />} />

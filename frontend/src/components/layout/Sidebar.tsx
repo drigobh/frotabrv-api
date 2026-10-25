@@ -38,6 +38,7 @@ const MENUS = [
     items: [
       { label: "Financeiro", icon: DollarSign, path: "/financeiro" },
       { label: "Performance de Fornecedores", icon: BarChart3, path: "/relatorios/fornecedores" },
+      { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },
     ]
   },
   {

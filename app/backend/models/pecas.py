@@ -12,3 +12,5 @@ class PecaCreate(BaseModel):
 
 class Peca(PecaCreate):
     id: str
+    created_by_name: Optional[str] = None
+    created_at: Optional[str] = None
