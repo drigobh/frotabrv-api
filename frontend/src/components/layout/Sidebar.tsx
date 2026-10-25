@@ -32,6 +32,7 @@ export function Sidebar({ user, onNavigate }: SidebarProps) {
         { label: "Motoristas", icon: Users, path: "/cadastros/motoristas" },
         { label: "Combustíveis", icon: Fuel, path: "/cadastros/combustiveis" },
         { label: "Fornecedores", icon: Truck, path: "/cadastros/fornecedores" },
+        { label: "Performance Forn.", icon: BarChart3, path: "/relatorios/fornecedores" },
       ],
     },
     {
