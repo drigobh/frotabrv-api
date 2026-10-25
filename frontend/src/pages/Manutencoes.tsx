@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Wrench, Plus, Trash2, Pencil, CheckCircle2, Clock, AlertCircle, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Info, Pencil, Plus, Trash2, UserCircle, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { brl, dataBR, errMsg } from "@/lib/format";
@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { FieldSelect } from "@/components/common/FieldSelect";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { useVeiculos } from "@/hooks/useCadastros";
-import { useHoje } from "@/hooks/useSession";
+import { useHoje, useMe } from "@/hooks/useSession";
 import type { Manutencao } from "@/types/manutencoes";
 
 const TODOS = "__all__";
@@ -237,7 +237,7 @@ export default function Manutencoes() {
                 </TableCell>
                 <TableCell className="text-center px-3">
                   <div className="flex gap-1 justify-center">
-                    <Button size="icon-sm" variant="ghost" className="cursor-help" title={`Criado por: ${(r as any).criado_por || 'Sistema'}`}>
+                    <Button size="icon-sm" variant="ghost" className="cursor-help" title={`Criado por: ${r.criado_por || 'Sistema'}`}>
                       <Info className="size-4 text-slate-400" />
                     </Button>
                     <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)} aria-label="Editar">

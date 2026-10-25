@@ -21,9 +21,9 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     doc = body.model_dump()
     doc["id"] = str(uuid.uuid4())
     doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
-    doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
-    doc["created_by"] = user["id"]
-    doc["criado_por"] = user.get("nome", "Sistema")
+    
+    # Grava o nome do usuário logado (não pode ser alterado depois)
+    doc["criado_por"] = user.get("nome", user.get("email", "Sistema"))
     doc["created_at"] = now_iso()
 
     await db.manutencoes.insert_one(doc)
@@ -42,13 +42,14 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
 
     doc = body.model_dump()
     doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
-    doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
     
+    # MANTÉM O CRIADO_POR ORIGINAL
+    doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
+    doc["created_at"] = existe.get("created_at", now_iso())
+
     await db.manutencoes.update_one({"id": id}, {"$set": doc})
     
     doc["id"] = id
-    doc["created_at"] = existe.get("created_at", now_iso())
-    doc["created_by"] = existe.get("created_by", user["id"])
     return doc
 
 @router.delete("/{id}")

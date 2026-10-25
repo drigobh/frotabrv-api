@@ -11,12 +11,44 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 
+export function validaCNPJ(cnpj: string) {
+  cnpj = cnpj.replace(/[^\d]/g, '');
+  if (cnpj.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(cnpj)) return false;
+  
+  let tamanho = cnpj.length - 2;
+  let numeros = cnpj.substring(0, tamanho);
+  let digitos = cnpj.substring(tamanho);
+  let soma = 0;
+  let pos = tamanho - 7;
+  for (let i = tamanho; i >= 1; i--) {
+    soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  let resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+  if (resultado != parseInt(digitos.charAt(0))) return false;
+  
+  tamanho = tamanho + 1;
+  numeros = cnpj.substring(0, tamanho);
+  soma = 0;
+  pos = tamanho - 7;
+  for (let i = tamanho; i >= 1; i--) {
+    soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+  if (resultado != parseInt(digitos.charAt(1))) return false;
+  
+  return true;
+}
+
 export default function Fornecedores() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ nome: "", cnpj: "", telefone: "", email: "", endereco: "", ativo: true });
   const [excluirId, setExcluirId] = useState<string | null>(null);
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false);
 
   const q = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
   const rows = q.data ?? [];
@@ -38,6 +70,38 @@ export default function Fornecedores() {
     onSuccess: () => { toast.success("Fornecedor excluído"); setExcluirId(null); qc.invalidateQueries({ queryKey: ["fornecedores"] }); },
     onError: (e: any) => toast.error(e.body?.detail || e.message || "Erro ao excluir"),
   });
+
+  const buscarCnpj = async () => {
+    const cnpjLimpo = form.cnpj.replace(/[^\d]/g, '');
+    if (cnpjLimpo.length !== 14) {
+      toast.error("CNPJ inválido.");
+      return;
+    }
+    if (!validaCNPJ(cnpjLimpo)) {
+      toast.error("CNPJ matematicamente inválido.");
+      return;
+    }
+    
+    setBuscandoCnpj(true);
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
+      if (!res.ok) throw new Error("Erro ao buscar CNPJ");
+      const data = await res.json();
+      
+      setForm(s => ({
+        ...s,
+        nome: data.razao_social || s.nome,
+        telefone: data.ddd_telefone_1 || s.telefone,
+        email: data.email || s.email,
+        endereco: `${data.logradouro}, ${data.numero} - ${data.bairro}, ${data.municipio} - ${data.uf}` || s.endereco
+      }));
+      toast.success("Dados do CNPJ carregados!");
+    } catch (error) {
+      toast.error("Não foi possível buscar o CNPJ.");
+    } finally {
+      setBuscandoCnpj(false);
+    }
+  };
 
   const abrirNovo = () => { setEditingId(null); setForm({ nome: "", cnpj: "", telefone: "", email: "", endereco: "", ativo: true }); setOpen(true); };
   const abrirEdicao = (r: any) => { setEditingId(r.id); setForm({ nome: r.nome, cnpj: r.cnpj || "", telefone: r.telefone || "", email: r.email || "", endereco: r.endereco || "", ativo: r.ativo }); setOpen(true); };
@@ -80,9 +144,24 @@ export default function Fornecedores() {
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingId(null); }}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Truck className="size-5 text-sky-400" /> {editingId ? "Editar Fornecedor" : "Novo Fornecedor"}</DialogTitle></DialogHeader>
-          <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
+          <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { 
+              e.preventDefault(); 
+              if (form.cnpj && !validaCNPJ(form.cnpj)) {
+                toast.error("O CNPJ informado é inválido.");
+                return;
+              }
+              salvar.mutate(); 
+            }}>
             <div className="col-span-2 grid gap-1.5"><Label>Nome *</Label><Input value={form.nome} onChange={(e) => setForm(s => ({ ...s, nome: e.target.value }))} required /></div>
-            <div className="grid gap-1.5"><Label>CNPJ</Label><Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: e.target.value }))} /></div>
+            <div className="grid gap-1.5">
+              <Label>CNPJ</Label>
+              <div className="flex gap-2">
+                <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: e.target.value }))} placeholder="00.000.000/0000-00" />
+                <Button type="button" variant="secondary" onClick={buscarCnpj} disabled={buscandoCnpj || !form.cnpj}>
+                  {buscandoCnpj ? "Buscando..." : "Buscar"}
+                </Button>
+              </div>
+            </div>
             <div className="grid gap-1.5"><Label>Telefone</Label><Input value={form.telefone} onChange={(e) => setForm(s => ({ ...s, telefone: e.target.value }))} /></div>
             <div className="col-span-2 grid gap-1.5"><Label>E-mail</Label><Input type="email" value={form.email} onChange={(e) => setForm(s => ({ ...s, email: e.target.value }))} /></div>
             <div className="col-span-2 grid gap-1.5"><Label>Endereço</Label><Input value={form.endereco} onChange={(e) => setForm(s => ({ ...s, endereco: e.target.value }))} /></div>
