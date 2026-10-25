@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Briefcase, Building2, CheckCircle2, FileText, Loader2, Mail, MapPin, Pencil, Phone, Plus, Printer, Search, Star, Trash2, Truck, User, XCircle } from "lucide-react";
+import { Truck, Plus, Pencil, Trash2, Search, Loader2, CheckCircle2, XCircle, MapPin, Building2, Phone, Mail, Printer, Star, User, FileText, AlertTriangle, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { brl } from "@/lib/format";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
@@ -74,7 +74,7 @@ export default function Fornecedores() {
 
   const [form, setForm] = useState({
     tipo_pessoa: "PJ", nome: "", documento: "", telefone: "", email: "", 
-    endereco: "", bairro: "", cidade: "", estado: "", atividade: "", latitude: "", longitude: "", avaliacao: 0, contrato_inicio: "", contrato_fim: "", ativo: true
+    endereco: "", bairro: "", cidade: "", estado: "", atividade: "", latitude: "", longitude: "", avaliacao: 0, ativo: true
   });
 
   const q = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
@@ -174,7 +174,7 @@ export default function Fornecedores() {
 
   const abrirNovo = () => { 
     setEditingId(null); setErroDoc(false);
-    setForm({ tipo_pessoa: "PJ", nome: "", documento: "", telefone: "", email: "", endereco: "", bairro: "", cidade: "", estado: "", atividade: "", latitude: "", longitude: "", avaliacao: 0, contrato_inicio: "", contrato_fim: "", ativo: true }); 
+    setForm({ tipo_pessoa: "PJ", nome: "", documento: "", telefone: "", email: "", endereco: "", bairro: "", cidade: "", estado: "", atividade: "", latitude: "", longitude: "", avaliacao: 0, ativo: true }); 
     setOpen(true); 
   };
   
@@ -183,7 +183,7 @@ export default function Fornecedores() {
     setForm({ 
       tipo_pessoa: r.tipo_pessoa || "PJ", nome: r.nome, documento: r.documento || "", telefone: r.telefone || "", email: r.email || "", 
       endereco: r.endereco || "", bairro: r.bairro || "", cidade: r.cidade || "", estado: r.estado || "", atividade: r.atividade || "", 
-      latitude: r.latitude || "", longitude: r.longitude || "", avaliacao: r.avaliacao || 0, contrato_inicio: r.contrato_inicio || "", contrato_fim: r.contrato_fim || "", ativo: r.ativo 
+      latitude: r.latitude || "", longitude: r.longitude || "", avaliacao: r.avaliacao || 0, ativo: r.ativo 
     }); 
     setOpen(true); 
   };
@@ -243,9 +243,6 @@ export default function Fornecedores() {
                     <div>
                       <div className="flex items-center gap-2">{r.nome}<span className="text-[9px] font-bold bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{r.tipo_pessoa}</span></div>
                       <div className="text-slate-500 font-mono text-xs">{r.documento || "—"}</div>
-                      {r.contrato_fim && new Date(r.contrato_fim) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
-                        <div className="text-[9px] font-bold text-red-400 flex items-center gap-1 mt-0.5"><AlertTriangle className="size-3" /> Contrato Vencendo</div>
-                      )}
                     </div>
                   </div>
                 </TableCell>

@@ -10,9 +10,7 @@ import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 
-// Estrutura baseada no print do usuário, com novos itens integrados
 const MENUS = [
-  // O Dashboard é o único item solto, sempre o primeiro.
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/", isDashboard: true, items: [] },
   {
     id: "frota",
@@ -69,7 +67,6 @@ export function Sidebar() {
   const { pathname } = useLocation();
   const { data: me } = useMe();
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem("sidebar_collapsed") === "true");
-  // O menu aberto por padrão ao carregar
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,7 +89,6 @@ export function Sidebar() {
       <div className={cn("p-4 flex items-center border-b border-slate-800 h-16 shrink-0", isCollapsed ? "justify-center" : "justify-between")}>
         {!isCollapsed && (
           <div className="flex items-center gap-3">
-            {/* Ícone e nome do seu sistema */}
             <Truck className="size-8 text-sky-500 shrink-0" />
             <div>
               <span className="font-bold text-sm text-slate-100 tracking-tight block">Bravus</span>
@@ -108,7 +104,6 @@ export function Sidebar() {
       {/* Lista de Menus */}
       <div className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
         {MENUS.map((menu) => {
-          // Dashboard (Link Direto)
           if (menu.isDashboard) {
             const isActive = pathname === menu.path;
             return (
@@ -129,7 +124,6 @@ export function Sidebar() {
             );
           }
 
-          // Menus com Submenus
           const isExpanded = expandedMenu === menu.id;
           const hasActiveChild = menu.items.some(item => pathname === item.path);
 
@@ -217,10 +211,8 @@ export function Sidebar() {
         <Button 
           variant="ghost" 
           className={cn("w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 h-9", isCollapsed ? "justify-center px-0" : "justify-start px-3")}
-onClick={() => { 
-  localStorage.removeItem("token"); 
-  window.location.href = "/login"; 
-}}        >
+          onClick={() => { localStorage.removeItem("token"); window.location.href = "/login"; }}
+        >
           <LogOut className={cn("size-4", !isCollapsed && "mr-2")} /> 
           {!isCollapsed && "Sair"}
         </Button>

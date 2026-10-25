@@ -1,65 +1,62 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "sonner";
-
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Toaster } from "@/components/ui/sonner";
 import AppLayout from "@/components/layout/AppLayout";
 import Login from "@/pages/Login";
-
 import Dashboard from "@/pages/Dashboard";
-import Abastecimentos from "@/pages/Abastecimentos";
-import Manutencoes from "@/pages/Manutencoes";
-import Fornecedores from "@/pages/Fornecedores";
-import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
 import Veiculos from "@/pages/Veiculos";
+import Fornecedores from '@/pages/Fornecedores';
+import Combustiveis from '@/pages/Combustiveis';
 import Carretas from "@/pages/Carretas";
 import Motoristas from "@/pages/Motoristas";
-import Combustiveis from "@/pages/Combustiveis";
 import Acoplamentos from "@/pages/Acoplamentos";
-import Base from "@/pages/Base";
-import Pneus from "@/pages/Pneus";
-import Monitoramento from "@/pages/Monitoramento";
-import Estoque from "@/pages/Estoque";
+import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
+import Base from '@/pages/Base';
+import Abastecimentos from "@/pages/Abastecimentos";
+import Manutencoes from "@/pages/Manutencoes";
+import Documentos from "@/pages/Documentos";
 import Financeiro from "@/pages/Financeiro";
+import Ranking from "@/pages/Ranking";
+import Relatorios from "@/pages/Relatorios";
+import Usuarios from "@/pages/Usuarios";
+import Auditoria from "@/pages/Auditoria";
+import Avisos from "@/pages/Avisos";
+import Seguranca from "@/pages/Seguranca";
 
-const queryClient = new QueryClient();
-
-function ProtectedRoute() {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
-  return <Outlet />;
-}
-
+// Uma rota por menu; cada tela vive em src/pages/<Menu>.tsx.
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/abastecimentos" element={<Abastecimentos />} />
-              <Route path="/manutencoes" element={<Manutencoes />} />
-              <Route path="/operacao/pneus" element={<Pneus />} />
-              <Route path="/operacao/monitoramento" element={<Monitoramento />} />
-              <Route path="/operacao/estoque" element={<Estoque />} />
-              <Route path="/financeiro" element={<Financeiro />} />
-              <Route path="/cadastros/veiculos" element={<Veiculos />} />
-              <Route path="/cadastros/carretas" element={<Carretas />} />
-              <Route path="/cadastros/motoristas" element={<Motoristas />} />
-              <Route path="/cadastros/combustiveis" element={<Combustiveis />} />
-              <Route path="/cadastros/fornecedores" element={<Fornecedores />} />
+    <>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<AppLayout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="/admin/usuarios" element={<Usuarios />} />
+              <Route path="/admin/auditoria" element={<Auditoria />} />
+              <Route path="/admin/avisos" element={<Avisos />} />
+              <Route path="/admin/seguranca" element={<Seguranca />} />
               <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
+<Route path="/relatorios/fornecedores" element={<RelatorioFornecedores />} />
               <Route path="/admin/base" element={<Base />} />
-              <Route path="/relatorios/fornecedores" element={<RelatorioFornecedores />} />
-            </Route>
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-      <Toaster position="top-right" richColors />
-    </QueryClientProvider>
+          <Route path="cadastros/veiculos" element={<Veiculos />} />
+          <Route path="cadastros/carretas" element={<Carretas />} />
+          <Route path="cadastros/fornecedores" element={<Fornecedores />} />
+          <Route path="cadastros/combustiveis" element={<Combustiveis />} />
+          <Route path="cadastros/motoristas" element={<Motoristas />} />
+          <Route path="acoplamentos" element={<Acoplamentos />} />
+          <Route path="abastecimentos" element={<Abastecimentos />} />
+          <Route path="manutencoes" element={<Manutencoes />} />
+          <Route path="documentos" element={<Documentos />} />
+          <Route path="financeiro" element={<Financeiro />} />
+          <Route path="ranking" element={<Ranking />} />
+          <Route path="relatorios" element={<Relatorios />} />
+          <Route path="usuarios" element={<Usuarios />} />
+          <Route path="auditoria" element={<Auditoria />} />
+          <Route path="avisos" element={<Avisos />} />
+          <Route path="seguranca" element={<Seguranca />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <Toaster richColors />
+    </>
   );
 }
