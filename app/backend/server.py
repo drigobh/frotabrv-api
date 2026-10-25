@@ -28,10 +28,11 @@ async def health():
     return {"status": "ok", "service": "frota-brv"}
 
 # Importando todas as rotas
-from routers import auth, pecas, fornecedores, combustiveis, veiculos, carretas, motoristas, dashboard, acoplamentos, abastecimentos, manutencoes
+from routers import auth, movimentacoes, pecas, fornecedores, combustiveis, veiculos, carretas, motoristas, dashboard, acoplamentos, abastecimentos, manutencoes
 from routers import admin
 
 api_router.include_router(auth.router)
+api_router.include_router(movimentacoes.router)
 api_router.include_router(pecas.router)
 api_router.include_router(fornecedores.router)
 api_router.include_router(combustiveis.router)

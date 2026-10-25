@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Search, MapPin, Info, Star, Barcode, Box } from "lucide-react";
+import { Package, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Search, MapPin, Info, Star, Barcode, Box, ArrowUpRight, ArrowDownRight, ClipboardList, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
-import { brl } from "@/lib/format";
+import { brl, dataBR } from "@/lib/format";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,22 +15,35 @@ import { FieldSelect } from "@/components/common/FieldSelect";
 
 export default function Estoque() {
   const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState("catalogo");
+  
+  // Estados da Peça
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
-
   const [form, setForm] = useState({ 
     nome: "", codigo: "", codigo_barras: "", corredor: "", prateleira: "", caixa: "", 
     quantidade_estoque: "", estoque_minimo: "5", fornecedor_atual_id: "", ativo: true 
   });
   const [listaFornecedores, setListaFornecedores] = useState<{ fornecedor_id: string, preco_atual: string, historico: number[] }[]>([]);
 
+  // Estados de Movimentação
+  const [openMov, setOpenMov] = useState(false);
+  const [movForm, setMovForm] = useState({ peca_id: "", tipo: "entrada", quantidade: "", motivo: "", observacao: "" });
+
+  // Estados de Inventário
+  const [openInv, setOpenInv] = useState(false);
+  const [invContagens, setInvContagens] = useState<Record<string, string>>({});
+
+  // Queries
   const q = useQuery({ queryKey: ["pecas"], queryFn: () => apiGet<any[]>("/pecas") });
   const fornQ = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
+  const movQ = useQuery({ queryKey: ["movimentacoes"], queryFn: () => apiGet<any[]>("/estoque/movimentacoes"), enabled: activeTab === "movimentacoes" });
   
   const rows = q.data ?? [];
   const fornecedores = fornQ.data ?? [];
+  const movimentacoes = movQ.data ?? [];
 
   const rowsFiltradas = useMemo(() => {
     return rows.filter(r => 
@@ -40,39 +53,56 @@ export default function Estoque() {
     );
   }, [rows, busca]);
 
+  // Mutations da Peça
   const salvar = useMutation({
     mutationFn: () => {
       const payload = { 
-        ...form, 
-        quantidade_estoque: Number(form.quantidade_estoque) || 0, 
-        estoque_minimo: Number(form.estoque_minimo) || 0,
-        fornecedores_precos: listaFornecedores.map(f => ({
-          fornecedor_id: f.fornecedor_id,
-          preco_atual: Number(f.preco_atual.replace(",", ".")) || 0,
-          historico: f.historico
-        }))
+        ...form, quantidade_estoque: Number(form.quantidade_estoque) || 0, estoque_minimo: Number(form.estoque_minimo) || 0,
+        fornecedores_precos: listaFornecedores.map(f => ({ fornecedor_id: f.fornecedor_id, preco_atual: Number(f.preco_atual.replace(",", ".")) || 0, historico: f.historico }))
       };
       if (editingId) return apiPut(`/pecas/${editingId}`, payload);
       return apiPost("/pecas", payload);
     },
-    onSuccess: () => { 
-      toast.success(editingId ? "Peça atualizada" : "Peça cadastrada"); 
-      setOpen(false); setEditingId(null); qc.invalidateQueries({ queryKey: ["pecas"] }); 
-    },
+    onSuccess: () => { toast.success("Peça salva!"); setOpen(false); setEditingId(null); qc.invalidateQueries({ queryKey: ["pecas"] }); },
     onError: (e: any) => toast.error(e.message || "Erro ao salvar"),
   });
 
   const excluir = useMutation({
     mutationFn: (id: string) => apiDelete(`/pecas/${id}`),
     onSuccess: () => { toast.success("Peça excluída"); setExcluirId(null); qc.invalidateQueries({ queryKey: ["pecas"] }); },
-    onError: (e: any) => toast.error(e.message || "Erro ao excluir"),
+  });
+
+  // Mutation de Movimentação
+  const salvarMov = useMutation({
+    mutationFn: () => apiPost("/estoque/movimentacoes", { ...movForm, quantidade: Number(movForm.quantidade) }),
+    onSuccess: () => { 
+      toast.success("Movimentação registrada!"); setOpenMov(false); 
+      setMovForm({ peca_id: "", tipo: "entrada", quantidade: "", motivo: "", observacao: "" });
+      qc.invalidateQueries({ queryKey: ["pecas"] }); qc.invalidateQueries({ queryKey: ["movimentacoes"] }); 
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao movimentar"),
+  });
+
+  // Mutation de Inventário
+  const salvarInv = useMutation({
+    mutationFn: () => {
+      const itens = Object.entries(invContagens)
+        .filter(([_, qtd]) => qtd !== "")
+        .map(([id, qtd]) => ({ peca_id: id, quantidade_fisica: Number(qtd) }));
+      return apiPost("/estoque/inventario", { itens });
+    },
+    onSuccess: (data: any) => { 
+      toast.success(`Inventário concluído! ${data.ajustes} peças ajustadas.`); 
+      setOpenInv(false); setInvContagens({}); 
+      qc.invalidateQueries({ queryKey: ["pecas"] }); qc.invalidateQueries({ queryKey: ["movimentacoes"] }); 
+    },
+    onError: (e: any) => toast.error(e.message || "Erro no inventário"),
   });
 
   const abrirNovo = () => { 
     setEditingId(null); 
     setForm({ nome: "", codigo: "", codigo_barras: "", corredor: "", prateleira: "", caixa: "", quantidade_estoque: "", estoque_minimo: "5", fornecedor_atual_id: "", ativo: true }); 
-    setListaFornecedores([]);
-    setOpen(true); 
+    setListaFornecedores([]); setOpen(true); 
   };
 
   const abrirEdicao = (r: any) => { 
@@ -84,9 +114,7 @@ export default function Estoque() {
       fornecedor_atual_id: r.fornecedor_atual_id || "", ativo: r.ativo 
     }); 
     setListaFornecedores((r.fornecedores_precos || []).map((f: any) => ({
-      fornecedor_id: f.fornecedor_id,
-      preco_atual: String(f.preco_atual),
-      historico: f.historico || []
+      fornecedor_id: f.fornecedor_id, preco_atual: String(f.preco_atual), historico: f.historico || []
     })));
     setOpen(true); 
   };
@@ -95,20 +123,15 @@ export default function Estoque() {
   const removerFornecedor = (idx: number) => setListaFornecedores(listaFornecedores.filter((_, i) => i !== idx));
   
   const atualizarPreco = (idx: number, novoPreco: string) => {
-    const nova = [...listaFornecedores];
-    nova[idx].preco_atual = novoPreco;
-    setListaFornecedores(nova);
+    const nova = [...listaFornecedores]; nova[idx].preco_atual = novoPreco; setListaFornecedores(nova);
   };
 
   const registrarPreco = (idx: number) => {
     const nova = [...listaFornecedores];
     const precoNum = Number(nova[idx].preco_atual.replace(",", "."));
     if (isNaN(precoNum) || precoNum <= 0) { toast.error("Preço inválido"); return; }
-    if (precoNum > 0) {
-      nova[idx].historico = [precoNum, ...nova[idx].historico].slice(0, 3);
-    }
-    nova[idx].preco_atual = "";
-    setListaFornecedores(nova);
+    nova[idx].historico = [precoNum, ...nova[idx].historico].slice(0, 3);
+    nova[idx].preco_atual = ""; setListaFornecedores(nova);
     toast.success("Preço registrado no histórico!");
   };
 
@@ -117,221 +140,259 @@ export default function Estoque() {
   const valorTotal = rows.reduce((acc, r) => {
     if (!r.fornecedor_atual_id) return acc;
     const fp = (r.fornecedores_precos || []).find((f: any) => f.fornecedor_id === r.fornecedor_atual_id);
-    const preco = fp ? fp.preco_atual : 0;
-    return acc + (preco * r.quantidade_estoque);
+    return acc + ((fp ? fp.preco_atual : 0) * r.quantidade_estoque);
   }, 0);
-
-  const estadosOrigem = new Set(rows.flatMap(r => 
-    (r.fornecedores_precos || []).map((fp: any) => {
-      const f = fornecedores.find((x: any) => x.id === fp.fornecedor_id);
-      return f?.estado;
-    })
-  ).filter(Boolean)).size;
+  const estadosOrigem = new Set(rows.flatMap(r => (r.fornecedores_precos || []).map((fp: any) => fornecedores.find((x: any) => x.id === fp.fornecedor_id)?.estado)).filter(Boolean)).size;
 
   return (
     <div>
-      <PageHeader eyebrow="Operação" title="Estoque de Peças" description="Controle de almoxarifado." actions={<Button onClick={abrirNovo}><Plus className="size-4 mr-2" /> Nova Peça</Button>} />
+      <PageHeader 
+        eyebrow="Operação" title="Estoque de Peças" description="Controle de almoxarifado." 
+        actions={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setOpenInv(true)}><ClipboardList className="size-4 mr-2" /> Inventário</Button>
+            <Button onClick={abrirNovo}><Plus className="size-4 mr-2" /> Nova Peça</Button>
+          </div>
+        } 
+      />
 
-      <div className="mb-4 grid gap-2 sm:grid-cols-2 md:grid-cols-4">
-        <div className="glass rounded-lg p-3 flex items-center justify-between h-[70px]">
-          <div><p className="text-[11px] text-slate-500 font-medium">Total de Itens</p><p className="text-xl font-bold text-slate-100">{totalItens}</p></div>
-          <div className="size-8 rounded bg-sky-500/10 flex items-center justify-center"><Package className="size-4 text-sky-400" /></div>
-        </div>
-        <div className="glass rounded-lg p-3 flex items-center justify-between h-[70px]">
-          <div><p className="text-[11px] text-slate-500 font-medium">Valor do Estoque</p><p className="text-xl font-bold text-amber-400">{brl(valorTotal)}</p></div>
-          <div className="size-8 rounded bg-amber-500/10 flex items-center justify-center font-bold text-amber-400 text-xs">R$</div>
-        </div>
-        <div className="glass rounded-lg p-3 flex items-center justify-between h-[70px]">
-          <div><p className="text-[11px] text-slate-500 font-medium">Estoque Baixo</p><p className="text-xl font-bold text-red-400">{itensBaixos}</p></div>
-          <div className="size-8 rounded bg-red-500/10 flex items-center justify-center"><AlertTriangle className="size-4 text-red-400" /></div>
-        </div>
-        <div className="glass rounded-lg p-3 flex items-center justify-between h-[70px]">
-          <div><p className="text-[11px] text-slate-500 font-medium">Estados de Origem</p><p className="text-xl font-bold text-purple-400">{estadosOrigem} UF</p></div>
-          <div className="size-8 rounded bg-purple-500/10 flex items-center justify-center"><MapPin className="size-4 text-purple-400" /></div>
-        </div>
+      {/* Abas */}
+      <div className="flex gap-4 mb-4 border-b border-slate-800">
+        <button onClick={() => setActiveTab("catalogo")} className={`pb-2 text-sm font-medium transition-colors ${activeTab === "catalogo" ? "text-sky-400 border-b-2 border-sky-400" : "text-slate-400 hover:text-slate-200"}`}>Catálogo de Peças</button>
+        <button onClick={() => setActiveTab("movimentacoes")} className={`pb-2 text-sm font-medium transition-colors ${activeTab === "movimentacoes" ? "text-sky-400 border-b-2 border-sky-400" : "text-slate-400 hover:text-slate-200"}`}>Histórico de Movimentações</button>
       </div>
 
-      <div className="mb-3">
-        <div className="relative w-72">
-          <Search className="absolute left-2 top-2.5 size-4 text-slate-500" />
-          <Input placeholder="Buscar peça, código ou cód. barras..." value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-8 h-9 text-sm" />
-        </div>
-      </div>
+      {activeTab === "catalogo" && (
+        <>
+          <div className="mb-4 grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+            <div className="glass rounded-lg p-3 flex items-center justify-between h-[70px]">
+              <div><p className="text-[11px] text-slate-500 font-medium">Total de Itens</p><p className="text-xl font-bold text-slate-100">{totalItens}</p></div>
+              <div className="size-8 rounded bg-sky-500/10 flex items-center justify-center"><Package className="size-4 text-sky-400" /></div>
+            </div>
+            <div className="glass rounded-lg p-3 flex items-center justify-between h-[70px]">
+              <div><p className="text-[11px] text-slate-500 font-medium">Valor do Estoque</p><p className="text-xl font-bold text-amber-400">{brl(valorTotal)}</p></div>
+              <div className="size-8 rounded bg-amber-500/10 flex items-center justify-center font-bold text-amber-400 text-xs">R$</div>
+            </div>
+            <div className="glass rounded-lg p-3 flex items-center justify-between h-[70px]">
+              <div><p className="text-[11px] text-slate-500 font-medium">Estoque Baixo</p><p className="text-xl font-bold text-red-400">{itensBaixos}</p></div>
+              <div className="size-8 rounded bg-red-500/10 flex items-center justify-center"><AlertTriangle className="size-4 text-red-400" /></div>
+            </div>
+            <div className="glass rounded-lg p-3 flex items-center justify-between h-[70px]">
+              <div><p className="text-[11px] text-slate-500 font-medium">Estados de Origem</p><p className="text-xl font-bold text-purple-400">{estadosOrigem} UF</p></div>
+              <div className="size-8 rounded bg-purple-500/10 flex items-center justify-center"><MapPin className="size-4 text-purple-400" /></div>
+            </div>
+          </div>
 
-      <div className="glass overflow-hidden rounded-2xl">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-slate-800 hover:bg-transparent">
-              <TableHead className="text-xs uppercase text-slate-500">Peça / Localização</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500 text-center">Qtd. Atual</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500 text-center">Qtd. Mínima</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500 text-right">Preço (Compra Atual)</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500 text-right">Valor Total</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500 text-center">Status</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500 text-center">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rowsFiltradas.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-slate-500">Nenhuma peça encontrada.</TableCell></TableRow>}
-            {rowsFiltradas.map((r) => {
-              const estoqueBaixo = r.quantidade_estoque <= r.estoque_minimo;
-              const fornAtual = fornecedores.find((f: any) => f.id === r.fornecedor_atual_id);
-              const fpAtual = (r.fornecedores_precos || []).find((f: any) => f.fornecedor_id === r.fornecedor_atual_id);
-              const precoAtual = fpAtual ? fpAtual.preco_atual : 0;
-              
-              const temLocalizacao = r.corredor || r.prateleira || r.caixa;
-              const localizacaoStr = [r.corredor && `C: ${r.corredor}`, r.prateleira && `P: ${r.prateleira}`, r.caixa && `Cx: ${r.caixa}`].filter(Boolean).join(" | ");
-              
-              return (
-                <TableRow key={r.id} className="border-slate-800/70">
-                  <TableCell className="font-medium text-slate-200">
-                    <div>{r.nome}</div>
-                    <div className="text-slate-500 font-mono text-xs flex gap-2">
-                      {r.codigo && <span>{r.codigo}</span>}
-                      {r.codigo_barras && <span className="flex items-center gap-0.5"><Barcode className="size-3"/> {r.codigo_barras}</span>}
-                    </div>
-                    {temLocalizacao && (
-                      <div className="text-[10px] text-amber-400 mt-1 flex items-center gap-1">
-                        <Box className="size-3" /> {localizacaoStr}
-                      </div>
-                    )}
-                    {fornAtual ? (
-                      <div className="text-[10px] text-emerald-400 mt-1">Estoque de: {fornAtual.nome}</div>
-                    ) : (
-                      <div className="text-[10px] text-slate-500 mt-1">Fornecedor não informado</div>
-                    )}
-                  </TableCell>
-                  <TableCell className={`text-center font-bold ${estoqueBaixo ? 'text-red-400' : 'text-emerald-400'}`}>{r.quantidade_estoque}</TableCell>
-                  <TableCell className="text-center text-slate-400">{r.estoque_minimo}</TableCell>
-                  <TableCell className="text-right text-slate-300">{brl(precoAtual)}</TableCell>
-                  <TableCell className="text-right font-medium text-slate-200">{brl(precoAtual * r.quantidade_estoque)}</TableCell>
-                  <TableCell className="text-center">
-                    {estoqueBaixo ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400"><AlertTriangle className="size-3" /> Baixo</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400"><CheckCircle2 className="size-3" /> OK</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex gap-1 justify-center">
-                      <Button size="icon-sm" variant="ghost" className="cursor-help" title={`Cadastrado por: ${r.created_by_name || 'Sistema'}`}>
-                        <Info className="size-4 text-slate-400" />
-                      </Button>
-                      <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
-                      <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4" /></Button>
-                    </div>
-                  </TableCell>
+          <div className="mb-3 flex justify-between">
+            <div className="relative w-72">
+              <Search className="absolute left-2 top-2.5 size-4 text-slate-500" />
+              <Input placeholder="Buscar peça..." value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-8 h-9 text-sm" />
+            </div>
+            <Button variant="outline" onClick={() => { setMovForm({ ...movForm, peca_id: "", tipo: "entrada", quantidade: "", motivo: "", observacao: "" }); setOpenMov(true); }}>
+              <RefreshCw className="size-4 mr-2" /> Nova Movimentação
+            </Button>
+          </div>
+
+          <div className="glass overflow-hidden rounded-2xl">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-800 hover:bg-transparent">
+                  <TableHead className="text-xs uppercase text-slate-500">Peça / Localização</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500 text-center">Qtd. Atual</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500 text-center">Qtd. Mínima</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500 text-right">Preço (Atual)</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500 text-right">Valor Total</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500 text-center">Status</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500 text-center">Ações</TableHead>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {rowsFiltradas.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-slate-500">Nenhuma peça encontrada.</TableCell></TableRow>}
+                {rowsFiltradas.map((r) => {
+                  const estoqueBaixo = r.quantidade_estoque <= r.estoque_minimo;
+                  const fornAtual = fornecedores.find((f: any) => f.id === r.fornecedor_atual_id);
+                  const fpAtual = (r.fornecedores_precos || []).find((f: any) => f.fornecedor_id === r.fornecedor_atual_id);
+                  const precoAtual = fpAtual ? fpAtual.preco_atual : 0;
+                  
+                  const temLocalizacao = r.corredor || r.prateleira || r.caixa;
+                  const localizacaoStr = [r.corredor && `C: ${r.corredor}`, r.prateleira && `P: ${r.prateleira}`, r.caixa && `Cx: ${r.caixa}`].filter(Boolean).join(" | ");
+                  
+                  return (
+                    <TableRow key={r.id} className="border-slate-800/70">
+                      <TableCell className="font-medium text-slate-200">
+                        <div>{r.nome}</div>
+                        <div className="text-slate-500 font-mono text-xs flex gap-2">
+                          {r.codigo && <span>{r.codigo}</span>}
+                          {r.codigo_barras && <span className="flex items-center gap-0.5"><Barcode className="size-3"/> {r.codigo_barras}</span>}
+                        </div>
+                        {temLocalizacao && <div className="text-[10px] text-amber-400 mt-1 flex items-center gap-1"><Box className="size-3" /> {localizacaoStr}</div>}
+                        {fornAtual ? <div className="text-[10px] text-emerald-400 mt-1">Estoque de: {fornAtual.nome}</div> : <div className="text-[10px] text-slate-500 mt-1">Fornecedor não informado</div>}
+                      </TableCell>
+                      <TableCell className={`text-center font-bold ${estoqueBaixo ? 'text-red-400' : 'text-emerald-400'}`}>{r.quantidade_estoque}</TableCell>
+                      <TableCell className="text-center text-slate-400">{r.estoque_minimo}</TableCell>
+                      <TableCell className="text-right text-slate-300">{brl(precoAtual)}</TableCell>
+                      <TableCell className="text-right font-medium text-slate-200">{brl(precoAtual * r.quantidade_estoque)}</TableCell>
+                      <TableCell className="text-center">
+                        {estoqueBaixo ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400"><AlertTriangle className="size-3" /> Baixo</span> : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400"><CheckCircle2 className="size-3" /> OK</span>}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex gap-1 justify-center">
+                          <Button size="icon-sm" variant="ghost" className="cursor-help" title={`Cadastrado por: ${r.created_by_name || 'Sistema'}`}><Info className="size-4 text-slate-400" /></Button>
+                          <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
+                          <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
 
+      {activeTab === "movimentacoes" && (
+        <div className="glass overflow-hidden rounded-2xl">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-slate-800 hover:bg-transparent">
+                <TableHead className="text-xs uppercase text-slate-500">Data/Hora</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500">Peça</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500 text-center">Tipo</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500 text-center">Qtd</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500">Motivo / Obs</TableHead>
+                <TableHead className="text-xs uppercase text-slate-500">Usuário</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {movimentacoes.length === 0 && <TableRow><TableCell colSpan={6} className="py-10 text-center text-slate-500">Nenhuma movimentação registrada.</TableCell></TableRow>}
+              {movimentacoes.map((m) => (
+                <TableRow key={m.id} className="border-slate-800/70">
+                  <TableCell className="text-xs text-slate-400 font-mono">{m.data_hora.replace("T", " ").substring(0, 16)}</TableCell>
+                  <TableCell className="font-medium text-slate-200">{m.peca_nome}</TableCell>
+                  <TableCell className="text-center">
+                    {m.tipo === "entrada" ? <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-[10px] font-bold"><ArrowUpRight className="size-3"/> Entrada</span> : 
+                     m.tipo === "saida" ? <span className="inline-flex items-center gap-1 text-red-400 bg-red-500/10 px-2 py-0.5 rounded text-[10px] font-bold"><ArrowDownRight className="size-3"/> Saída</span> : 
+                     <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded text-[10px] font-bold"><RefreshCw className="size-3"/> Ajuste</span>}
+                  </TableCell>
+                  <TableCell className={`text-center font-bold ${m.tipo === 'entrada' ? 'text-emerald-400' : m.tipo === 'saida' ? 'text-red-400' : 'text-amber-400'}`}>{m.quantidade}</TableCell>
+                  <TableCell className="text-xs text-slate-300">
+                    {m.motivo}
+                    {m.observacao && <div className="text-[10px] text-slate-500">{m.observacao}</div>}
+                  </TableCell>
+                  <TableCell className="text-xs text-slate-400">{m.usuario_nome}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Modal de Peça (Omitido para brevidade, mas mantido no script real) */}
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingId(null); }}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Package className="size-5 text-sky-400" /> {editingId ? "Editar Peça" : "Nova Peça"}</DialogTitle></DialogHeader>
           <form className="grid grid-cols-2 gap-4" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
-            
             <div className="col-span-2 md:col-span-1 grid gap-1.5"><Label>Nome da Peça *</Label><Input value={form.nome} onChange={(e) => setForm(s => ({ ...s, nome: e.target.value }))} required /></div>
             <div className="col-span-2 md:col-span-1 grid gap-1.5"><Label>Código Interno</Label><Input value={form.codigo} onChange={(e) => setForm(s => ({ ...s, codigo: e.target.value }))} /></div>
             <div className="col-span-2 md:col-span-1 grid gap-1.5"><Label>Código de Barras</Label><Input value={form.codigo_barras} onChange={(e) => setForm(s => ({ ...s, codigo_barras: e.target.value }))} placeholder="EAN-13..." /></div>
             <div className="grid gap-1.5"><Label>Qtd. em Estoque</Label><Input type="number" value={form.quantidade_estoque} onChange={(e) => setForm(s => ({ ...s, quantidade_estoque: e.target.value }))} /></div>
             <div className="grid gap-1.5"><Label>Estoque Mínimo</Label><Input type="number" value={form.estoque_minimo} onChange={(e) => setForm(s => ({ ...s, estoque_minimo: e.target.value }))} /></div>
-            
             <div className="col-span-2 grid grid-cols-3 gap-2 bg-slate-900/30 p-3 rounded-lg border border-slate-800">
               <div className="grid gap-1.5"><Label>Corredor</Label><Input value={form.corredor} onChange={(e) => setForm(s => ({ ...s, corredor: e.target.value }))} placeholder="Ex: A" /></div>
               <div className="grid gap-1.5"><Label>Prateleira</Label><Input value={form.prateleira} onChange={(e) => setForm(s => ({ ...s, prateleira: e.target.value }))} placeholder="Ex: 2" /></div>
               <div className="grid gap-1.5"><Label>Caixa</Label><Input value={form.caixa} onChange={(e) => setForm(s => ({ ...s, caixa: e.target.value }))} placeholder="Ex: 3" /></div>
             </div>
-
             <div className="col-span-2 bg-sky-950/30 p-3 rounded-lg border border-sky-900/50">
               <Label className="text-sky-400 font-semibold mb-2 block">Fornecedor da Compra Atual</Label>
-              <p className="text-[11px] text-slate-400 mb-2">De qual fornecedor você comprou as {form.quantidade_estoque || "0"} peças que estão no estoque agora?</p>
-              <FieldSelect 
-                value={form.fornecedor_atual_id} 
-                onChange={(v) => setForm(s => ({ ...s, fornecedor_atual_id: v }))} 
-                options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} 
-                placeholder="Selecione o fornecedor da compra atual" 
-              />
+              <FieldSelect value={form.fornecedor_atual_id} onChange={(v) => setForm(s => ({ ...s, fornecedor_atual_id: v }))} options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} placeholder="Selecione o fornecedor da compra atual" />
             </div>
-            
             <div className="col-span-2 border-t border-slate-800 pt-3 mt-2">
               <div className="flex justify-between items-center mb-3">
-                <div>
-                  <Label className="text-sm font-semibold text-slate-200">Catálogo de Fornecedores e Cotações</Label>
-                </div>
+                <Label className="text-sm font-semibold text-slate-200">Catálogo de Fornecedores e Cotações</Label>
                 <Button type="button" variant="outline" size="sm" onClick={adicionarFornecedor}><Plus className="size-3 mr-1" /> Adicionar Cotação</Button>
               </div>
-              
-              {listaFornecedores.length === 0 ? (
-                <p className="text-xs text-slate-500 italic">Nenhum fornecedor cadastrado no catálogo.</p>
-              ) : (
+              {listaFornecedores.length === 0 ? <p className="text-xs text-slate-500 italic">Nenhum fornecedor cadastrado no catálogo.</p> : (
                 <div className="space-y-3">
                   {listaFornecedores.map((lf, idx) => {
                     const fornObj = fornecedores.find((x:any) => x.id === lf.fornecedor_id);
                     const precosValidos = listaFornecedores.map(f => Number(f.preco_atual.replace(",", ".")) || Infinity);
                     const menorPrecoGeral = Math.min(...precosValidos);
                     const isMenorPreco = Number(lf.preco_atual.replace(",", ".")) === menorPrecoGeral && menorPrecoGeral !== Infinity;
-
                     return (
                       <div key={idx} className={`flex flex-col md:flex-row gap-2 bg-slate-900/50 p-2 rounded border items-end ${isMenorPreco ? 'border-emerald-500/50' : 'border-slate-800'}`}>
                         <div className="flex-1 grid gap-1">
-                          <Label className="text-[10px] text-slate-400 flex items-center gap-2">
-                            Fornecedor
-                            {isMenorPreco && <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded text-[9px]">Menor Preço</span>}
-                          </Label>
-                          <FieldSelect 
-                            value={lf.fornecedor_id} 
-                            onChange={(v) => {
-                              const nova = [...listaFornecedores];
-                              nova[idx].fornecedor_id = v;
-                              setListaFornecedores(nova);
-                            }} 
-                            options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} 
-                            placeholder="Selecione" 
-                          />
-                          {fornObj && (
-                            <div className="flex gap-0.5 ml-1">
-                              {[1,2,3,4,5].map(star => (
-                                <Star key={star} className={`size-3 ${star <= (fornObj.avaliacao || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
-                              ))}
-                            </div>
-                          )}
+                          <Label className="text-[10px] text-slate-400 flex items-center gap-2">Fornecedor {isMenorPreco && <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded text-[9px]">Menor Preço</span>}</Label>
+                          <FieldSelect value={lf.fornecedor_id} onChange={(v) => { const nova = [...listaFornecedores]; nova[idx].fornecedor_id = v; setListaFornecedores(nova); }} options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} placeholder="Selecione" />
+                          {fornObj && <div className="flex gap-0.5 ml-1">{[1,2,3,4,5].map(star => <Star key={star} className={`size-3 ${star <= (fornObj.avaliacao || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />)}</div>}
                         </div>
-                        <div className="w-28 grid gap-1">
-                          <Label className="text-[10px] text-slate-400">Preço Atual</Label>
-                          <Input value={lf.preco_atual} onChange={(e) => atualizarPreco(idx, e.target.value)} placeholder="R$ 0,00" />
-                        </div>
-                        <Button type="button" variant="secondary" size="sm" onClick={() => registrarPreco(idx)} className="h-9" title="Registrar no Histórico">
-                          Histórico
-                        </Button>
+                        <div className="w-28 grid gap-1"><Label className="text-[10px] text-slate-400">Preço Atual</Label><Input value={lf.preco_atual} onChange={(e) => atualizarPreco(idx, e.target.value)} placeholder="R$ 0,00" /></div>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => registrarPreco(idx)} className="h-9">Histórico</Button>
                         <div className="flex-1 grid gap-1">
                           <Label className="text-[10px] text-slate-400">Últimos 3 Preços</Label>
-                          <div className="flex flex-wrap gap-1 min-h-[36px] items-center">
-                            {lf.historico.length === 0 ? <span className="text-xs text-slate-600">—</span> : lf.historico.map((h, i) => (
-                              <span key={i} className="text-[10px] bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded text-slate-400 flex items-center gap-1">
-                                <span className="text-slate-500 text-[8px]">#{i+1}</span> {brl(h)}
-                              </span>
-                            ))}
-                          </div>
+                          <div className="flex flex-wrap gap-1 min-h-[36px] items-center">{lf.historico.length === 0 ? <span className="text-xs text-slate-600">—</span> : lf.historico.map((h, i) => <span key={i} className="text-[10px] bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded text-slate-400 flex items-center gap-1"><span className="text-slate-500 text-[8px]">#{i+1}</span> {brl(h)}</span>)}</div>
                         </div>
-                        <Button type="button" variant="ghost" size="icon" className="text-red-400 h-9" onClick={() => removerFornecedor(idx)}>
-                          <Trash2 className="size-4" />
-                        </Button>
+                        <Button type="button" variant="ghost" size="icon" className="text-red-400 h-9" onClick={() => removerFornecedor(idx)}><Trash2 className="size-4" /></Button>
                       </div>
                     );
                   })}
                 </div>
               )}
             </div>
-
-            <div className="flex items-center gap-2 mt-2">
-              <input type="checkbox" checked={form.ativo} onChange={(e) => setForm(s => ({ ...s, ativo: e.target.checked }))} className="size-4" />
-              <Label>Peça Ativa</Label>
-            </div>
+            <div className="flex items-center gap-2 mt-2"><input type="checkbox" checked={form.ativo} onChange={(e) => setForm(s => ({ ...s, ativo: e.target.checked }))} className="size-4" /><Label>Peça Ativa</Label></div>
             <DialogFooter className="col-span-2 mt-4"><Button type="submit" disabled={salvar.isPending || !form.nome}>{editingId ? "Salvar" : "Cadastrar"}</Button></DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Movimentação */}
+      <Dialog open={openMov} onOpenChange={setOpenMov}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><RefreshCw className="size-5 text-sky-400" /> Nova Movimentação</DialogTitle></DialogHeader>
+          <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); salvarMov.mutate(); }}>
+            <div className="grid gap-1.5"><Label>Peça *</Label><FieldSelect value={movForm.peca_id} onChange={(v) => setMovForm(s => ({ ...s, peca_id: v }))} options={rows.map((r: any) => ({ value: r.id, label: `${r.nome} (Estoque: ${r.quantidade_estoque})` }))} placeholder="Selecione a peça" /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5"><Label>Tipo *</Label><FieldSelect value={movForm.tipo} onChange={(v) => setMovForm(s => ({ ...s, tipo: v }))} options={[{ value: "entrada", label: "Entrada (+)" }, { value: "saida", label: "Saída (-)" }]} /></div>
+              <div className="grid gap-1.5"><Label>Quantidade *</Label><Input type="number" min="1" value={movForm.quantidade} onChange={(e) => setMovForm(s => ({ ...s, quantidade: e.target.value }))} required /></div>
+            </div>
+            <div className="grid gap-1.5"><Label>Motivo *</Label><Input value={movForm.motivo} onChange={(e) => setMovForm(s => ({ ...s, motivo: e.target.value }))} placeholder="Ex: Compra NF 123, Perda, Uso interno" required /></div>
+            <div className="grid gap-1.5"><Label>Observação</Label><Input value={movForm.observacao} onChange={(e) => setMovForm(s => ({ ...s, observacao: e.target.value }))} /></div>
+            <DialogFooter><Button type="submit" disabled={salvarMov.isPending || !movForm.peca_id || !movForm.quantidade || !movForm.motivo}>Registrar</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Inventário */}
+      <Dialog open={openInv} onOpenChange={(o) => { setOpenInv(o); if (!o) setInvContagens({}); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-sky-400" /> Inventário Cíclico</DialogTitle></DialogHeader>
+          <p className="text-sm text-slate-400 mb-4">Digite a quantidade física real de cada peça. O sistema ajustará automaticamente as diferenças.</p>
+          <div className="max-h-[50vh] overflow-y-auto border border-slate-800 rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-800">
+                  <TableHead>Peça</TableHead>
+                  <TableHead className="text-center">Qtd. Sistema</TableHead>
+                  <TableHead className="text-center w-32">Qtd. Física</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r: any) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="text-sm">{r.nome}</TableCell>
+                    <TableCell className="text-center font-bold text-slate-400">{r.quantidade_estoque}</TableCell>
+                    <TableCell>
+                      <Input type="number" placeholder={`Atual: ${r.quantidade_estoque}`} value={invContagens[r.id] || ""} onChange={(e) => setInvContagens(s => ({ ...s, [r.id]: e.target.value }))} className="h-8 text-center" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="ghost" onClick={() => setOpenInv(false)}>Cancelar</Button>
+            <Button onClick={() => salvarInv.mutate()} disabled={salvarInv.isPending || Object.keys(invContagens).length === 0}>Salvar Inventário</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
