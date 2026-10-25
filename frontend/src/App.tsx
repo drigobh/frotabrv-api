@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import AppLayout from "@/components/layout/AppLayout";
 import Login from "@/pages/Login";
+import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
 import Dashboard from "@/pages/Dashboard";
 import Veiculos from "@/pages/Veiculos";
 import Fornecedores from '@/pages/Fornecedores';
@@ -9,7 +10,6 @@ import Combustiveis from '@/pages/Combustiveis';
 import Carretas from "@/pages/Carretas";
 import Motoristas from "@/pages/Motoristas";
 import Acoplamentos from "@/pages/Acoplamentos";
-import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
 import Base from '@/pages/Base';
 import Abastecimentos from "@/pages/Abastecimentos";
 import Manutencoes from "@/pages/Manutencoes";
@@ -30,12 +30,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route element={<AppLayout />}>
           <Route index element={<Dashboard />} />
-          <Route path="/admin/usuarios" element={<Usuarios />} />
-              <Route path="/admin/auditoria" element={<Auditoria />} />
-              <Route path="/admin/avisos" element={<Avisos />} />
-              <Route path="/admin/seguranca" element={<Seguranca />} />
-              <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
-<Route path="/relatorios/fornecedores" element={<RelatorioFornecedores />} />
+          <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
+              <Route path="/relatorios/fornecedores" element={<RelatorioFornecedores />} />
               <Route path="/admin/base" element={<Base />} />
           <Route path="cadastros/veiculos" element={<Veiculos />} />
           <Route path="cadastros/carretas" element={<Carretas />} />

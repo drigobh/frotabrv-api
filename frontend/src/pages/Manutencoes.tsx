@@ -32,6 +32,7 @@ const vazio = (hoje: string) => ({
   km_manutencao: "",
   proxima_revisao_km: "",
   pecas_substituidas: "",
+  pecas_utilizadas: [],
 });
 
 export default function Manutencoes() {
@@ -44,10 +45,14 @@ export default function Manutencoes() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
+  const [pecasUsadas, setPecasUsadas] = useState<{ peca_id: string, quantidade: string, nome: string }[]>([]);
   const [excluirId, setExcluirId] = useState<string | null>(null);
 
   const fq = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
   const fornecedores = fq.data ?? [];
+
+  const pecasQ = useQuery({ queryKey: ["pecas"], queryFn: () => apiGet<any[]>("/pecas") });
+  const listaPecas = pecasQ.data ?? [];
 
   const q = useQuery({
     queryKey: ["manutencoes"],
@@ -75,6 +80,8 @@ export default function Manutencoes() {
   const salvar = useMutation({
     mutationFn: () => {
       const payload = {
+        ...form,
+        pecas_utilizadas: pecasUsadas,
         ...form,
         custo: Number(form.custo.replace(",", ".")) || 0,
         km_manutencao: form.km_manutencao ? Number(form.km_manutencao) : null,
@@ -119,23 +126,17 @@ export default function Manutencoes() {
     setOpen(true);
   };
 
-  const abrirEdicao = (r: Manutencao) => {
-    setEditingId(r.id);
+  const abrirEdicao = (r: Manutencao) => { 
+    setEditingId(r.id); 
     setForm({
-      veiculo_id: r.veiculo_id,
-      tipo: r.tipo,
-      status: r.status,
-      descricao: r.descricao,
-      data: r.data,
-      custo: String(r.custo),
-      oficina: r.oficina || "",
-      fornecedor_id: (r as any).fornecedor_id || "",
-      km_manutencao: r.km_manutencao ? String(r.km_manutencao) : "",
-      proxima_revisao_km: r.proxima_revisao_km ? String(r.proxima_revisao_km) : "",
-      pecas_substituidas: r.pecas_substituidas || "",
+      veiculo_id: r.veiculo_id, tipo: r.tipo, status: r.status, descricao: r.descricao,
+      data: r.data, custo: String(r.custo), oficina: r.oficina || "", fornecedor_id: (r as any).fornecedor_id || "",
+      km_manutencao: r.km_manutencao ? String(r.km_manutencao) : "", proxima_revisao_km: r.proxima_revisao_km ? String(r.proxima_revisao_km) : "",
+      pecas_substituidas: r.pecas_substituidas || ""
     });
-    setOpen(true);
-  };
+    setPecasUsadas((r as any).pecas_utilizadas || []);
+    setOpen(true); 
+  };;
 
   const statusColor = (status: string) => {
     if (status === "Concluída") return "bg-emerald-500/20 text-emerald-400";
@@ -300,8 +301,53 @@ export default function Manutencoes() {
               <Label>Próxima revisão (KM) — gera alerta</Label>
               <Input type="number" value={form.proxima_revisao_km} onChange={(e) => set("proxima_revisao_km")(e.target.value)} placeholder="Ex: 350000" />
             </div>
+            <div className="col-span-2 border-t border-slate-800 pt-3 mt-1">
+              <div className="flex justify-between items-center mb-2">
+                <Label className="text-sm font-semibold text-slate-300">Peças Utilizadas (Baixa no Estoque)</Label>
+                <Button type="button" variant="outline" size="sm" onClick={() => setPecasUsadas([...pecasUsadas, { peca_id: "", quantidade: "1", nome: "" }])}>
+                  <Plus className="size-3 mr-1" /> Adicionar Peça
+                </Button>
+              </div>
+              {pecasUsadas.length === 0 ? (
+                <p className="text-xs text-slate-500 italic">Nenhuma peça vinculada a esta manutenção.</p>
+              ) : (
+                <div className="space-y-2">
+                  {pecasUsadas.map((pu, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <FieldSelect 
+                        value={pu.peca_id} 
+                        onChange={(v) => {
+                          const nova = [...pecasUsadas];
+                          nova[idx].peca_id = v;
+                          const p = listaPecas.find(x => x.id === v);
+                          nova[idx].nome = p ? p.nome : "";
+                          setPecasUsadas(nova);
+                        }} 
+                        options={listaPecas.map(p => ({ value: p.id, label: `${p.nome} (Estoque: ${p.quantidade_estoque})` }))} 
+                        placeholder="Selecione a peça" 
+                      />
+                      <Input 
+                        type="number" 
+                        min="1"
+                        value={pu.quantidade} 
+                        onChange={(e) => {
+                          const nova = [...pecasUsadas];
+                          nova[idx].quantidade = e.target.value;
+                          setPecasUsadas(nova);
+                        }} 
+                        className="w-20" 
+                      />
+                      <Button type="button" variant="ghost" size="icon" className="text-red-400" onClick={() => setPecasUsadas(pecasUsadas.filter((_, i) => i !== idx))}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="col-span-2 grid gap-1.5">
-              <Label>Peças substituídas</Label>
+              <Label>Peças substituídas (Descrição livre)</Label>
               <textarea value={form.pecas_substituidas} onChange={(e) => set("pecas_substituidas")(e.target.value)} className="flex min-h-[60px] w-full rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100" placeholder="Liste as peças..." />
             </div>
             <DialogFooter className="col-span-2">

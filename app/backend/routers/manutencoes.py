@@ -7,6 +7,16 @@ import uuid
 
 router = APIRouter(prefix="/manutencoes", tags=["manutencoes"])
 
+
+async def atualizar_estoque(pecas_utilizadas: list[dict], multiplicador: int = -1):
+    if not pecas_utilizadas: return
+    for p in pecas_utilizadas:
+        if p.get("peca_id") and p.get("quantidade"):
+            await db.pecas.update_one(
+                {"id": p["peca_id"]},
+                {"$inc": {"quantidade_estoque": multiplicador * int(p["quantidade"])}}
+            )
+
 @router.get("", response_model=None)
 async def listar(_u: dict = Depends(require("read"))):
     docs = await db.manutencoes.find({}, {"_id": 0}).sort("data", -1).to_list(2000)
@@ -27,6 +37,7 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     doc["created_at"] = now_iso()
 
     await db.manutencoes.insert_one(doc)
+    await atualizar_estoque(doc.get("pecas_utilizadas"), -1)
     doc.pop("_id", None)
     return doc
 
@@ -47,12 +58,16 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
     doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
     doc["created_at"] = existe.get("created_at", now_iso())
 
+    await atualizar_estoque(existe.get("pecas_utilizadas"), 1)
     await db.manutencoes.update_one({"id": id}, {"$set": doc})
+    await atualizar_estoque(doc.get("pecas_utilizadas"), -1)
     
     doc["id"] = id
     return doc
 
 @router.delete("/{id}")
 async def excluir(id: str, _u: dict = Depends(require("delete"))):
+    manut = await db.manutencoes.find_one({"id": id})
+    if manut: await atualizar_estoque(manut.get("pecas_utilizadas"), 1)
     await db.manutencoes.delete_one({"id": id})
     return {"ok": True}

@@ -13,6 +13,7 @@ class ManutencaoCreate(BaseModel):
     km_manutencao: Optional[float] = None
     proxima_revisao_km: Optional[float] = None
     pecas_substituidas: Optional[str] = None
+    pecas_utilizadas: Optional[list[dict]] = None
 
 class Manutencao(ManutencaoCreate):
     id: str
