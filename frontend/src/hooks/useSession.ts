@@ -1,12 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api";
-import type { Usuario } from "@/types/auth";
 
 export function useMe() {
-  return useQuery({ queryKey: ["me"], queryFn: () => apiGet<Usuario>("/auth/me"), retry: false });
+  const token = localStorage.getItem("token");
+  
+  return useQuery({
+    queryKey: ["me"],
+    queryFn: () => apiGet<any>("/auth/me"),
+    retry: false,
+    enabled: !!token,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
 }
 
-// "Hoje" vem do relógio local do navegador (evita erro 404 no console)
-export function useHoje(): string {
+export function useHoje() {
   return new Date().toISOString().split("T")[0];
 }

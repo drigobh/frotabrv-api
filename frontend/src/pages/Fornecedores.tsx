@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Truck, Plus, AlertTriangle, Pencil, Trash2, Search, Loader2, CheckCircle2, XCircle, MapPin, Building2, Phone, Mail, Printer, Star, User, FileText, AlertTriangle, Briefcase } from "lucide-react";
+import { AlertTriangle, Briefcase, Building2, CheckCircle2, FileText, Loader2, Mail, MapPin, Pencil, Phone, Plus, Printer, Search, Star, Trash2, Truck, User, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { brl } from "@/lib/format";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
