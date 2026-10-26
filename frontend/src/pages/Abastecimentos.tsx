@@ -357,6 +357,8 @@ export default function Abastecimentos() {
       const idxMedia = findIdx("KM/LITRO");
       const idxPosto = findIdx("NOME ESTABELECIMENTO");
       const idxValor = findIdx("VALOR EMISSAO");
+      
+      // Colunas de endereço e CNPJ (se existirem)
       const idxCnpj = findIdx("CNPJ");
       const idxCidade = findIdx("CIDADE");
       const idxEstado = findIdx("UF");
@@ -365,12 +367,17 @@ export default function Abastecimentos() {
       setImportProgress({ total: totalLinhas, current: 0, errors: [] });
       let importados = 0; const erros: any[] = [];
 
+      // Função de conversão super robusta
       const parseNum = (val: any) => {
         if (!val) return 0;
-        let str = String(val).replace(/[^\d.,-]/g, "");
-        if (str.includes('.') && str.includes(',')) str = str.replace(/\./g, '').replace(',', '.');
-        else if (str.includes(',')) str = str.replace(',', '.');
-        return Number(str) || 0;
+        let str = String(val).trim();
+        if (str.includes('.') && str.includes(',')) {
+            str = str.replace(/\./g, '').replace(',', '.');
+        } else if (str.includes(',')) {
+            str = str.replace(',', '.');
+        }
+        const num = Number(str);
+        return isNaN(num) ? 0 : num;
       };
 
       for (let i = 1; i < rows.length; i++) {
@@ -381,11 +388,10 @@ export default function Abastecimentos() {
         const dataFinal = dataStr.split(" ")[0];
         const horaFinal = dataStr.includes(" ") ? dataStr.split(" ")[1].substring(0, 5) : null;
 
-        const kmNum = Number(String(row[idxKm] || "0").replace(/[^\d]/g, ""));
-        
+        const kmNum = parseNum(row[idxKm]);
         const litrosNum = parseNum(row[idxLitros]);
-        const precoNum = parseNum(row[idxPreco]);
-        const valorNum = idxValor !== -1 ? parseNum(row[idxValor]) : (litrosNum * precoNum);
+        const precoNum = parseNum(row[idxPreco]); // Força a leitura da coluna P
+        const valorNum = idxValor !== -1 ? parseNum(row[idxValor]) : (litrosNum * precoNum); // Força a leitura da coluna T
         
         const kmRodadosNum = idxKmRodados !== -1 ? parseNum(row[idxKmRodados]) : null;
         const mediaNum = idxMedia !== -1 ? parseNum(row[idxMedia]) : null;
@@ -399,10 +405,22 @@ export default function Abastecimentos() {
 
         let cnpjRaw = idxCnpj !== -1 ? String(row[idxCnpj] || "").replace(/\D/g, "") : "";
         let cnpjFormatado = cnpjRaw.length === 14 ? formatCnpj(cnpjRaw) : "";
-
+        
         const fornecedorNome = String(row[idxPosto] || "").trim();
         const cidade = idxCidade !== -1 ? String(row[idxCidade] || "").trim() : "";
         const estado = idxEstado !== -1 ? String(row[idxEstado] || "").trim() : "";
+
+        // Se não tem CNPJ na planilha, tenta buscar via BrasilAPI pelo Nome e Cidade
+        if (!cnpjFormatado && fornecedorNome && cidade) {
+          try {
+            const data = await apiGet<any>(`/fornecedores/consultar-cnpj-por-nome?nome=${encodeURIComponent(fornecedorNome)}&cidade=${encodeURIComponent(cidade)}`);
+            if (data && data.cnpj) {
+              cnpjFormatado = formatCnpj(data.cnpj);
+            }
+          } catch (err) {
+            // Se não achar, segue o baile (não quebra a importação)
+          }
+        }
 
         const payload = {
           data: dataFinal,
