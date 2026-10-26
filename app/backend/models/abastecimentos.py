@@ -9,7 +9,7 @@ class AbastecimentoCreate(BaseModel):
     produto: str | None = None
     litros: float = Field(gt=0)
     preco_litro: float = Field(gt=0)
-    posto: str = Field(min_length=1)
+    posto: str | None = None
     km: float = Field(ge=0)
     observacoes: str = ""
     numero_nf: str | None = None

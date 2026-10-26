@@ -33,7 +33,7 @@ const formatCnpj = (val: string) => {
     .slice(0, 18);
 };
 
-const vazio = (hoje: string) => ({ avaliacao: 0, 
+const vazio = (hoje: string) => ({ cidade: "", estado: "", avaliacao: 0, 
   data: hoje, veiculo_id: "", motorista_id: NENHUM, litros: "", preco_litro: "", posto: "", km: "", observacoes: "",
   numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "manual", produto: "DIESEL", combustivel_id: ""
 });
@@ -120,9 +120,16 @@ export default function Abastecimentos() {
     if (cnpjLimpo.length !== 14) { toast.error("CNPJ inválido"); return; }
     setCnpjLoading(true);
     try {
-      const existente = fornecedores.find((f: any) => f.cnpj && f.cnpj.replace(/\D/g, '') === cnpjLimpo);
+      const existente = fornecedores.find((f: any) => f.documento && f.documento.replace(/\D/g, '') === cnpjLimpo);
       if (existente) {
-        setForm(s => ({ ...s, fornecedor: existente.nome, cidade: existente.cidade || "", estado: existente.estado || "" }));
+        setForm(s => ({ 
+          ...s, 
+          fornecedor: existente.nome, 
+          cnpj: existente.documento || "", 
+          cidade: existente.cidade || "", 
+          estado: existente.estado || "",
+          avaliacao: existente.avaliacao || 0
+        }));
         toast.success(`Fornecedor encontrado: ${existente.nome}`);
         return;
       }
@@ -148,16 +155,24 @@ export default function Abastecimentos() {
     try {
       await apiPost("/fornecedores", { 
         nome: fornecedorPendente.nome, 
-        cnpj: fornecedorPendente.cnpj, 
+        documento: fornecedorPendente.cnpj, // O modelo espera 'documento'
         cidade: fornecedorPendente.cidade, 
         estado: fornecedorPendente.estado,
         endereco: fornecedorPendente.endereco,
         bairro: fornecedorPendente.bairro,
+        avaliacao: fornecedorPendente.avaliacao || 0,
         ativo: true 
       });
       toast.success("Fornecedor cadastrado automaticamente!");
       await refetchFornecedores();
-      setForm(s => ({ ...s, fornecedor: fornecedorPendente.nome, cidade: fornecedorPendente.cidade, estado: fornecedorPendente.estado }));
+      setForm(s => ({ 
+        ...s, 
+        fornecedor: fornecedorPendente.nome, 
+        cnpj: fornecedorPendente.cnpj, // Adiciona o CNPJ
+        cidade: fornecedorPendente.cidade || "", 
+        estado: fornecedorPendente.estado || "",
+        avaliacao: fornecedorPendente.avaliacao || 0
+      }));
       setFornecedorPendente(null);
     } catch (err) {
       toast.error("Erro ao cadastrar fornecedor.");
@@ -452,9 +467,9 @@ export default function Abastecimentos() {
       </div>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if(!o) setEditingId(null); }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-xl max-h-[95vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader><DialogTitle>{editingId ? "Editar" : "Novo"} Abastecimento</DialogTitle></DialogHeader>
-          <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
+          <form className="grid grid-cols-2 gap-2" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
               <div className="col-span-2 grid gap-1.5"><Label>Veículo *</Label><FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione o veículo primeiro" testId="form-veiculo" /></div>
               <div className="col-span-2 grid gap-1.5"><Label>Motorista</Label><FieldSelect value={form.motorista_id} onChange={set("motorista_id")} options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data || []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="form-motorista" /></div>
 
@@ -467,7 +482,7 @@ export default function Abastecimentos() {
               
 
               <div className="col-span-2 border-t border-slate-800 pt-2 mt-2">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <div className="grid gap-1.5">
                     <Label>CNPJ Emitente</Label>
                     <div className="flex gap-2">
@@ -481,23 +496,30 @@ export default function Abastecimentos() {
                     <Label>Fornecedor *</Label>
                     <FieldSelect value={form.fornecedor} onChange={(v) => {
                       const f = fornecedores.find((x:any) => x.nome === v);
-                      setForm(s => ({ ...s, fornecedor: v, cnpj: f ? f.cnpj : s.cnpj, cidade: f ? f.cidade || "" : s.cidade, estado: f ? f.estado || "" : s.estado }));
-                    }} options={fornecedores.length > 0 ? fornecedores.map((f: any) => ({ value: f.nome, label: f.nome })) : [{ value: "", label: "Nenhum fornecedor cadastrado" }]} placeholder="Selecione o fornecedor" />
+                      setForm(s => ({ 
+                        ...s, 
+                        fornecedor: v, 
+                        cnpj: f ? (f.documento || "") : s.cnpj, 
+                        cidade: f ? (f.cidade || "") : s.cidade, 
+                        estado: f ? (f.estado || "") : s.estado,
+                        avaliacao: f ? (f.avaliacao || 0) : s.avaliacao
+                      }));
+                    }} options={fornecedores?.map((f: any) => ({ value: f.nome, label: f.nome })) || []} placeholder="Selecione o fornecedor" />
                   </div>
                   <div className="grid gap-1.5"><Label>Cidade</Label><Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} /></div>
                   <div className="grid gap-1.5"><Label>Estado (UF)</Label><Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} className="uppercase" /></div>
                 </div>
               </div>
 
-              <div className="col-span-2 grid gap-1.5">
-              <Label>Avaliação do Fornecedor</Label>
-              <div className="flex gap-2 items-center">
+              <div className="col-span-2 flex items-center gap-3 bg-slate-900/30 p-2 rounded-lg border border-slate-800">
+              <Label className="text-xs text-slate-400">Avaliação:</Label>
+              <div className="flex gap-1 items-center">
                 {[1, 2, 3, 4, 5].map(star => (
                   <button type="button" key={star} onClick={() => setForm(s => ({ ...s, avaliacao: star }))} className="focus:outline-none hover:scale-110">
-                    <Star className={`size-5 ${star <= form.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                    <Star className={`size-4 ${star <= form.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
                   </button>
                 ))}
-                <span className="text-xs text-slate-400 ml-2">{form.avaliacao === 0 ? "Sem avaliação" : `${form.avaliacao} de 5`}</span>
+                <span className="text-[10px] text-slate-500 ml-1">{form.avaliacao === 0 ? "" : `${form.avaliacao}/5`}</span>
               </div>
             </div>
 
@@ -529,6 +551,17 @@ export default function Abastecimentos() {
             <p className="text-sm text-slate-300"><strong>Bairro:</strong> {fornecedorPendente?.bairro}</p>
             <p className="text-sm text-slate-300"><strong>Cidade/UF:</strong> {fornecedorPendente?.cidade} / {fornecedorPendente?.estado}</p>
             <p className="text-sm text-sky-400 font-medium mt-2">Deseja cadastrá-lo automaticamente no sistema?</p>
+            <div className="grid gap-1.5 mt-3">
+              <Label>Avaliação do Fornecedor</Label>
+              <div className="flex gap-2 items-center">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button type="button" key={star} onClick={() => setFornecedorPendente(s => s ? { ...s, avaliacao: star } : null)} className="focus:outline-none hover:scale-110">
+                    <Star className={`size-5 ${star <= (fornecedorPendente?.avaliacao || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                  </button>
+                ))}
+                <span className="text-xs text-slate-400 ml-2">{fornecedorPendente?.avaliacao === 0 ? "Sem avaliação" : `${fornecedorPendente?.avaliacao} de 5`}</span>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setFornecedorPendente(null)}>Cancelar</Button>
