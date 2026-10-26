@@ -1,18 +1,22 @@
-// Session boundary: auth is an httpOnly cookie the backend owns; the frontend's one
-// duty is wiping the react-query cache so one account's data never renders for the next.
 import { queryClient } from "./queryClient";
 import { apiPost } from "./api";
 
-// Call after every successful login/signup.
-export function beginSession(): void {
+// Salva o token no localStorage e limpa o cache do React Query
+export function beginSession(token?: string): void {
+  if (token) {
+    localStorage.setItem("token", token);
+    localStorage.setItem("auth_token", token);
+  }
   queryClient.clear();
 }
 
-// Call from every sign-out control; the hard redirect resets all in-memory state.
+// Limpa o token e o cache
 export async function endSession(redirectTo: string = "/login"): Promise<void> {
   try {
     await apiPost("/auth/logout");
   } finally {
+    localStorage.removeItem("token");
+    localStorage.removeItem("auth_token");
     queryClient.clear();
     window.location.assign(redirectTo);
   }

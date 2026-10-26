@@ -33,7 +33,7 @@ export default function Login() {
         toast.info("Informe o código do Google Authenticator");
         return;
       }
-      beginSession();
+      beginSession(r.token);
       navigate("/", { replace: true });
     },
     onError: (e) => setErro(errMsg(e)),
