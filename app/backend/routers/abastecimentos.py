@@ -208,6 +208,7 @@ async def criar(body: dict, request: Request, user: dict = Depends(require("writ
     doc["km_rodados"] = km_rodados
     doc["media_km_l"] = media_km_l
     doc["created_by"] = user.get("id", "sistema")
+    doc["created_by_name"] = user.get("nome", user.get("email", "Sistema"))
     doc["created_at"] = now_iso()
     doc["origem"] = doc.get("origem", "manual")
 
