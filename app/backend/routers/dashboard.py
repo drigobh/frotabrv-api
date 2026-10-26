@@ -7,38 +7,47 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("")
 async def get_dashboard(_u: dict = Depends(require("read"))):
-    # 1. Buscar Abastecimentos e Manutenções
+    # 1. Busca dados
     abastecimentos = await db.abastecimentos.find({}, {"_id": 0}).to_list(5000)
     manutencoes = await db.manutencoes.find({}, {"_id": 0}).to_list(5000)
 
-    # 2. Calcular totais gerais
-    total_abastecimento = sum(a.get("valor_total", 0) for a in abastecimentos)
-    total_manutencao = sum(m.get("custo", 0) for m in manutencoes)
+    # 2. Totais
+    total_abastecimento = sum((a.get("valor_total") or 0) for a in abastecimentos)
+    total_manutencao = sum((m.get("custo") or 0) for m in manutencoes)
     total_geral = total_abastecimento + total_manutencao
 
-    # 3. Agrupar por mês para o gráfico (últimos 6 meses)
+    # 3. Agrupamento Mensal (Últimos 6 meses)
     hoje = datetime.now()
     meses_grafico = []
     for i in range(5, -1, -1):
-        data_ref = hoje - timedelta(days=30 * i)
+        # Pega o primeiro dia do mês alvo
+        ano = hoje.year
+        mes = hoje.month - i
+        while mes <= 0:
+            mes += 12
+            ano -= 1
+        
+        data_ref = datetime(ano, mes, 1)
         mes_ano = data_ref.strftime("%Y-%m")
         label = data_ref.strftime("%b/%y")
         
-        valor_abast = sum(a.get("valor_total", 0) for a in abastecimentos if str(a.get("data", "")).startswith(mes_ano))
-        valor_manut = sum(m.get("custo", 0) for m in manutencoes if str(m.get("data", "")).startswith(mes_ano))
+        v_abast = sum((a.get("valor_total") or 0) for a in abastecimentos if str(a.get("data", "")).startswith(mes_ano))
+        v_manut = sum((m.get("custo") or 0) for m in manutencoes if str(m.get("data", "")).startswith(mes_ano))
         
         meses_grafico.append({
             "mes": label,
-            "abastecimento": valor_abast,
-            "manutencao": valor_manut
+            "abastecimento": v_abast,
+            "manutencao": v_manut
         })
 
-    # 4. Buscar top veículos (Ranking)
+    # 4. Ranking Top 5
     ranking = {}
     for a in abastecimentos:
         v_id = a.get("veiculo_id")
+        if not v_id: continue
         if v_id not in ranking:
             ranking[v_id] = {"label": a.get("veiculo_label", "").split(" · ")[0], "litros": 0, "km": 0}
+        
         ranking[v_id]["litros"] += (a.get("litros") or 0)
         ranking[v_id]["km"] += (a.get("km_rodados") or 0)
 

@@ -8,7 +8,7 @@ import { useMe } from "@/hooks/useSession";
 
 export default function Dashboard() {
   const { data: me } = useMe();
-  const { data, isLoading } = useQuery({ queryKey: ["dashboard"], queryFn: () => apiGet<any>("/dashboard") });
+  const { data, isLoading } = useQuery({ queryKey: ["dashboard"], queryFn: () => apiGet<any>("/dashboard"), staleTime: 0, refetchOnMount: true });
 
   if (isLoading) return <div className="p-10 text-center text-slate-500">Carregando indicadores...</div>;
 
