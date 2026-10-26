@@ -33,7 +33,12 @@ export default function Login() {
         toast.info("Informe o código do Google Authenticator");
         return;
       }
-      beginSession(r.token);
+      // Salva o token recebido do backend
+      if (r.token) {
+        localStorage.setItem("token", r.token);
+        localStorage.setItem("auth_token", r.token);
+      }
+      beginSession();
       navigate("/", { replace: true });
     },
     onError: (e) => setErro(errMsg(e)),

@@ -27,7 +27,7 @@ async def login(body: LoginIn, response: Response):
         samesite="lax",
         secure=True # Como estamos no Render (HTTPS), deve ser True
     )
-    return LoginOut(requires_2fa=False, user=user)
+    return LoginOut(requires_2fa=False, user=user, token=token)
 
 @router.get("/me")
 async def me(user: dict = Depends(current_user)):

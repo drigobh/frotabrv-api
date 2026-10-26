@@ -10,6 +10,7 @@ class LoginIn(BaseModel):
 
 
 class LoginOut(BaseModel):
+    token: str | None = None
     requires_2fa: bool
     user: Usuario | None = None
 
