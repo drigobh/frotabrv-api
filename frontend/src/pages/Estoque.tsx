@@ -14,8 +14,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { FieldSelect } from "@/components/common/FieldSelect";
 import { useVeiculos, useCarretas } from "@/hooks/useCadastros";
+import { useMe } from "@/hooks/useSession";
 
 export default function Estoque() {
+  const { data: me } = useMe();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState("catalogo");
   
@@ -40,6 +42,11 @@ export default function Estoque() {
   const [viewInv, setViewInv] = useState<any | null>(null);
   const [excluirInvId, setExcluirInvId] = useState<string | null>(null);
   const [openInvConfirm, setOpenInvConfirm] = useState(false);
+  const [filtroDataMov, setFiltroDataMov] = useState("");
+  const [filtroPecaMov, setFiltroPecaMov] = useState("");
+  const [filtroFornMov, setFiltroFornMov] = useState("");
+  const [filtroDestinoMov, setFiltroDestinoMov] = useState("");
+  const [filtroMotivoMov, setFiltroMotivoMov] = useState("");
 
   // Queries
   const q = useQuery({ queryKey: ["pecas"], queryFn: () => apiGet<any[]>("/pecas"), staleTime: 0, refetchOnMount: true });
@@ -55,6 +62,70 @@ export default function Estoque() {
   const carretas = carrQ.data ?? [];
   const movimentacoes = movQ.data ?? [];
   const inventarios = invQ.data ?? [];
+
+  const movimentacoesFiltradas = useMemo(() => {
+    return movimentacoes.filter((m: any) => {
+      if (filtroDataMov && m.data_hora.substring(0, 10) !== filtroDataMov) return false;
+      if (filtroPecaMov && !m.peca_nome.toLowerCase().includes(filtroPecaMov.toLowerCase())) return false;
+      if (filtroFornMov && !(m.fornecedor_nome || "").toLowerCase().includes(filtroFornMov.toLowerCase())) return false;
+      if (filtroDestinoMov && !(m.destino_nome || "").toLowerCase().includes(filtroDestinoMov.toLowerCase())) return false;
+      if (filtroMotivoMov && !m.motivo.toLowerCase().includes(filtroMotivoMov.toLowerCase())) return false;
+      return true;
+    });
+  }, [movimentacoes, filtroDataMov, filtroPecaMov, filtroFornMov, filtroDestinoMov, filtroMotivoMov]);
+
+  const exportarExcelMov = () => {
+    const dados = movimentacoesFiltradas.map((m: any) => ({
+      "Data": new Date(m.data_hora).toLocaleDateString('pt-BR'),
+      "Hora": new Date(m.data_hora).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}),
+      "Peça": m.peca_nome,
+      "Fornecedor": m.fornecedor_nome || "-",
+      "Destino": m.destino_nome || "-",
+      "Quantidade": m.quantidade,
+      "Motivo": m.motivo,
+      "Observação": m.observacao || "-",
+      "Usuário": m.usuario_nome
+    }));
+    const ws = XLSX.utils.json_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Saidas");
+    XLSX.writeFile(wb, `Saidas_Estoque_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const imprimirPDFMov = () => {
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const rowsHtml = movimentacoesFiltradas.map((m: any) => `
+      <tr>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-size: 11px;">${new Date(m.data_hora).toLocaleDateString('pt-BR')}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.peca_nome}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.fornecedor_nome || "-"}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.destino_nome || "-"}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #b91c1c;">-${m.quantidade}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.motivo}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.usuario_nome}</td>
+      </tr>
+    `).join('');
+    win.document.write(`
+      <html><head><title>Histórico de Saídas</title>
+      <style>
+        body { font-family: sans-serif; margin: 30px; }
+        h2 { color: #0c4a6e; margin-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { background: #f1f5f9; padding: 8px; border: 1px solid #ddd; text-align: left; font-size: 11px; }
+      </style>
+      </head><body>
+      <h2>Histórico de Saídas - Estoque</h2>
+      <p style="font-size: 12px; color: #666;">Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
+      <table>
+        <thead><tr><th>Data</th><th>Peça</th><th>Fornecedor</th><th>Destino</th><th>Qtd</th><th>Motivo</th><th>Usuário</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <script>window.onload = () => { window.print(); window.close(); }</script>
+      </body></html>
+    `);
+    win.document.close();
+  };
 
   const rowsFiltradas = useMemo(() => {
     return rows.filter(r => r.nome.toLowerCase().includes(busca.toLowerCase()) || (r.codigo && r.codigo.toLowerCase().includes(busca.toLowerCase())) || (r.codigo_barras && r.codigo_barras.toLowerCase().includes(busca.toLowerCase())));
@@ -289,7 +360,14 @@ export default function Estoque() {
                           {r.codigo_barras && <span className="flex items-center gap-0.5"><Barcode className="size-3"/> {r.codigo_barras}</span>}
                         </div>
                         {temLocalizacao && <div className="text-[10px] text-amber-400 mt-1 flex items-center gap-1"><Box className="size-3" /> {localizacaoStr}</div>}
-                        {fornAtual ? <div className="text-[10px] text-emerald-400 mt-1">Estoque de: {fornAtual.nome}</div> : <div className="text-[10px] text-slate-500 mt-1">Fornecedor não informado</div>}
+                        {fornAtual ? <div className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
+                        Estoque de: {fornAtual.nome}
+                        <span className="flex">
+                          {[1,2,3,4,5].map(star => (
+                            <Star key={star} className={`size-2 ${star <= (fornAtual.avaliacao || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                          ))}
+                        </span>
+                      </div> : <div className="text-[10px] text-slate-500 mt-1">Fornecedor não informado</div>}
                       </TableCell>
                       <TableCell className={`text-center font-bold ${estoqueBaixo ? 'text-red-400' : 'text-emerald-400'}`}>{r.quantidade_estoque}</TableCell>
                       <TableCell className="text-center text-slate-400">{r.estoque_minimo}</TableCell>
@@ -316,34 +394,48 @@ export default function Estoque() {
       )}
 
       {activeTab === "movimentacoes" && (
-        <div className="glass overflow-hidden rounded-2xl">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-transparent">
-                <TableHead className="text-xs uppercase text-slate-500">Data/Hora</TableHead>
-                <TableHead className="text-xs uppercase text-slate-500">Peça</TableHead>
-                <TableHead className="text-xs uppercase text-slate-500">Fornecedor</TableHead>
-                <TableHead className="text-xs uppercase text-slate-500">Destino</TableHead>
-                <TableHead className="text-xs uppercase text-slate-500 text-center">Qtd</TableHead>
-                <TableHead className="text-xs uppercase text-slate-500">Motivo</TableHead>
-                <TableHead className="text-xs uppercase text-slate-500">Usuário</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {movimentacoes.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-slate-500">Nenhuma baixa registrada.</TableCell></TableRow>}
-              {movimentacoes.map((m) => (
-                <TableRow key={m.id} className="border-slate-800/70">
-                  <TableCell className="text-xs text-slate-400 font-mono">{m.data_hora.replace("T", " ").substring(0, 16)}</TableCell>
-                  <TableCell className="font-medium text-slate-200">{m.peca_nome}</TableCell>
-                  <TableCell className="text-xs text-slate-400">{m.fornecedor_nome || "—"}</TableCell>
-                  <TableCell className="text-xs text-sky-400">{m.destino_nome || "—"}</TableCell>
-                  <TableCell className="text-center font-bold text-red-400">-{m.quantidade}</TableCell>
-                  <TableCell className="text-xs text-slate-300">{m.motivo} {m.observacao && <span className="text-[10px] text-slate-500">({m.observacao})</span>}</TableCell>
-                  <TableCell className="text-xs text-slate-400">{m.usuario_nome}</TableCell>
+        <div>
+          <div className="mb-4 flex flex-wrap gap-2 glass p-3 rounded-xl items-end">
+            <div className="grid gap-1"><Label className="text-[10px] text-slate-500">Data</Label><Input type="date" value={filtroDataMov} onChange={e => setFiltroDataMov(e.target.value)} className="w-36 h-8 text-xs" /></div>
+            <div className="grid gap-1"><Label className="text-[10px] text-slate-500">Peça</Label><Input placeholder="Nome..." value={filtroPecaMov} onChange={e => setFiltroPecaMov(e.target.value)} className="w-36 h-8 text-xs" /></div>
+            <div className="grid gap-1"><Label className="text-[10px] text-slate-500">Fornecedor</Label><Input placeholder="Nome..." value={filtroFornMov} onChange={e => setFiltroFornMov(e.target.value)} className="w-36 h-8 text-xs" /></div>
+            <div className="grid gap-1"><Label className="text-[10px] text-slate-500">Destino</Label><Input placeholder="Placa..." value={filtroDestinoMov} onChange={e => setFiltroDestinoMov(e.target.value)} className="w-36 h-8 text-xs" /></div>
+            <div className="grid gap-1"><Label className="text-[10px] text-slate-500">Motivo</Label><Input placeholder="Motivo..." value={filtroMotivoMov} onChange={e => setFiltroMotivoMov(e.target.value)} className="w-36 h-8 text-xs" /></div>
+            <Button variant="ghost" size="sm" onClick={() => { setFiltroDataMov(""); setFiltroPecaMov(""); setFiltroFornMov(""); setFiltroDestinoMov(""); setFiltroMotivoMov(""); }} className="h-8">Limpar</Button>
+            <div className="ml-auto flex gap-2">
+              <Button variant="outline" size="sm" onClick={exportarExcelMov}><FileSpreadsheet className="size-4 mr-1" /> Excel</Button>
+              <Button variant="outline" size="sm" onClick={imprimirPDFMov}><Printer className="size-4 mr-1" /> PDF</Button>
+            </div>
+          </div>
+          <div className="glass overflow-hidden rounded-2xl">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-800 hover:bg-transparent">
+                  <TableHead className="text-xs uppercase text-slate-500">Data</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Peça</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Fornecedor</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Destino</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500 text-center">Qtd</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Motivo</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Usuário</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {movimentacoesFiltradas.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-slate-500">Nenhuma baixa encontrada com os filtros atuais.</TableCell></TableRow>}
+                {movimentacoesFiltradas.map((m: any) => (
+                  <TableRow key={m.id} className="border-slate-800/70">
+                    <TableCell className="text-xs text-slate-400 font-mono">{new Date(m.data_hora).toLocaleDateString('pt-BR')} {new Date(m.data_hora).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</TableCell>
+                    <TableCell className="font-medium text-slate-200">{m.peca_nome}</TableCell>
+                    <TableCell className="text-xs text-slate-400">{m.fornecedor_nome || "—"}</TableCell>
+                    <TableCell className="text-xs text-sky-400">{m.destino_nome || "—"}</TableCell>
+                    <TableCell className="text-center font-bold text-red-400">-{m.quantidade}</TableCell>
+                    <TableCell className="text-xs text-slate-300">{m.motivo} {m.observacao && <span className="text-[10px] text-slate-500">({m.observacao})</span>}</TableCell>
+                    <TableCell className="text-xs text-slate-400">{m.usuario_nome}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 
@@ -367,7 +459,8 @@ export default function Estoque() {
                   <TableCell className="text-center font-bold text-amber-400">{inv.total_ajustes} itens</TableCell>
                   <TableCell className="text-center">
                     <div className="flex gap-1 justify-center">
-                      <Button size="icon-sm" variant="ghost" onClick={() => setViewInv(inv)} title="Visualizar/Imprimir"><Eye className="size-4 text-sky-400" /></Button>
+                      <Button size="icon-sm" variant="ghost" onClick={() => setViewInv(inv)} title="Visualizar"><Eye className="size-4 text-sky-400" /></Button>
+                      <Button size="icon-sm" variant="ghost" onClick={() => imprimirPDF(inv)} title="Imprimir"><Printer className="size-4 text-emerald-400" /></Button>
                       <Button size="icon-sm" variant="ghost" className="text-amber-400" onClick={() => { if(confirm("Deseja reverter este inventário? O estoque voltará ao estado anterior.")) reverterInv.mutate(inv.id); }} title="Reverter Inventário"><RefreshCw className="size-4" /></Button>
                       <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirInvId(inv.id)} title="Excluir Histórico"><Trash2 className="size-4" /></Button>
                     </div>
@@ -396,7 +489,7 @@ export default function Estoque() {
             </div>
             <div className="col-span-2 bg-sky-950/30 p-3 rounded-lg border border-sky-900/50">
               <Label className="text-sky-400 font-semibold mb-2 block">Fornecedor da Compra Atual</Label>
-              <FieldSelect value={form.fornecedor_atual_id} onChange={(v) => setForm(s => ({ ...s, fornecedor_atual_id: v }))} options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} placeholder="Selecione" />
+              <FieldSelect value={form.fornecedor_atual_id} onChange={(v) => setForm(s => ({ ...s, fornecedor_atual_id: v }))} options={fornecedores.map((f: any) => ({ value: f.id, label: `${f.nome} (${f.avaliacao || 0}★)` }))} placeholder="Selecione" />
             </div>
             <div className="col-span-2 border-t border-slate-800 pt-3 mt-2">
               <div className="flex justify-between items-center mb-3">
@@ -407,7 +500,7 @@ export default function Estoque() {
                 <div key={idx} className="flex gap-2 bg-slate-900/50 p-2 rounded border border-slate-800 items-end mb-2">
                   <div className="flex-1 grid gap-1">
                     <Label className="text-[10px] text-slate-400">Fornecedor</Label>
-                    <FieldSelect value={lf.fornecedor_id} onChange={(v) => { const nova = [...listaFornecedores]; nova[idx].fornecedor_id = v; setListaFornecedores(nova); }} options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} placeholder="Selecione" />
+                    <FieldSelect value={lf.fornecedor_id} onChange={(v) => { const nova = [...listaFornecedores]; nova[idx].fornecedor_id = v; setListaFornecedores(nova); }} options={fornecedores.map((f: any) => ({ value: f.id, label: `${f.nome} (${f.avaliacao || 0}★)` }))} placeholder="Selecione" />
                   </div>
                   <div className="w-28 grid gap-1"><Label className="text-[10px] text-slate-400">Preço Atual</Label><Input value={lf.preco_atual} onChange={(e) => atualizarPreco(idx, e.target.value)} placeholder="R$ 0,00" /></div>
                   <Button type="button" variant="secondary" size="sm" onClick={() => registrarPreco(idx)} className="h-9">Histórico</Button>
