@@ -42,3 +42,19 @@ async def excluir(id: str, _u: dict = Depends(require("delete"))):
         raise HTTPException(400, "Não é possível excluir: fornecedor em uso.")
     await db.fornecedores.delete_one({"id": id})
     return {"ok": True}
+
+import httpx
+
+@router.get("/consultar-cnpj/{cnpj}")
+async def consultar_cnpj(cnpj: str, _u: dict = Depends(require("read"))):
+    cnpj_limpo = "".join(filter(str.isdigit, cnpj))
+    if len(cnpj_limpo) != 14:
+        raise HTTPException(400, "CNPJ inválido")
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"https://brasilapi.com.br/api/cnpj/v1/{cnpj_limpo}", timeout=10.0)
+            if response.status_code != 200:
+                raise HTTPException(response.status_code, "Erro ao consultar CNPJ")
+            return response.json()
+    except httpx.RequestError:
+        raise HTTPException(502, "Erro de conexão com a BrasilAPI")

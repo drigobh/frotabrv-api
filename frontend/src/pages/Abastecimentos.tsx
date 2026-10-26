@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, Search, Loader2, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info } from "lucide-react";
+import { Fuel, Plus, Search, Loader2, Star, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
@@ -33,7 +33,7 @@ const formatCnpj = (val: string) => {
     .slice(0, 18);
 };
 
-const vazio = (hoje: string) => ({ 
+const vazio = (hoje: string) => ({ avaliacao: 0, 
   data: hoje, veiculo_id: "", motorista_id: NENHUM, litros: "", preco_litro: "", posto: "", km: "", observacoes: "",
   numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "manual", produto: "DIESEL", combustivel_id: ""
 });
@@ -126,12 +126,18 @@ export default function Abastecimentos() {
         toast.success(`Fornecedor encontrado: ${existente.nome}`);
         return;
       }
-      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
-      if (!res.ok) throw new Error("Erro na API");
-      const data = await res.json();
-      setFornecedorPendente({ nome: data.razao_social, cnpj: formatCnpj(cnpjLimpo), cidade: data.municipio, estado: data.uf });
-    } catch (err) {
-      toast.error("Erro ao buscar CNPJ.");
+      const data = await apiGet<any>(`/fornecedores/consultar-cnpj/${cnpjLimpo}`);
+      setFornecedorPendente({ 
+        nome: data.razao_social, 
+        cnpj: formatCnpj(cnpjLimpo), 
+        cidade: data.municipio, 
+        estado: data.uf,
+        endereco: `${data.logradouro || ''}, ${data.numero || ''}`.trim(),
+        bairro: data.bairro || '',
+        avaliacao: 0
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao buscar CNPJ.");
     } finally {
       setCnpjLoading(false);
     }
@@ -140,7 +146,15 @@ export default function Abastecimentos() {
   const confirmarCadastroFornecedor = async () => {
     if (!fornecedorPendente) return;
     try {
-      await apiPost("/fornecedores", { ...fornecedorPendente, ativo: true });
+      await apiPost("/fornecedores", { 
+        nome: fornecedorPendente.nome, 
+        cnpj: fornecedorPendente.cnpj, 
+        cidade: fornecedorPendente.cidade, 
+        estado: fornecedorPendente.estado,
+        endereco: fornecedorPendente.endereco,
+        bairro: fornecedorPendente.bairro,
+        ativo: true 
+      });
       toast.success("Fornecedor cadastrado automaticamente!");
       await refetchFornecedores();
       setForm(s => ({ ...s, fornecedor: fornecedorPendente.nome, cidade: fornecedorPendente.cidade, estado: fornecedorPendente.estado }));
@@ -442,7 +456,7 @@ export default function Abastecimentos() {
           <DialogHeader><DialogTitle>{editingId ? "Editar" : "Novo"} Abastecimento</DialogTitle></DialogHeader>
           <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
               <div className="col-span-2 grid gap-1.5"><Label>Veículo *</Label><FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione o veículo primeiro" testId="form-veiculo" /></div>
-              <div className="col-span-2 grid gap-1.5"><Label>Motorista</Label><FieldSelect value={form.motorista_id} onChange={set("motorista_id")} options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="form-motorista" /></div>
+              <div className="col-span-2 grid gap-1.5"><Label>Motorista</Label><FieldSelect value={form.motorista_id} onChange={set("motorista_id")} options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data || []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="form-motorista" /></div>
 
               <div className="grid gap-1.5"><Label>Data *</Label><Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} required /></div>
               <div className="grid gap-1.5"><Label>Hodômetro *</Label><Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} required /></div>
@@ -450,7 +464,7 @@ export default function Abastecimentos() {
               <div className="grid gap-1.5"><Label>Litros *</Label><Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} required /></div>
               <div className="grid gap-1.5"><Label>Preço/L *</Label><Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} required /></div>
               
-              <div className="col-span-2 grid gap-1.5"><Label>Posto *</Label><Input value={form.posto} onChange={(e) => set("posto")(e.target.value)} required /></div>
+              
 
               <div className="col-span-2 border-t border-slate-800 pt-2 mt-2">
                 <div className="grid grid-cols-2 gap-3">
@@ -458,8 +472,8 @@ export default function Abastecimentos() {
                     <Label>CNPJ Emitente</Label>
                     <div className="flex gap-2">
                       <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: formatCnpj(e.target.value) }))} placeholder="00.000.000/0000-00" maxLength={18} />
-                      <Button type="button" variant="secondary" onClick={buscarCnpj} disabled={cnpjLoading || form.cnpj.length < 18} className="px-3">
-                        {cnpjLoading ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+                      <Button type="button" variant="default" onClick={buscarCnpj} disabled={cnpjLoading || form.cnpj.length < 18} className="bg-sky-600 hover:bg-sky-500 text-white font-medium shadow-md">
+                        {cnpjLoading ? <Loader2 className="size-4 animate-spin" /> : <><Search className="size-4 mr-1" /> Online</>}
                       </Button>
                     </div>
                   </div>
@@ -468,18 +482,33 @@ export default function Abastecimentos() {
                     <FieldSelect value={form.fornecedor} onChange={(v) => {
                       const f = fornecedores.find((x:any) => x.nome === v);
                       setForm(s => ({ ...s, fornecedor: v, cnpj: f ? f.cnpj : s.cnpj, cidade: f ? f.cidade || "" : s.cidade, estado: f ? f.estado || "" : s.estado }));
-                    }} options={(fornecedores ?? []).map((f: any) => ({ value: f.nome, label: f.nome }))} placeholder="Selecione o fornecedor" />
+                    }} options={fornecedores.length > 0 ? fornecedores.map((f: any) => ({ value: f.nome, label: f.nome })) : [{ value: "", label: "Nenhum fornecedor cadastrado" }]} placeholder="Selecione o fornecedor" />
                   </div>
                   <div className="grid gap-1.5"><Label>Cidade</Label><Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} /></div>
                   <div className="grid gap-1.5"><Label>Estado (UF)</Label><Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} className="uppercase" /></div>
                 </div>
               </div>
 
-              <div className="grid gap-1.5"><Label>Nº NF</Label><Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} /></div>
+              <div className="col-span-2 grid gap-1.5">
+              <Label>Avaliação do Fornecedor</Label>
+              <div className="flex gap-2 items-center">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button type="button" key={star} onClick={() => setForm(s => ({ ...s, avaliacao: star }))} className="focus:outline-none hover:scale-110">
+                    <Star className={`size-5 ${star <= form.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                  </button>
+                ))}
+                <span className="text-xs text-slate-400 ml-2">{form.avaliacao === 0 ? "Sem avaliação" : `${form.avaliacao} de 5`}</span>
+              </div>
+            </div>
+
+            <div className="grid gap-1.5"><Label>Nº NF</Label><Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} /></div>
               <div className="grid gap-1.5"><Label>Hora</Label><Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} /></div>
               <div className="col-span-2 grid gap-1.5"><Label>Chave NF-e</Label><Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} /></div>
               
-              <p className="col-span-2 rounded-lg bg-slate-950/60 p-3 text-sm">Valor total: <span className="font-semibold text-slate-50">{Number.isFinite(total) ? brl(total) : "—"}</span></p>
+              <div className="col-span-2 rounded-lg bg-slate-800/80 border border-slate-700 p-4 flex justify-between items-center shadow-inner">
+  <span className="text-sm font-medium text-slate-400">Valor Total:</span>
+  <span className="text-2xl font-bold text-emerald-400">{Number.isFinite(total) ? brl(total) : "R$ 0,00"}</span>
+</div>
               <DialogFooter className="col-span-2"><Button type="submit" disabled={salvar.isPending || !form.veiculo_id}>{editingId ? "Salvar" : "Registrar"}</Button></DialogFooter>
             </form>
         </DialogContent>
@@ -496,6 +525,8 @@ export default function Abastecimentos() {
           </DialogHeader>
           <div className="py-4 space-y-2">
             <p className="text-sm text-slate-300"><strong>Nome:</strong> {fornecedorPendente?.nome}</p>
+            <p className="text-sm text-slate-300"><strong>Endereço:</strong> {fornecedorPendente?.endereco}</p>
+            <p className="text-sm text-slate-300"><strong>Bairro:</strong> {fornecedorPendente?.bairro}</p>
             <p className="text-sm text-slate-300"><strong>Cidade/UF:</strong> {fornecedorPendente?.cidade} / {fornecedorPendente?.estado}</p>
             <p className="text-sm text-sky-400 font-medium mt-2">Deseja cadastrá-lo automaticamente no sistema?</p>
           </div>
