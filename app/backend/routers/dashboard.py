@@ -39,8 +39,8 @@ async def get_dashboard(_u: dict = Depends(require("read"))):
         v_id = a.get("veiculo_id")
         if v_id not in ranking:
             ranking[v_id] = {"label": a.get("veiculo_label", "").split(" · ")[0], "litros": 0, "km": 0}
-        ranking[v_id]["litros"] += a.get("litros", 0)
-        ranking[v_id]["km"] += a.get("km_rodados", 0)
+        ranking[v_id]["litros"] += (a.get("litros") or 0)
+        ranking[v_id]["km"] += (a.get("km_rodados") or 0)
 
     top_veiculos = sorted(
         [{"label": v["label"], "media": (v["km"] / v["litros"]) if v["litros"] > 0 else 0} for v in ranking.values()],
