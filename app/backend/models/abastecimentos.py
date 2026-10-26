@@ -14,6 +14,7 @@ class AbastecimentoCreate(BaseModel):
     observacoes: str = ""
     numero_nf: str | None = None
     chave_nfe: str | None = None
+    codigo_transacao: str | None = None
     hora: str | None = None
     cnpj: str | None = None
     cidade: str | None = None

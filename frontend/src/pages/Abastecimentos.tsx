@@ -35,7 +35,7 @@ const formatCnpj = (val: string) => {
 
 const vazio = (hoje: string) => ({ 
   data: hoje, veiculo_id: "", motorista_id: NENHUM, litros: "", preco_litro: "", posto: "", km: "", observacoes: "",
-  numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "manual", produto: "DIESEL", combustivel_id: "",
+  numero_nf: "", chave_nfe: "", codigo_transacao: "", hora: "", cnpj: "", fornecedor: "", origem: "manual", produto: "DIESEL", combustivel_id: "",
   cidade: "", estado: "", avaliacao: 0
 });
 
@@ -333,18 +333,33 @@ export default function Abastecimentos() {
   const handleImportEdenred = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: false });
+
       if (rows.length < 2) { toast.error("Planilha vazia."); return; }
 
       const headerRow = rows[0].map((c: any) => String(c).toUpperCase().trim());
       const findIdx = (name: string) => headerRow.findIndex(h => h.includes(name));
-      const idxData = findIdx("DATA TRANSACAO"), idxPlaca = findIdx("PLACA"), idxProduto = findIdx("TIPO COMBUSTIVEL"),
-            idxLitros = findIdx("LITROS"), idxPreco = findIdx("VL/LITRO"), idxKm = findIdx("HODOMETRO"),
-            idxPosto = findIdx("NOME ESTABELECIMENTO"), idxValor = findIdx("VALOR EMISSAO");
+
+      const idxCod = findIdx("CODIGO TRANSACAO");
+      const idxData = findIdx("DATA TRANSACAO");
+      const idxPlaca = findIdx("PLACA");
+      const idxMotorista = findIdx("NOME MOTORISTA");
+      const idxProduto = findIdx("TIPO COMBUSTIVEL");
+      const idxLitros = findIdx("LITROS");
+      const idxPreco = findIdx("VL/LITRO");
+      const idxKm = findIdx("HODOMETRO");
+      const idxKmRodados = findIdx("KM RODADOS");
+      const idxMedia = findIdx("KM/LITRO");
+      const idxPosto = findIdx("NOME ESTABELECIMENTO");
+      const idxValor = findIdx("VALOR EMISSAO");
+      const idxCnpj = findIdx("CNPJ");
+      const idxCidade = findIdx("CIDADE");
+      const idxEstado = findIdx("UF");
 
       const totalLinhas = rows.length - 1;
       setImportProgress({ total: totalLinhas, current: 0, errors: [] });
@@ -353,27 +368,68 @@ export default function Abastecimentos() {
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAL")) continue;
-        let dataStr = String(row[idxData]).trim();
-        let dataFinal = dataStr.split(" ")[0];
-        let horaFinal = dataStr.includes(" ") ? dataStr.split(" ")[1].substring(0, 5) : null;
+
+        const dataStr = String(row[idxData]).trim();
+        const dataFinal = dataStr.split(" ")[0];
+        const horaFinal = dataStr.includes(" ") ? dataStr.split(" ")[1].substring(0, 5) : null;
+
         const kmNum = Number(String(row[idxKm] || "0").replace(/[^\d]/g, ""));
+        
         const litrosNum = Number(String(row[idxLitros] || "0").replace(",", "."));
         const precoNum = Number(String(row[idxPreco] || "0").replace(",", "."));
         const valorNum = idxValor !== -1 ? Number(String(row[idxValor] || "0").replace(",", ".")) : (litrosNum * precoNum);
+        
+        const kmRodadosNum = idxKmRodados !== -1 ? Number(String(row[idxKmRodados] || "0").replace(",", ".")) : null;
+        const mediaNum = idxMedia !== -1 ? Number(String(row[idxMedia] || "0").replace(",", ".")) : null;
+
+        const motoristaNome = idxMotorista !== -1 ? String(row[idxMotorista] || "").trim() : "";
+        let motoristaId = NENHUM;
+        if (motoristaNome && motoristas.data) {
+          const mot = motoristas.data.find((m: any) => m.nome.toUpperCase() === motoristaNome.toUpperCase());
+          if (mot) motoristaId = mot.id;
+        }
+
+        let cnpjRaw = idxCnpj !== -1 ? String(row[idxCnpj] || "").replace(/\D/g, "") : "";
+        let cnpjFormatado = cnpjRaw.length === 14 ? formatCnpj(cnpjRaw) : "";
+
+        const fornecedorNome = String(row[idxPosto] || "").trim();
+        const cidade = idxCidade !== -1 ? String(row[idxCidade] || "").trim() : "";
+        const estado = idxEstado !== -1 ? String(row[idxEstado] || "").trim() : "";
 
         const payload = {
-          data: dataFinal, placa: String(row[idxPlaca]).toUpperCase().trim(), km: kmNum,
-          fornecedor: String(row[idxPosto] || "").trim(), litros: litrosNum, preco_litro: precoNum, valor_total: valorNum,
-          produto: String(row[idxProduto] || "DIESEL").toUpperCase(), hora: horaFinal, numero_nf: null, chave_nfe: null, cnpj: null, origem: "excel"
+          data: dataFinal,
+          placa: String(row[idxPlaca] || "").toUpperCase().trim(),
+          km: kmNum,
+          motorista_id: motoristaId,
+          fornecedor: fornecedorNome,
+          cnpj: cnpjFormatado,
+          cidade: cidade,
+          estado: estado,
+          litros: litrosNum,
+          preco_litro: precoNum,
+          valor_total: valorNum,
+          km_rodados: kmRodadosNum,
+          media_km_l: mediaNum,
+          produto: String(row[idxProduto] || "DIESEL").toUpperCase(),
+          codigo_transacao: String(row[idxCod] || "").trim(),
+          hora: horaFinal, numero_nf: null, chave_nfe: null, origem: "excel"
         };
-        try { await apiPost("/abastecimentos/importar", payload); importados++; } 
-        catch (err: any) { erros.push({ linha: i + 1, placa: payload.placa, erro: err.message || "Erro" }); }
+
+        try { 
+          await apiPost("/abastecimentos/importar", payload); 
+          importados++; 
+        } catch (err: any) { 
+          erros.push({ linha: i + 1, placa: payload.placa, erro: err.message || "Erro" }); 
+        }
         setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
       }
+
       setImportProgress(prev => prev ? { ...prev, current: totalLinhas, errors: erros } : null);
       if (erros.length === 0) toast.success(`${importados} Edenred importados!`);
       invalidate();
-    } catch (error) { console.error(error); toast.error("Erro ao ler Edenred."); setImportProgress(null); }
+    } catch (error) {
+      console.error(error); toast.error("Erro ao ler Edenred."); setImportProgress(null);
+    }
   };
 
   const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -630,7 +686,30 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                 <TableCell className="tabular-nums px-2 text-center">{num(r.litros, 3)}</TableCell>
                 <TableCell className="tabular-nums px-2 text-center">{brl(r.preco_litro)}</TableCell>
                 <TableCell className="tabular-nums font-medium px-2 text-center">{brl(r.valor_total)}</TableCell>
-                <TableCell className="truncate max-w-[100px] text-slate-400 px-2 text-center">{r.posto || (r as any).fornecedor || "—"}</TableCell>
+                <TableCell className="text-slate-300 px-2 max-w-[150px] text-center align-middle">
+                      <div className="flex flex-col items-center justify-center">
+                        <span className="truncate w-full" title={r.fornecedor || r.posto}>{r.fornecedor || r.posto || "—"}</span>
+                        {(() => {
+                          const docLimpo = (r.cnpj || "").replace(/\D/g, '');
+                          const nomeLimpo = (r.fornecedor || r.posto || "").toUpperCase();
+                          
+                          const forn = fornecedores?.find((f: any) => 
+                            (f.documento && f.documento.replace(/\D/g, '') === docLimpo && docLimpo.length > 0) || 
+                            (f.nome && f.nome.toUpperCase() === nomeLimpo)
+                          );
+                          
+                          if (!forn || !forn.avaliacao || forn.avaliacao === 0) return null;
+                          
+                          return (
+                            <div className="flex gap-0.5 mt-1 justify-center">
+                              {[1, 2, 3, 4, 5].map(star => (
+                                <Star key={star} className={`size-2.5 ${star <= forn.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-700'}`} />
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </TableCell>
                 <TableCell className="font-mono tabular-nums px-2 text-center">{num(r.km)}</TableCell>
                 <TableCell className="tabular-nums px-2 text-center">{r.km_rodados != null ? num(r.km_rodados) : "—"}</TableCell>
                 <TableCell className="tabular-nums text-sky-300 px-2 text-center">{r.media_km_l != null ? num(r.media_km_l, 2) : "—"}</TableCell>
@@ -639,7 +718,11 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                     <Button size="icon-sm" variant="ghost" className="cursor-help" title={`Cadastrado por: ${(r as any).created_by_name || (r as any).created_by || 'Sistema'}`}>
                       <Info className="size-4 text-slate-400" />
                     </Button>
-                    <Button size="icon-sm" variant="ghost" onClick={() => r.origem === "pdf" ? toast.error("Proibido editar arquivo de nota fiscal importada via PDF.") : abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
+                    <Button size="icon-sm" variant="ghost" onClick={() => {
+      if (r.origem === "pdf") toast.error("Proibido editar arquivo de nota fiscal importada via PDF.");
+      else if (r.origem === "excel") toast.error("Proibido editar arquivo importado via Excel (Edenred/BSOFT).");
+      else abrirEdicao(r);
+    }}><Pencil className="size-4 text-sky-400" /></Button>
                     {me?.perfil === "admin" && <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4" /></Button>}
                   </div>
                 </TableCell>
@@ -662,7 +745,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                   onChange={handleVeiculoChange} 
                   options={veicOpts} 
                   placeholder="Selecione o veículo" 
-                  disabled={form.origem === "pdf"} 
+                  disabled={form.origem === "pdf" || form.origem === "excel"} 
                 />
               </div>
             </div>
@@ -675,7 +758,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                   value={form.motorista_id} 
                   onChange={set("motorista_id")} 
                   options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} 
-                  disabled={form.origem === "pdf"} 
+                  disabled={form.origem === "pdf" || form.origem === "excel"} 
                 />
               </div>
             </div>
@@ -683,21 +766,21 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             {/* Data e Hodômetro */}
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Data *</Label>
-              <Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+              <Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
             </div>
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Hodômetro *</Label>
-              <Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+              <Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
             </div>
             
             {/* Litros e Preço */}
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Litros *</Label>
-              <Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+              <Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
             </div>
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Preço/L *</Label>
-              <Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+              <Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
             </div>
 
             {/* CNPJ, Fornecedor, Cidade e Estado */}
@@ -706,7 +789,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                 <div className="grid gap-1.5 w-full overflow-hidden">
                   <Label>CNPJ Emitente</Label>
                   <div className="flex gap-2 w-full">
-                    <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: formatCnpj(e.target.value) }))} placeholder="00.000.000/0000-00" maxLength={18} readOnly={form.origem === "pdf"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+                    <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: formatCnpj(e.target.value) }))} placeholder="00.000.000/0000-00" maxLength={18} readOnly={form.origem === "pdf" || form.origem === "excel"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
                     <Button type="button" variant="default" onClick={buscarCnpj} disabled={cnpjLoading || form.cnpj.length < 18 || form.origem === "pdf"} className="bg-sky-600 hover:bg-sky-500 px-3 font-medium shrink-0">
                       {cnpjLoading ? <Loader2 className="size-4 animate-spin" /> : <><Search className="size-4 mr-1" /> Online</>}
                     </Button>
@@ -727,17 +810,17 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                       }} 
                       options={fornecedores?.map((f: any) => ({ value: f.nome, label: f.nome })) || []} 
                       placeholder="Selecione o fornecedor" 
-                      disabled={form.origem === "pdf"} 
+                      disabled={form.origem === "pdf" || form.origem === "excel"} 
                     />
                   </div>
                 </div>
                 <div className="grid gap-1.5 w-full overflow-hidden">
                   <Label>Cidade</Label>
-                  <Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} readOnly={form.origem === "pdf"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+                  <Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} readOnly={form.origem === "pdf" || form.origem === "excel"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
                 </div>
                 <div className="grid gap-1.5 w-full overflow-hidden">
                   <Label>Estado (UF)</Label>
-                  <Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} readOnly={form.origem === "pdf"} className={`w-full uppercase ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+                  <Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} readOnly={form.origem === "pdf" || form.origem === "excel"} className={`w-full uppercase ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
                 </div>
               </div>
             </div>
@@ -757,16 +840,21 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
 
             {/* NF, Hora e Chave */}
             <div className="grid gap-1.5 overflow-hidden">
+              <Label>Código de Transação</Label>
+              <Input value={form.codigo_transacao || ""} onChange={(e) => setForm(s => ({ ...s, codigo_transacao: e.target.value }))} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} />
+            </div>
+
+            <div className="grid gap-1.5 overflow-hidden">
               <Label>Nº NF</Label>
-              <Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} placeholder="Ex: 12550" readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} />
+              <Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} placeholder="Ex: 12550" readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} />
             </div>
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Hora</Label>
-              <Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} />
+              <Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} />
             </div>
             <div className="col-span-2 grid gap-1.5 overflow-hidden">
               <Label>Chave NF-e</Label>
-              <Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} placeholder="3126 1020..." readOnly={form.origem === "pdf"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+              <Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} placeholder="3126 1020..." readOnly={form.origem === "pdf" || form.origem === "excel"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
             </div>
 
             {/* Valor Total */}

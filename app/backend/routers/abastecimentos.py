@@ -155,6 +155,7 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         "produto": produto,
         "numero_nf": body.get("numero_nf"),
         "chave_nfe": body.get("chave_nfe"),
+        "codigo_transacao": body.get("codigo_transacao"),
         "hora": body.get("hora"),
         "cnpj": body.get("cnpj"),
         "cidade": body.get("cidade"),
