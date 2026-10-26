@@ -350,7 +350,7 @@ export default function Abastecimentos() {
   const total = Number(form.litros.replace(",", ".")) * Number(form.preco_litro.replace(",", "."));
   const set = (k: keyof ReturnType<typeof vazio>) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
   const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
-  const abrirNovo = () => { setEditingId(null); setForm(vazio(hoje)); setOpen(true); };
+  const abrirNovo = () => { setEditingId(null); setForm({ ...vazio(hoje), origem: "manual" }); setOpen(true); };
   const abrirEdicao = (r: Abastecimento) => { setEditingId(r.id); setForm({ data: r.data, veiculo_id: r.veiculo_id, motorista_id: r.motorista_id || NENHUM, litros: String(r.litros), preco_litro: String(r.preco_litro), posto: r.posto, km: String(r.km), observacoes: r.observacoes || "", numero_nf: r.numero_nf || "", chave_nfe: r.chave_nfe || "", hora: r.hora || "", cnpj: r.cnpj || "", fornecedor: r.fornecedor || "", origem: r.origem || "excel", produto: (r as any).produto || "DIESEL", combustivel_id: (r as any).combustivel_id || "" }); setOpen(true); };
 
   const handleVeiculoChange = async (veiculoId: string) => {
