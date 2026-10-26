@@ -38,7 +38,7 @@ export default function Login() {
         localStorage.setItem("token", r.token);
         localStorage.setItem("auth_token", r.token);
       }
-      beginSession();
+      beginSession(r.token);
       navigate("/", { replace: true });
     },
     onError: (e) => setErro(errMsg(e)),
