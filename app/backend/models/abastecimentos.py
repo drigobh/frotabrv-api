@@ -16,6 +16,8 @@ class AbastecimentoCreate(BaseModel):
     chave_nfe: str | None = None
     hora: str | None = None
     cnpj: str | None = None
+    cidade: str | None = None
+    estado: str | None = None
     fornecedor: str | None = None
     origem: str = "manual"
 

@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info } from "lucide-react";
+import { Fuel, Plus, Search, Loader2, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
@@ -24,6 +24,15 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 const TODOS = "__all__";
 const NENHUM = "__none__";
 
+const formatCnpj = (val: string) => {
+  return val.replace(/\D/g, '')
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2')
+    .slice(0, 18);
+};
+
 const vazio = (hoje: string) => ({ 
   data: hoje, veiculo_id: "", motorista_id: NENHUM, litros: "", preco_litro: "", posto: "", km: "", observacoes: "",
   numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "manual", produto: "DIESEL", combustivel_id: ""
@@ -41,6 +50,9 @@ export default function Abastecimentos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [fornecedorPendente, setFornecedorPendente] = useState<{nome: string, cnpj: string, cidade: string, estado: string} | null>(null);
+  const { data: fornecedores = [], refetch: refetchFornecedores } = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const xlsInputRef = useRef<HTMLInputElement>(null);
   const edenredInputRef = useRef<HTMLInputElement>(null);
@@ -102,6 +114,41 @@ export default function Abastecimentos() {
     });
     return Object.values(porVeiculo).map(v => ({ label: v.label, media: v.litros > 0 ? v.km / v.litros : 0 })).sort((a, b) => b.media - a.media).slice(0, 5);
   }, [rowsOrdenadas]);
+
+  const buscarCnpj = async () => {
+    const cnpjLimpo = form.cnpj.replace(/\D/g, "");
+    if (cnpjLimpo.length !== 14) { toast.error("CNPJ inválido"); return; }
+    setCnpjLoading(true);
+    try {
+      const existente = fornecedores.find((f: any) => f.cnpj && f.cnpj.replace(/\D/g, '') === cnpjLimpo);
+      if (existente) {
+        setForm(s => ({ ...s, fornecedor: existente.nome, cidade: existente.cidade || "", estado: existente.estado || "" }));
+        toast.success(`Fornecedor encontrado: ${existente.nome}`);
+        return;
+      }
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
+      if (!res.ok) throw new Error("Erro na API");
+      const data = await res.json();
+      setFornecedorPendente({ nome: data.razao_social, cnpj: formatCnpj(cnpjLimpo), cidade: data.municipio, estado: data.uf });
+    } catch (err) {
+      toast.error("Erro ao buscar CNPJ.");
+    } finally {
+      setCnpjLoading(false);
+    }
+  };
+
+  const confirmarCadastroFornecedor = async () => {
+    if (!fornecedorPendente) return;
+    try {
+      await apiPost("/fornecedores", { ...fornecedorPendente, ativo: true });
+      toast.success("Fornecedor cadastrado automaticamente!");
+      await refetchFornecedores();
+      setForm(s => ({ ...s, fornecedor: fornecedorPendente.nome, cidade: fornecedorPendente.cidade, estado: fornecedorPendente.estado }));
+      setFornecedorPendente(null);
+    } catch (err) {
+      toast.error("Erro ao cadastrar fornecedor.");
+    }
+  };
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["abastecimentos"] });
@@ -394,24 +441,70 @@ export default function Abastecimentos() {
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? "Editar" : "Novo"} Abastecimento</DialogTitle></DialogHeader>
           <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
-            <div className="grid gap-1.5"><Label>Data *</Label><Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} required /></div>
-            <div className="grid gap-1.5"><Label>Hodômetro *</Label><Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} required /></div>
-            <div className="col-span-2 grid gap-1.5"><Label>Veículo *</Label><FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione" testId="form-veiculo" /></div>
-            <div className="col-span-2 grid gap-1.5"><Label>Motorista</Label><FieldSelect value={form.motorista_id} onChange={set("motorista_id")} options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="form-motorista" /></div>
-            <div className="grid gap-1.5"><Label>Litros *</Label><Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} required /></div>
-            <div className="grid gap-1.5"><Label>Preço/L *</Label><Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} required /></div>
-            <div className="col-span-2 grid gap-1.5"><Label>Posto *</Label><Input value={form.posto} onChange={(e) => set("posto")(e.target.value)} required /></div>
-            <div className="grid gap-1.5"><Label>Nº NF</Label><Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} /></div>
-            <div className="grid gap-1.5"><Label>Hora</Label><Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} /></div>
-            <div className="col-span-2 grid gap-1.5"><Label>Chave NF-e</Label><Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} /></div>
-            <div className="grid gap-1.5"><Label>CNPJ Emitente</Label><Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: e.target.value }))} /></div>
-            <div className="grid gap-1.5"><Label>Fornecedor</Label><Input value={form.fornecedor} onChange={(e) => setForm(s => ({ ...s, fornecedor: e.target.value }))} /></div>
-            <p className="col-span-2 rounded-lg bg-slate-950/60 p-3 text-sm">Valor total: <span className="font-semibold text-slate-50">{Number.isFinite(total) ? brl(total) : "—"}</span></p>
-            <DialogFooter className="col-span-2"><Button type="submit" disabled={salvar.isPending || !form.veiculo_id}>{editingId ? "Salvar" : "Registrar"}</Button></DialogFooter>
-          </form>
+              <div className="col-span-2 grid gap-1.5"><Label>Veículo *</Label><FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione o veículo primeiro" testId="form-veiculo" /></div>
+              <div className="col-span-2 grid gap-1.5"><Label>Motorista</Label><FieldSelect value={form.motorista_id} onChange={set("motorista_id")} options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="form-motorista" /></div>
+
+              <div className="grid gap-1.5"><Label>Data *</Label><Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} required /></div>
+              <div className="grid gap-1.5"><Label>Hodômetro *</Label><Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} required /></div>
+              
+              <div className="grid gap-1.5"><Label>Litros *</Label><Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} required /></div>
+              <div className="grid gap-1.5"><Label>Preço/L *</Label><Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} required /></div>
+              
+              <div className="col-span-2 grid gap-1.5"><Label>Posto *</Label><Input value={form.posto} onChange={(e) => set("posto")(e.target.value)} required /></div>
+
+              <div className="col-span-2 border-t border-slate-800 pt-2 mt-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label>CNPJ Emitente</Label>
+                    <div className="flex gap-2">
+                      <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: formatCnpj(e.target.value) }))} placeholder="00.000.000/0000-00" maxLength={18} />
+                      <Button type="button" variant="secondary" onClick={buscarCnpj} disabled={cnpjLoading || form.cnpj.length < 18} className="px-3">
+                        {cnpjLoading ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label>Fornecedor *</Label>
+                    <FieldSelect value={form.fornecedor} onChange={(v) => {
+                      const f = fornecedores.find((x:any) => x.nome === v);
+                      setForm(s => ({ ...s, fornecedor: v, cnpj: f ? f.cnpj : s.cnpj, cidade: f ? f.cidade || "" : s.cidade, estado: f ? f.estado || "" : s.estado }));
+                    }} options={(fornecedores ?? []).map((f: any) => ({ value: f.nome, label: f.nome }))} placeholder="Selecione o fornecedor" />
+                  </div>
+                  <div className="grid gap-1.5"><Label>Cidade</Label><Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} /></div>
+                  <div className="grid gap-1.5"><Label>Estado (UF)</Label><Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} className="uppercase" /></div>
+                </div>
+              </div>
+
+              <div className="grid gap-1.5"><Label>Nº NF</Label><Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} /></div>
+              <div className="grid gap-1.5"><Label>Hora</Label><Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} /></div>
+              <div className="col-span-2 grid gap-1.5"><Label>Chave NF-e</Label><Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} /></div>
+              
+              <p className="col-span-2 rounded-lg bg-slate-950/60 p-3 text-sm">Valor total: <span className="font-semibold text-slate-50">{Number.isFinite(total) ? brl(total) : "—"}</span></p>
+              <DialogFooter className="col-span-2"><Button type="submit" disabled={salvar.isPending || !form.veiculo_id}>{editingId ? "Salvar" : "Registrar"}</Button></DialogFooter>
+            </form>
         </DialogContent>
       </Dialog>
 
+      
+      <Dialog open={fornecedorPendente !== null} onOpenChange={(o) => !o && setFornecedorPendente(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fornecedor não encontrado</DialogTitle>
+            <DialogDescription>
+              O CNPJ {fornecedorPendente?.cnpj} não está cadastrado no sistema.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-2">
+            <p className="text-sm text-slate-300"><strong>Nome:</strong> {fornecedorPendente?.nome}</p>
+            <p className="text-sm text-slate-300"><strong>Cidade/UF:</strong> {fornecedorPendente?.cidade} / {fornecedorPendente?.estado}</p>
+            <p className="text-sm text-sky-400 font-medium mt-2">Deseja cadastrá-lo automaticamente no sistema?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setFornecedorPendente(null)}>Cancelar</Button>
+            <Button onClick={confirmarCadastroFornecedor}>Sim, Cadastrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir?" description="Ação irreversível." confirmLabel="Excluir" destructive pending={excluir.isPending} onConfirm={() => excluirId && excluir.mutate(excluirId)} testId="excluir" />
 
       <Dialog open={importProgress !== null} onOpenChange={() => {}}>
