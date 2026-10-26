@@ -24,16 +24,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
     const msg = errorData.detail || errorData.message || `Erro ${res.status}`;
     throw new ApiError(res.status, errorData, typeof msg === "string" ? msg : "Erro na requisição");
   }
-  
   if (res.status === 204) return {} as T;
-  const data = await res.json();
-
-  if (res.url.includes("/auth/login") && data && data.token) {
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("auth_token", data.token);
-  }
-
-  return data as T;
+  return res.json();
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
