@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info, Search, Loader2, Star, CheckCircle2 } from "lucide-react";
+import { Fuel, Plus, Eye, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info, Search, Loader2, Star, CheckCircle2 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
@@ -365,6 +365,14 @@ export default function Abastecimentos() {
       setImportProgress({ total: totalLinhas, current: 0, errors: [] });
       let importados = 0; const erros: any[] = [];
 
+      const parseNum = (val: any) => {
+        if (!val) return 0;
+        let str = String(val).replace(/[^\d.,-]/g, "");
+        if (str.includes('.') && str.includes(',')) str = str.replace(/\./g, '').replace(',', '.');
+        else if (str.includes(',')) str = str.replace(',', '.');
+        return Number(str) || 0;
+      };
+
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAL")) continue;
@@ -375,12 +383,12 @@ export default function Abastecimentos() {
 
         const kmNum = Number(String(row[idxKm] || "0").replace(/[^\d]/g, ""));
         
-        const litrosNum = Number(String(row[idxLitros] || "0").replace(",", "."));
-        const precoNum = Number(String(row[idxPreco] || "0").replace(",", "."));
-        const valorNum = idxValor !== -1 ? Number(String(row[idxValor] || "0").replace(",", ".")) : (litrosNum * precoNum);
+        const litrosNum = parseNum(row[idxLitros]);
+        const precoNum = parseNum(row[idxPreco]);
+        const valorNum = idxValor !== -1 ? parseNum(row[idxValor]) : (litrosNum * precoNum);
         
-        const kmRodadosNum = idxKmRodados !== -1 ? Number(String(row[idxKmRodados] || "0").replace(",", ".")) : null;
-        const mediaNum = idxMedia !== -1 ? Number(String(row[idxMedia] || "0").replace(",", ".")) : null;
+        const kmRodadosNum = idxKmRodados !== -1 ? parseNum(row[idxKmRodados]) : null;
+        const mediaNum = idxMedia !== -1 ? parseNum(row[idxMedia]) : null;
 
         const motoristaNome = idxMotorista !== -1 ? String(row[idxMotorista] || "").trim() : "";
         let motoristaId = NENHUM;
@@ -418,6 +426,7 @@ export default function Abastecimentos() {
         try { 
           await apiPost("/abastecimentos/importar", payload); 
           importados++; 
+          await new Promise(resolve => setTimeout(resolve, 200));
         } catch (err: any) { 
           erros.push({ linha: i + 1, placa: payload.placa, erro: err.message || "Erro" }); 
         }
@@ -720,9 +729,26 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                     </Button>
                     <Button size="icon-sm" variant="ghost" onClick={() => {
       if (r.origem === "pdf") toast.error("Proibido editar arquivo de nota fiscal importada via PDF.");
-      else if (r.origem === "excel") toast.error("Proibido editar arquivo importado via Excel (Edenred/BSOFT).");
+      else if (r.origem === "excel") toast.error("Proibido editar arquivo importado via Excel.");
       else abrirEdicao(r);
     }}><Pencil className="size-4 text-sky-400" /></Button>
+    <Button size="icon-sm" variant="ghost" onClick={() => { 
+      setForm({ 
+        ...vazio(hoje), 
+        ...r, 
+        litros: String(r.litros || ""), 
+        preco_litro: String(r.preco_litro || ""), 
+        km: String(r.km || ""), 
+        origem: r.origem,
+        fornecedor: r.fornecedor || "",
+        cnpj: r.cnpj || "",
+        cidade: r.cidade || "",
+        estado: r.estado || "",
+        codigo_transacao: r.codigo_transacao || ""
+      }); 
+      setOpen(true); 
+      setEditingId(r.id); 
+    }}><Eye className="size-4 text-emerald-400" /></Button>
                     {me?.perfil === "admin" && <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4" /></Button>}
                   </div>
                 </TableCell>
@@ -864,7 +890,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             </div>
 
             <DialogFooter className="col-span-2 mt-2">
-              <Button type="submit" disabled={salvar.isPending || !form.veiculo_id}>
+              <Button type="submit" disabled={salvar.isPending || !form.veiculo_id || (editingId && (form.origem === "pdf" || form.origem === "excel"))}>
                 {editingId ? "Salvar" : "Registrar"}
               </Button>
             </DialogFooter>

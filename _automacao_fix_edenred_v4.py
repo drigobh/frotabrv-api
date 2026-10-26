@@ -2,7 +2,7 @@ import os
 import re
 
 def fix_backend(raiz):
-    # 1. Adicionar o campo codigo_transacao no Modelo
+    # 1. Garantir que o Código de Transação e Fornecedor/CNPJ sejam salvos no Backend
     caminho_model = os.path.join(raiz, "app", "backend", "models", "abastecimentos.py")
     with open(caminho_model, 'r', encoding='utf-8') as f:
         c = f.read()
@@ -15,48 +15,36 @@ def fix_backend(raiz):
             f.write(c)
         print("✅ Backend: Modelo atualizado com 'codigo_transacao'.")
 
-    # 2. Adicionar o campo codigo_transacao no Router de Importação e Criação
     caminho_router = os.path.join(raiz, "app", "backend", "routers", "abastecimentos.py")
     with open(caminho_router, 'r', encoding='utf-8') as f:
         c = f.read()
     if '"codigo_transacao": body.get("codigo_transacao")' not in c:
         c = c.replace(
             '"chave_nfe": body.get("chave_nfe"),',
-            '"chave_nfe": body.get("chave_nfe"),\n        "codigo_transacao": body.get("codigo_transacao"),'
+            '"chave_nfe": body.get("chave_nfe"),\n        "codigo_transacao": body.get("codigo_transacao"),\n        "cnpj": body.get("cnpj"),\n        "fornecedor": body.get("fornecedor"),\n        "cidade": body.get("cidade"),\n        "estado": body.get("estado"),'
         )
         with open(caminho_router, 'w', encoding='utf-8') as f:
             f.write(c)
-        print("✅ Backend: Router atualizado para salvar 'codigo_transacao'.")
+        print("✅ Backend: Router atualizado para salvar campos do fornecedor e código de transação.")
 
 def fix_frontend(raiz):
     caminho = os.path.join(raiz, "frontend", "src", "pages", "Abastecimentos.tsx")
-    
     with open(caminho, 'r', encoding='utf-8') as f:
         c = f.read()
 
-    # 1. Atualizar o estado vazio para incluir codigo_transacao
-    if 'codigo_transacao' not in c:
-        c = c.replace(
-            'chave_nfe: "", hora: "", cnpj: "",',
-            'chave_nfe: "", codigo_transacao: "", hora: "", cnpj: "",'
-        )
-
-    # 2. Bloquear edição no Grid (Excel)
-    old_action = '''<Button size="icon-sm" variant="ghost" onClick={() => r.origem === "pdf" ? toast.error("Proibido editar arquivo de nota fiscal importada via PDF.") : abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>'''
-    new_action = '''<Button size="icon-sm" variant="ghost" onClick={() => {
-      if (r.origem === "pdf") toast.error("Proibido editar arquivo de nota fiscal importada via PDF.");
-      else if (r.origem === "excel") toast.error("Proibido editar arquivo importado via Excel (Edenred/BSOFT).");
-      else abrirEdicao(r);
-    }}><Pencil className="size-4 text-sky-400" /></Button>'''
-    c = c.replace(old_action, new_action)
-
-    # 3. Adicionar a trava visual (roxo) nos campos quando origem === "excel"
-    # Vou substituir os inputs para incluírem a condição (form.origem === "pdf" || form.origem === "excel")
+    # 1. Travar o formulário se for importado (PDF ou Excel)
+    # Atualiza os readOnly e disabled para incluir 'excel' e 'pdf'
     c = c.replace('readOnly={form.origem === "pdf"}', 'readOnly={form.origem === "pdf" || form.origem === "excel"}')
     c = c.replace('className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}', 'className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}')
     c = c.replace('disabled={form.origem === "pdf"}', 'disabled={form.origem === "pdf" || form.origem === "excel"}')
     
-    # 4. Adicionar o campo Código de Transação no Form
+    # Travar botão de salvar se for edição de importado
+    c = c.replace(
+        '<Button type="submit" disabled={salvar.isPending || !form.veiculo_id}>',
+        '<Button type="submit" disabled={salvar.isPending || !form.veiculo_id || (editingId && (form.origem === "pdf" || form.origem === "excel"))}>'
+    )
+
+    # 2. Adicionar o campo Código de Transação no Form
     if 'Código de Transação' not in c:
         c = c.replace(
             '<div className="grid gap-1.5 overflow-hidden">\n              <Label>Nº NF</Label>',
@@ -69,7 +57,39 @@ def fix_frontend(raiz):
               <Label>Nº NF</Label>'''
         )
 
-    # 5. Atualizar a função handleImportEdenred para checar fornecedor e preencher tudo
+    # 3. Corrigir o botão de Visualizar (Olho) para não permitir salvar
+    old_eye = '''<Button size="icon-sm" variant="ghost" onClick={() => { 
+      setForm({ 
+        ...vazio(hoje), 
+        ...r, 
+        litros: String(r.litros || ""), 
+        preco_litro: String(r.preco_litro || ""), 
+        km: String(r.km || ""), 
+        origem: r.origem 
+      }); 
+      setOpen(true); 
+      setEditingId(r.id); 
+    }}><Eye className="size-4 text-emerald-400" /></Button>'''
+    new_eye = '''<Button size="icon-sm" variant="ghost" onClick={() => { 
+      setForm({ 
+        ...vazio(hoje), 
+        ...r, 
+        litros: String(r.litros || ""), 
+        preco_litro: String(r.preco_litro || ""), 
+        km: String(r.km || ""), 
+        origem: r.origem,
+        fornecedor: r.fornecedor || "",
+        cnpj: r.cnpj || "",
+        cidade: r.cidade || "",
+        estado: r.estado || "",
+        codigo_transacao: r.codigo_transacao || ""
+      }); 
+      setOpen(true); 
+      setEditingId(r.id); 
+    }}><Eye className="size-4 text-emerald-400" /></Button>'''
+    c = c.replace(old_eye, new_eye)
+
+    # 4. Atualizar a importação Edenred para VALIDAR FORNECEDOR e salvar tudo
     padrao_edenred = re.compile(r'const handleImportEdenred = async[\s\S]*?\n  \};', re.DOTALL)
     
     nova_funcao = '''const handleImportEdenred = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,6 +127,14 @@ def fix_frontend(raiz):
       setImportProgress({ total: totalLinhas, current: 0, errors: [] });
       let importados = 0; const erros: any[] = [];
 
+      const parseNum = (val: any) => {
+        if (!val) return 0;
+        let str = String(val).replace(/[^\\d.,-]/g, "");
+        if (str.includes('.') && str.includes(',')) str = str.replace(/\\./g, '').replace(',', '.');
+        else if (str.includes(',')) str = str.replace(',', '.');
+        return Number(str) || 0;
+      };
+
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAL")) continue;
@@ -117,12 +145,12 @@ def fix_frontend(raiz):
 
         const kmNum = Number(String(row[idxKm] || "0").replace(/[^\\d]/g, ""));
         
-        const litrosNum = Number(String(row[idxLitros] || "0").replace(",", "."));
-        const precoNum = Number(String(row[idxPreco] || "0").replace(",", "."));
-        const valorNum = idxValor !== -1 ? Number(String(row[idxValor] || "0").replace(",", ".")) : (litrosNum * precoNum);
+        const litrosNum = parseNum(row[idxLitros]);
+        const precoNum = parseNum(row[idxPreco]);
+        const valorNum = idxValor !== -1 ? parseNum(row[idxValor]) : (litrosNum * precoNum);
         
-        const kmRodadosNum = idxKmRodados !== -1 ? Number(String(row[idxKmRodados] || "0").replace(",", ".")) : null;
-        const mediaNum = idxMedia !== -1 ? Number(String(row[idxMedia] || "0").replace(",", ".")) : null;
+        const kmRodadosNum = idxKmRodados !== -1 ? parseNum(row[idxKmRodados]) : null;
+        const mediaNum = idxMedia !== -1 ? parseNum(row[idxMedia]) : null;
 
         const motoristaNome = idxMotorista !== -1 ? String(row[idxMotorista] || "").trim() : "";
         let motoristaId = NENHUM;
@@ -160,6 +188,7 @@ def fix_frontend(raiz):
         try { 
           await apiPost("/abastecimentos/importar", payload); 
           importados++; 
+          await new Promise(resolve => setTimeout(resolve, 200));
         } catch (err: any) { 
           erros.push({ linha: i + 1, placa: payload.placa, erro: err.message || "Erro" }); 
         }
@@ -176,12 +205,21 @@ def fix_frontend(raiz):
 
     if padrao_edenred.search(c):
         c = padrao_edenred.sub(lambda m: nova_funcao, c)
-        print("✅ Frontend: Função handleImportEdenred reescrita.")
-    else:
-        print("⚠️ Não foi possível encontrar handleImportEdenred.")
+
+    # 5. Corrigir a soma dos Cards para pegar o valor certo
+    # Removemos qualquer replace() que transforme o número em NaN e garantimos que some como Float
+    c = c.replace(
+        'const valor = rowsOrdenadas.reduce((s, r) => s + r.valor_total, 0);',
+        'const valor = rowsOrdenadas.reduce((s, r) => s + (parseFloat(r.valor_total as any) || 0), 0);'
+    )
+    c = c.replace(
+        'const litros = rowsOrdenadas.reduce((s, r) => s + r.litros, 0);',
+        'const litros = rowsOrdenadas.reduce((s, r) => s + (parseFloat(r.litros as any) || 0), 0);'
+    )
 
     with open(caminho, 'w', encoding='utf-8') as f:
         f.write(c)
+    print("✅ Frontend: Importação Edenred blindada, visualização travada e formatação dos cards ajustada.")
 
 if __name__ == "__main__":
     raiz = os.getcwd()
