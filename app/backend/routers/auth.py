@@ -24,7 +24,7 @@ async def login(body: LoginIn, response: Response):
         value=token, 
         httponly=True, 
         max_age=TOKEN_TTL_HOURS * 3600,
-        samesite="lax",
+        samesite="none",
         secure=True # Como estamos no Render (HTTPS), deve ser True
     )
     return LoginOut(requires_2fa=False, user=user, token=token)
