@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, Search, Loader2, Star, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info } from "lucide-react";
+import { Fuel, Plus, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info, Search, Loader2, Star, CheckCircle2 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
@@ -33,9 +33,10 @@ const formatCnpj = (val: string) => {
     .slice(0, 18);
 };
 
-const vazio = (hoje: string) => ({ cidade: "", estado: "", avaliacao: 0, 
+const vazio = (hoje: string) => ({ 
   data: hoje, veiculo_id: "", motorista_id: NENHUM, litros: "", preco_litro: "", posto: "", km: "", observacoes: "",
-  numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "manual", produto: "DIESEL", combustivel_id: ""
+  numero_nf: "", chave_nfe: "", hora: "", cnpj: "", fornecedor: "", origem: "manual", produto: "DIESEL", combustivel_id: "",
+  cidade: "", estado: "", avaliacao: 0
 });
 
 export default function Abastecimentos() {
@@ -46,18 +47,22 @@ export default function Abastecimentos() {
   const motoristas = useMotoristas();
   const [filtroVeiculo, setFiltroVeiculo] = useState(TODOS);
   const [mes, setMes] = useState("");
+  const [filtroMotorista, setFiltroMotorista] = useState(TODOS);
+  const [filtroPosto, setFiltroPosto] = useState("");
+  const [filtroNF, setFiltroNF] = useState(TODOS);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
-  const [cnpjLoading, setCnpjLoading] = useState(false);
-  const [auditoriaRow, setAuditoriaRow] = useState<any | null>(null);
-  const [fornecedorPendente, setFornecedorPendente] = useState<{nome: string, cnpj: string, cidade: string, estado: string} | null>(null);
-  const { data: fornecedores = [], refetch: refetchFornecedores } = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const xlsInputRef = useRef<HTMLInputElement>(null);
   const edenredInputRef = useRef<HTMLInputElement>(null);
   const [importProgress, setImportProgress] = useState<{ total: number; current: number; errors: any[] } | null>(null);
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [pdfPendenteData, setPdfPendenteData] = useState<any | null>(null);
+  const [fornecedorPendente, setFornecedorPendente] = useState<{nome: string, cnpj: string, cidade: string, estado: string, endereco?: string, bairro?: string, avaliacao?: number} | null>(null);
+  
+  const { data: fornecedores = [], refetch: refetchFornecedores } = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
 
   const params = new URLSearchParams();
   if (filtroVeiculo !== TODOS) params.set("veiculo_id", filtroVeiculo);
@@ -69,44 +74,71 @@ export default function Abastecimentos() {
   });
   const rows = q.isError ? [] : (q.data ?? []);
 
-  const rowsOrdenadas = useMemo(() => {
-    return [...rows].sort((a, b) => b.data.localeCompare(a.data));
+  const rowsComCalculo = useMemo(() => {
+    const porVeiculo: Record<string, any[]> = {};
+    rows.forEach(r => {
+      if (!porVeiculo[r.veiculo_id]) porVeiculo[r.veiculo_id] = [];
+      porVeiculo[r.veiculo_id].push(r);
+    });
+
+    const rowsFinais: any[] = [];
+    Object.values(porVeiculo).forEach(lista => {
+      lista.sort((a, b) => {
+        const dateComp = a.data.localeCompare(b.data);
+        if (dateComp !== 0) return dateComp;
+        return a.km - b.km;
+      });
+      
+      for (let i = 0; i < lista.length; i++) {
+        const atual = { ...lista[i] };
+        if (i > 0) {
+          const anterior = lista[i - 1];
+          if (atual.km > anterior.km) {
+            atual.km_rodados = atual.km - anterior.km;
+            if (atual.litros > 0 && !String(atual.produto || "").toUpperCase().includes("ARLA")) {
+              atual.media_km_l = atual.km_rodados / atual.litros;
+            }
+          }
+        }
+        rowsFinais.push(atual);
+      }
+    });
+
+    return rowsFinais.sort((a, b) => b.data.localeCompare(a.data) || b.km - a.km);
   }, [rows]);
 
-  // CÁLCULOS EXATOS DOS CARDS
+  const rowsFiltradas = useMemo(() => {
+    return rowsComCalculo.filter(r => {
+      if (filtroVeiculo !== TODOS && r.veiculo_id !== filtroVeiculo) return false;
+      if (filtroMotorista !== TODOS && r.motorista_id !== filtroMotorista) return false;
+      if (filtroPosto && !(r.posto || (r as any).fornecedor || "").toLowerCase().includes(filtroPosto.toLowerCase())) return false;
+      if (filtroNF === "com" && !(r.numero_nf || r.chave_nfe)) return false;
+      if (filtroNF === "sem" && (r.numero_nf || r.chave_nfe)) return false;
+      if (mes && !r.data.startsWith(mes)) return false;
+      return true;
+    });
+  }, [rowsComCalculo, filtroVeiculo, filtroMotorista, filtroPosto, filtroNF, mes]);
+
   const resumo = useMemo(() => {
-    const litros = rowsOrdenadas.reduce((s, r) => s + (Number(r.litros) || 0), 0);
-    const valor = rowsOrdenadas.reduce((s, r) => s + (Number(r.valor_total) || 0), 0);
-    
-    const comKm = rowsOrdenadas.filter((r) => r.km_rodados != null && r.km_rodados > 0);
+    const litros = rowsFiltradas.reduce((s, r) => s + (Number(r.litros) || 0), 0);
+    const valor = rowsFiltradas.reduce((s, r) => s + (Number(r.valor_total) || 0), 0);
+    const comKm = rowsFiltradas.filter((r) => r.km_rodados != null && r.km_rodados > 0);
     const km = comKm.reduce((s, r) => s + (Number(r.km_rodados) || 0), 0);
     const litrosKm = comKm.reduce((s, r) => s + (Number(r.litros) || 0), 0);
-    
-    const maior = rowsOrdenadas.reduce((max, r) => (Number(r.valor_total) || 0) > (Number(max?.valor_total) || 0) ? r : max, null as Abastecimento | null);
-    const menor = rowsOrdenadas.reduce((min, r) => (Number(r.valor_total) || 0) < (Number(min?.valor_total) || Infinity) ? r : min, null as Abastecimento | null);
-    
-    const mediaValor = rowsOrdenadas.length ? valor / rowsOrdenadas.length : 0;
+    const maior = rowsFiltradas.reduce((max, r) => (Number(r.valor_total) || 0) > (Number(max?.valor_total) || 0) ? r : max, null as Abastecimento | null);
+    const menor = rowsFiltradas.reduce((min, r) => (Number(r.valor_total) || 0) < (Number(min?.valor_total) || Infinity) ? r : min, null as Abastecimento | null);
+    const mediaValor = rowsFiltradas.length ? valor / rowsFiltradas.length : 0;
     const mediaKm = comKm.length ? km / comKm.length : 0;
     const custoPorKm = km > 0 ? valor / km : 0;
+    const comNF = rowsFiltradas.filter(r => r.numero_nf || r.chave_nfe).length;
+    const semNF = rowsFiltradas.length - comNF;
 
-    return { 
-      litros, 
-      valor, 
-      km, 
-      media: litrosKm > 0 ? km / litrosKm : 0, // Média KM/L
-      preco: litros > 0 ? valor / litros : 0, // Preço Médio R$/L
-      total: rowsOrdenadas.length, 
-      maior, 
-      menor, 
-      mediaValor, 
-      mediaKm, 
-      custoPorKm 
-    };
-  }, [rowsOrdenadas]);
+    return { litros, valor, km, media: litrosKm ? km / litrosKm : 0, preco: litros ? valor / litros : 0, total: rowsFiltradas.length, maior, menor, mediaValor, mediaKm, custoPorKm, comNF, semNF };
+  }, [rowsFiltradas]);
 
   const ranking = useMemo(() => {
     const porVeiculo: Record<string, { label: string, litros: number, km: number }> = {};
-    rowsOrdenadas.forEach(r => {
+    rowsFiltradas.forEach(r => {
       if (r.km_rodados != null && r.km_rodados > 0 && r.media_km_l != null) {
         if (!porVeiculo[r.veiculo_id]) porVeiculo[r.veiculo_id] = { label: r.veiculo_label.split(" · ")[0], litros: 0, km: 0 };
         porVeiculo[r.veiculo_id].litros += (Number(r.litros) || 0);
@@ -114,7 +146,15 @@ export default function Abastecimentos() {
       }
     });
     return Object.values(porVeiculo).map(v => ({ label: v.label, media: v.litros > 0 ? v.km / v.litros : 0 })).sort((a, b) => b.media - a.media).slice(0, 5);
-  }, [rowsOrdenadas]);
+  }, [rowsFiltradas]);
+
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["abastecimentos"] });
+    void qc.invalidateQueries({ queryKey: ["dashboard"] });
+    void qc.invalidateQueries({ queryKey: ["veiculos"] });
+    void qc.invalidateQueries({ queryKey: ["financeiro"] });
+    void qc.invalidateQueries({ queryKey: ["ranking"] });
+  };
 
   const buscarCnpj = async () => {
     const cnpjLimpo = form.cnpj.replace(/\D/g, "");
@@ -123,26 +163,14 @@ export default function Abastecimentos() {
     try {
       const existente = fornecedores.find((f: any) => f.documento && f.documento.replace(/\D/g, '') === cnpjLimpo);
       if (existente) {
-        setForm(s => ({ 
-          ...s, 
-          fornecedor: existente.nome, 
-          cnpj: existente.documento || "", 
-          cidade: existente.cidade || "", 
-          estado: existente.estado || "",
-          avaliacao: existente.avaliacao || 0
-        }));
+        setForm(s => ({ ...s, fornecedor: existente.nome, cnpj: existente.documento || "", cidade: existente.cidade || "", estado: existente.estado || "", avaliacao: existente.avaliacao || 0 }));
         toast.success(`Fornecedor encontrado: ${existente.nome}`);
         return;
       }
       const data = await apiGet<any>(`/fornecedores/consultar-cnpj/${cnpjLimpo}`);
       setFornecedorPendente({ 
-        nome: data.razao_social, 
-        cnpj: formatCnpj(cnpjLimpo), 
-        cidade: data.municipio, 
-        estado: data.uf,
-        endereco: `${data.logradouro || ''}, ${data.numero || ''}`.trim(),
-        bairro: data.bairro || '',
-        avaliacao: 0
+        nome: data.razao_social, cnpj: formatCnpj(cnpjLimpo), cidade: data.municipio, estado: data.uf,
+        endereco: `${data.logradouro || ''}, ${data.numero || ''}`.trim(), bairro: data.bairro || '', avaliacao: 0
       });
     } catch (err: any) {
       toast.error(err.message || "Erro ao buscar CNPJ.");
@@ -156,7 +184,7 @@ export default function Abastecimentos() {
     try {
       await apiPost("/fornecedores", { 
         nome: fornecedorPendente.nome, 
-        documento: fornecedorPendente.cnpj, // O modelo espera 'documento'
+        documento: fornecedorPendente.cnpj,
         cidade: fornecedorPendente.cidade, 
         estado: fornecedorPendente.estado,
         endereco: fornecedorPendente.endereco,
@@ -166,47 +194,154 @@ export default function Abastecimentos() {
       });
       toast.success("Fornecedor cadastrado automaticamente!");
       await refetchFornecedores();
-      setForm(s => ({ 
-        ...s, 
-        fornecedor: fornecedorPendente.nome, 
-        cnpj: fornecedorPendente.cnpj, // Adiciona o CNPJ
-        cidade: fornecedorPendente.cidade || "", 
-        estado: fornecedorPendente.estado || "",
-        avaliacao: fornecedorPendente.avaliacao || 0
-      }));
+      setForm(s => ({ ...s, fornecedor: fornecedorPendente.nome, cidade: fornecedorPendente.cidade, estado: fornecedorPendente.estado }));
       setFornecedorPendente(null);
-    } catch (err) {
-      toast.error("Erro ao cadastrar fornecedor.");
+    } catch (err: any) {
+      // Se o erro for 409 (Conflict), significa que o fornecedor já existe
+      if (err.message && (err.message.includes("409") || err.message.toLowerCase().includes("já cadastrado") || err.message.toLowerCase().includes("exist"))) {
+        toast.warning("Este CNPJ já está cadastrado no sistema. Carregando os dados do fornecedor...");
+        
+        // Recarrega a lista para garantir que pegamos o ID/registro mais recente
+        await refetchFornecedores();
+        setFornecedorPendente(null);
+      } else {
+        toast.error(err.message || "Erro ao cadastrar fornecedor.");
+      }
     }
   };
 
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["abastecimentos"] });
-    void qc.invalidateQueries({ queryKey: ["dashboard"] });
-    void qc.invalidateQueries({ queryKey: ["veiculos"] });
-    void qc.invalidateQueries({ queryKey: ["financeiro"] });
-    void qc.invalidateQueries({ queryKey: ["ranking"] });
-  };
-
   const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // ... (mantido igual, apenas resumido para o script)
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let text = "";
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map((item: any) => item.str).join(" ") + "\n";
+      }
+
+      text = text.replace(/\n/g, " ").replace(/\s+/g, " ");
+
+      const placaMatch = text.match(/PLACA[:\s]*([A-Z0-9]{7})/i);
+      const placa = placaMatch ? placaMatch[1].toUpperCase() : "";
+      
+      const veiculo = veiculos.data?.find((v: any) => v.placa.replace("-", "").toUpperCase() === placa.replace("-", "").toUpperCase());
+      if (!veiculo) { toast.error(`Veículo com placa ${placa} não encontrado no cadastro.`); return; }
+
+      const kmMatch = text.match(/KM[:\s]*(\d+)/i);
+      const km = kmMatch ? Number(kmMatch[1]) : 0;
+      
+      const dateMatch = text.match(/DATA DA EMISS[ÃA]O.*?(\d{2}\/\d{2}\/\d{4})/i);
+      let dataStr = "";
+      if (dateMatch) {
+        const [d, m, y] = dateMatch[1].split("/");
+        dataStr = `${y}-${m}-${d}`;
+      } else {
+        dataStr = new Date().toISOString().split("T")[0];
+      }
+
+      const timeMatch = text.match(/HORA DA SA[ÍI]DA.*?(\d{2}:\d{2})/i);
+      const nfMatch = text.match(/N[º°]\s*(\d+)/i);
+      const chaveMatch = text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/i);
+      const cnpjMatch = text.match(/C\.N\.P\.J\.\s*\/\s*C\.P\.F\.\s*([\d\.\/\-]+)/i) || text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/i);
+      const fornMatch = text.match(/RECEBEMOS DE\s+([^,]+?)(?:\s*\(|,)/i);
+      
+      const motoristaMatch = text.match(/MOTORISTA[:\s]+([A-Z\s]+)(?=\||nBico|$)/i);
+      let motoristaId = NENHUM;
+      if (motoristaMatch && motoristas.data) {
+        const motNome = motoristaMatch[1].trim().toUpperCase();
+        const mot = motoristas.data.find((m: any) => m.nome.toUpperCase().includes(motNome) || motNome.includes(m.nome.toUpperCase()));
+        if (mot) motoristaId = mot.id;
+      }
+
+      const litrosMatch = text.match(/L\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i);
+      
+      const parseNum = (val: string) => {
+        if (!val) return 0;
+        let str = String(val).replace(/[^\d.,]/g, "");
+        if (str.includes('.') && str.includes(',')) str = str.replace(/\./g, '').replace(',', '.');
+        else if (str.includes(',')) str = str.replace(',', '.');
+        return Number(str);
+      };
+
+      const cnpjLimpo = cnpjMatch ? cnpjMatch[1].replace(/\D/g, '') : "";
+      
+      const acoplamento = await apiGet<any[]>("/acoplamentos");
+      const acoplamentoAtivo = acoplamento.find(a => a.veiculo_id === veiculo.id);
+      const motId = acoplamentoAtivo?.motorista_id || motoristaId;
+
+      const baseForm = {
+        data: dataStr,
+        veiculo_id: veiculo.id,
+        motorista_id: motId || NENHUM,
+        litros: litrosMatch ? String(parseNum(litrosMatch[1])) : "",
+        preco_litro: litrosMatch ? String(parseNum(litrosMatch[2])) : "",
+        posto: fornMatch ? fornMatch[1].trim() : "Importado",
+        km: km ? String(km) : "",
+        observacoes: "",
+        numero_nf: nfMatch ? nfMatch[1] : "",
+        chave_nfe: chaveMatch ? chaveMatch[1].replace(/\s/g, "") : "",
+        hora: timeMatch ? timeMatch[1] : "",
+        cnpj: cnpjLimpo ? formatCnpj(cnpjLimpo) : "",
+        fornecedor: fornMatch ? fornMatch[1].trim() : "",
+        cidade: "",
+        estado: "",
+        avaliacao: 0,
+        origem: "pdf",
+        produto: "DIESEL",
+        combustivel_id: ""
+      };
+
+      if (cnpjLimpo.length === 14) {
+        const existente = fornecedores.find((f: any) => f.documento && f.documento.replace(/\D/g, '') === cnpjLimpo);
+        if (existente) {
+          baseForm.fornecedor = existente.nome;
+          baseForm.posto = existente.nome;
+          baseForm.cidade = existente.cidade || "";
+          baseForm.estado = existente.estado || "";
+          baseForm.avaliacao = existente.avaliacao || 0;
+          setForm(baseForm);
+          setOpen(true);
+          toast.success(`Fornecedor ${existente.nome} carregado.`);
+        } else {
+          const data = await apiGet<any>(`/fornecedores/consultar-cnpj/${cnpjLimpo}`);
+          setPdfPendenteData(baseForm); 
+          setFornecedorPendente({ 
+            nome: data.razao_social, 
+            cnpj: formatCnpj(cnpjLimpo), 
+            cidade: data.municipio, 
+            estado: data.uf,
+            endereco: `${data.logradouro || ''}, ${data.numero || ''}`.trim(),
+            bairro: data.bairro || '',
+            avaliacao: 0
+          });
+        }
+      } else {
+        setForm(baseForm);
+        setOpen(true);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao importar o PDF.");
+    }
   };
 
   const handleImportEdenred = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: false });
-
       if (rows.length < 2) { toast.error("Planilha vazia."); return; }
 
       const headerRow = rows[0].map((c: any) => String(c).toUpperCase().trim());
       const findIdx = (name: string) => headerRow.findIndex(h => h.includes(name));
-
       const idxData = findIdx("DATA TRANSACAO"), idxPlaca = findIdx("PLACA"), idxProduto = findIdx("TIPO COMBUSTIVEL"),
             idxLitros = findIdx("LITROS"), idxPreco = findIdx("VL/LITRO"), idxKm = findIdx("HODOMETRO"),
             idxPosto = findIdx("NOME ESTABELECIMENTO"), idxValor = findIdx("VALOR EMISSAO");
@@ -218,60 +353,47 @@ export default function Abastecimentos() {
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAL")) continue;
-
         let dataStr = String(row[idxData]).trim();
         let dataFinal = dataStr.split(" ")[0];
         let horaFinal = dataStr.includes(" ") ? dataStr.split(" ")[1].substring(0, 5) : null;
-
         const kmNum = Number(String(row[idxKm] || "0").replace(/[^\d]/g, ""));
-        
-        // MATEMÁTICA EDENRED: Valores já em decimal, NÃO DIVIDIR!
         const litrosNum = Number(String(row[idxLitros] || "0").replace(",", "."));
         const precoNum = Number(String(row[idxPreco] || "0").replace(",", "."));
         const valorNum = idxValor !== -1 ? Number(String(row[idxValor] || "0").replace(",", ".")) : (litrosNum * precoNum);
 
         const payload = {
           data: dataFinal, placa: String(row[idxPlaca]).toUpperCase().trim(), km: kmNum,
-          fornecedor: String(row[idxPosto] || "").trim(), litros: litrosNum,
-          preco_litro: precoNum, valor_total: valorNum, produto: String(row[idxProduto] || "DIESEL").toUpperCase(),
-          hora: horaFinal, numero_nf: null, chave_nfe: null, cnpj: null, origem: "excel"
+          fornecedor: String(row[idxPosto] || "").trim(), litros: litrosNum, preco_litro: precoNum, valor_total: valorNum,
+          produto: String(row[idxProduto] || "DIESEL").toUpperCase(), hora: horaFinal, numero_nf: null, chave_nfe: null, cnpj: null, origem: "excel"
         };
-
         try { await apiPost("/abastecimentos/importar", payload); importados++; } 
         catch (err: any) { erros.push({ linha: i + 1, placa: payload.placa, erro: err.message || "Erro" }); }
         setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
       }
-
       setImportProgress(prev => prev ? { ...prev, current: totalLinhas, errors: erros } : null);
       if (erros.length === 0) toast.success(`${importados} Edenred importados!`);
       invalidate();
-    } catch (error) {
-      console.error(error); toast.error("Erro ao ler Edenred."); setImportProgress(null);
-    }
+    } catch (error) { console.error(error); toast.error("Erro ao ler Edenred."); setImportProgress(null); }
   };
 
   const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       const text = await file.text();
       const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
       const rows: string[][] = [];
       let rowMatch;
-
       while ((rowMatch = rowRegex.exec(text)) !== null) {
         const cells: string[] = [];
         let cellMatch;
         const cellRegexLocal = /<td[^>]*>([\s\S]*?)<\/td>/gi;
         while ((cellMatch = cellRegexLocal.exec(rowMatch[1])) !== null) {
-          let cellText = cellMatch[1].replace(/<[^>]+>/g, "").trim();
-          cellText = cellText.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
+          let cellText = cellMatch[1].replace(/<[^>]+>/g, "").trim().replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
           cells.push(cellText);
         }
         if (cells.length > 0) rows.push(cells);
       }
-
       if (rows.length === 0) { toast.error("Nenhuma linha HTML encontrada."); return; }
 
       let headerRow: string[] = [];
@@ -280,11 +402,9 @@ export default function Abastecimentos() {
         const rowStr = rows[i].join(" ").toUpperCase();
         if (rowStr.includes("DATA") && rowStr.includes("PLACA") && rowStr.includes("LITROS")) {
           headerRow = rows[i].map(c => c.toUpperCase().trim());
-          startRow = i + 1;
-          break;
+          startRow = i + 1; break;
         }
       }
-
       if (startRow === -1) { toast.error("Cabeçalho não encontrado no BSOFT."); return; }
 
       const findIdx = (name: string) => headerRow.findIndex(h => h.includes(name));
@@ -298,43 +418,41 @@ export default function Abastecimentos() {
       for (let i = startRow; i < rows.length; i++) {
         const row = rows[i];
         if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAIS") || String(row[idxData]).includes("Bsoft")) continue;
-
         let dataStr = String(row[idxData]).trim();
         if (dataStr.includes("-")) { const [y, m, d] = dataStr.split(" ")[0].split("-"); dataStr = `${d}/${m}/${y}`; }
-        
         const placaRaw = String(row[idxPlaca] || "").trim();
         const placa = placaRaw.split("/")[0].replace("-", "").toUpperCase();
-
         const parseNum = (val: any) => Number(String(val).replace(/[^0-9]/g, ""));
-        
-        // MATEMÁTICA BSOFT: Divide litros por 1000, preço por 100. Valor já vem em decimal.
         const litrosRaw = parseNum(row[idxLitros]) / 1000;
         const valorLitroRaw = parseNum(row[idxPreco]) / 100;
         const valorTotal = idxValor !== -1 ? Number(String(row[idxValor]).replace(",", ".")) : litrosRaw * valorLitroRaw;
 
         const payload = {
-          data: dataStr, placa: placa, km: parseNum(row[idxKm]),
-          fornecedor: String(row[idxPosto] || "").trim(), litros: litrosRaw,
-          preco_litro: valorLitroRaw, valor_total: valorTotal,
+          data: dataStr, placa, km: parseNum(row[idxKm]),
+          fornecedor: String(row[idxPosto] || "").trim(), litros: litrosRaw, preco_litro: valorLitroRaw, valor_total: valorTotal,
           hora: null, numero_nf: null, chave_nfe: null, cnpj: null, origem: "excel"
         };
-
         try { await apiPost("/abastecimentos/importar", payload); importados++; } 
         catch (err: any) { erros.push({ linha: i + 1, placa: placa || "N/A", erro: err.message || "Erro" }); }
         setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
       }
-
       setImportProgress(prev => prev ? { ...prev, current: totalLinhas, errors: erros } : null);
       if (erros.length === 0) toast.success(`${importados} abastecimentos BSOFT importados!`);
       invalidate();
-    } catch (error) {
-      console.error(error); toast.error("Erro ao ler o BSOFT."); setImportProgress(null);
-    }
+    } catch (error) { console.error(error); toast.error("Erro ao ler o BSOFT."); setImportProgress(null); }
   };
 
   const salvar = useMutation({
     mutationFn: () => {
-      const payload = { ...form, motorista_id: form.motorista_id === NENHUM ? null : form.motorista_id, litros: Number(form.litros.replace(",", ".")), preco_litro: Number(form.preco_litro.replace(",", ".")), km: Number(form.km) };
+      const payload = { 
+        data: form.data, veiculo_id: form.veiculo_id, 
+        motorista_id: form.motorista_id === NENHUM ? null : form.motorista_id, 
+        litros: Number(form.litros.replace(",", ".")), preco_litro: Number(form.preco_litro.replace(",", ".")),
+        posto: form.fornecedor || "Importado", km: Number(form.km), observacoes: form.observacoes,
+        numero_nf: form.numero_nf || null, chave_nfe: form.chave_nfe || null, hora: form.hora || null,
+        cnpj: form.cnpj || null, fornecedor: form.fornecedor || null, cidade: form.cidade || null,
+        estado: form.estado || null, produto: form.produto || "DIESEL", origem: form.origem
+      };
       if (editingId) return apiPut<Abastecimento>(`/abastecimentos/${editingId}`, payload);
       return apiPost<Abastecimento>("/abastecimentos", payload);
     },
@@ -355,28 +473,15 @@ export default function Abastecimentos() {
   const abrirEdicao = (r: Abastecimento) => { 
     setEditingId(r.id); 
     setForm({ 
-      data: r.data, 
-      veiculo_id: r.veiculo_id, 
-      motorista_id: r.motorista_id || NENHUM, 
-      litros: String(r.litros), 
-      preco_litro: String(r.preco_litro), 
-      posto: r.posto || "", 
-      km: String(r.km), 
-      observacoes: r.observacoes || "", 
-      numero_nf: r.numero_nf || "", 
-      chave_nfe: r.chave_nfe || "", 
-      hora: r.hora || "", 
-      cnpj: r.cnpj || "", 
-      fornecedor: (r as any).fornecedor || "", 
-      origem: r.origem || "manual", 
-      produto: (r as any).produto || "DIESEL", 
-      combustivel_id: (r as any).combustivel_id || "",
-      cidade: (r as any).cidade || "",
-      estado: (r as any).estado || "",
-      avaliacao: (r as any).avaliacao || 0
+      data: r.data, veiculo_id: r.veiculo_id, motorista_id: r.motorista_id || NENHUM, 
+      litros: String(r.litros), preco_litro: String(r.preco_litro), posto: r.posto || "", km: String(r.km), 
+      observacoes: r.observacoes || "", numero_nf: r.numero_nf || "", chave_nfe: r.chave_nfe || "", 
+      hora: r.hora || "", cnpj: r.cnpj || "", fornecedor: (r as any).fornecedor || "", 
+      origem: r.origem || "manual", produto: (r as any).produto || "DIESEL", combustivel_id: (r as any).combustivel_id || "",
+      cidade: (r as any).cidade || "", estado: (r as any).estado || "", avaliacao: (r as any).avaliacao || 0
     }); 
     setOpen(true); 
-  };;
+  };
 
   const handleVeiculoChange = async (veiculoId: string) => {
     set("veiculo_id")(veiculoId); if (!veiculoId) return;
@@ -388,15 +493,45 @@ export default function Abastecimentos() {
   };
 
   const cards = [
-    { label: "Abastecimentos", valor: resumo.total, icon: List, color: "#38bdf8", sub: "registros", tip: "Total de registros." },
-    { label: "Total Abastecido", valor: `${num(resumo.litros, 1)} L`, icon: Droplets, color: "#2dd4bf", sub: "volume", tip: "Soma dos litros." },
+    { label: "Total Geral", valor: resumo.total, icon: List, color: "#38bdf8", sub: "registros", tip: "Total de abastecimentos no período." },
+    { label: "Com NF", valor: resumo.comNF, icon: CheckCircle2, color: "#10b981", sub: "registros", tip: "Abastecimentos com Nota Fiscal." },
+    { label: "Sem NF", valor: resumo.semNF, icon: AlertTriangle, color: "#ef4444", sub: "registros", tip: "Abastecimentos sem Nota Fiscal." },
+    { label: "Total Litros", valor: `${num(resumo.litros, 1)} L`, icon: Droplets, color: "#2dd4bf", sub: "volume", tip: "Soma de todos os litros." },
     { label: "Valor Total", valor: brl(resumo.valor), icon: DollarSign, color: "#fbbf24", sub: "custo", tip: "Soma dos valores totais." },
     { label: "Média Geral", valor: `${num(resumo.media, 2)} km/L`, icon: TrendingUp, color: "#a78bfa", sub: "eficiência", tip: "KM Rodados / Litros." },
     { label: "Preço Médio", valor: `${brl(resumo.preco)}/L`, icon: Target, color: "#f87171", sub: "por litro", tip: "Valor Total / Litros." },
-    { label: "Maior Abastecimento", valor: resumo.maior ? brl(resumo.maior.valor_total) : "—", icon: ArrowUpRight, color: "#4ade80", sub: resumo.maior?.veiculo_label.split(" · ")[0], tip: "Maior valor." },
-    { label: "Menor Abastecimento", valor: resumo.menor ? brl(resumo.menor.valor_total) : "—", icon: ArrowDownRight, color: "#f87171", sub: resumo.menor?.motorista_label || resumo.menor?.veiculo_label.split(" · ")[0], tip: "Menor valor." },
+    { 
+      label: "Maior Abast.", 
+      valor: resumo.maior ? brl(resumo.maior.valor_total) : "—", 
+      icon: ArrowUpRight, 
+      color: "#4ade80", 
+      sub: resumo.maior?.veiculo_label.split(" · ")[0], 
+      tip: resumo.maior ? `DETALHES DO MAIOR:
+
+Placa: ${resumo.maior.veiculo_label.split(" · ")[0]}
+Data: ${dataBR(resumo.maior.data)}
+Litros: ${num(resumo.maior.litros, 2)} L
+Preço/L: ${brl(resumo.maior.preco_litro)}
+Total: ${brl(resumo.maior.valor_total)}
+Posto: ${resumo.maior.posto || resumo.maior.fornecedor || "—"}` : "Nenhum registro" 
+    },
+    { 
+      label: "Menor Abast.", 
+      valor: resumo.menor ? brl(resumo.menor.valor_total) : "—", 
+      icon: ArrowDownRight, 
+      color: "#f87171", 
+      sub: resumo.menor?.veiculo_label.split(" · ")[0], 
+      tip: resumo.menor ? `DETALHES DO MENOR:
+
+Placa: ${resumo.menor.veiculo_label.split(" · ")[0]}
+Data: ${dataBR(resumo.menor.data)}
+Litros: ${num(resumo.menor.litros, 2)} L
+Preço/L: ${brl(resumo.menor.preco_litro)}
+Total: ${brl(resumo.menor.valor_total)}
+Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum registro" 
+    },
     { label: "Média por Abast.", valor: brl(resumo.mediaValor), icon: DollarSign, color: "#fb923c", sub: "R$ / registro", tip: "Valor Total / Qtd." },
-    { label: "Média de KM", valor: `${num(resumo.mediaKm, 0)} km`, icon: TrendingUp, color: "#60a5fa", sub: "por abastecimento", tip: "KM / Qtd." },
+    { label: "Média de KM", valor: `${num(resumo.mediaKm, 0)} km`, icon: TrendingUp, color: "#60a5fa", sub: "por abast.", tip: "KM / Qtd." },
     { label: "Custo por KM", valor: brl(resumo.custoPorKm), icon: DollarSign, color: "#34d399", sub: "combustível", tip: "Valor Total / KM." },
   ];
 
@@ -415,20 +550,22 @@ export default function Abastecimentos() {
           <Button onClick={abrirNovo}><Plus className="size-4" /> Novo</Button>
         </div>
       }/>
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+
+      <div className="mb-4 grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
         {cards.map((c) => (
-          <div key={c.label} title={c.tip} className="glass lift relative overflow-hidden rounded-xl hover:scale-[1.02] cursor-help" style={{ padding: '12px 16px', height: '90px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div key={c.label} title={c.tip} className="glass lift relative overflow-hidden rounded-xl hover:scale-[1.02] cursor-help" style={{ padding: '6px 10px', height: '58px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '8px', backgroundColor: `${c.color}20`, color: c.color }}><c.icon size={16} /></div>
-              <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, fontWeight: 500 }}>{c.label}</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '4px', backgroundColor: `${c.color}20`, color: c.color }}><c.icon size={10} /></div>
+              <p style={{ fontSize: '9px', color: '#94a3b8', margin: 0, fontWeight: 500 }}>{c.label}</p>
             </div>
             <div>
-              <p style={{ fontSize: '20px', fontWeight: 600, color: '#f8fafc', margin: 0, lineHeight: 1 }}>{c.valor}</p>
-              {c.sub && <p style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.sub}</p>}
+              <p style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', margin: 0, lineHeight: 1 }}>{c.valor}</p>
+              {c.sub && <p style={{ fontSize: '8px', color: '#64748b', marginTop: '0px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.sub}</p>}
             </div>
           </div>
         ))}
       </div>
+
       <div className="mb-5 glass rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2"><TrendingUp className="size-4 text-emerald-400" /> Termômetro (Top 5 KM/L)</h3>
@@ -451,11 +588,18 @@ export default function Abastecimentos() {
           })}
         </div>
       </div>
+
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="grid w-64 gap-1.5"><Label>Veículo</Label><FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} testId="filtro-veiculo" /></div>
         <div className="grid gap-1.5"><Label>Mês</Label><Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" /></div>
-        {(mes || filtroVeiculo !== TODOS) && <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); }}>Limpar</Button>}
+        <div className="grid w-48 gap-1.5"><Label>Motorista</Label><FieldSelect value={filtroMotorista} onChange={setFiltroMotorista} options={[{ value: TODOS, label: "Todos" }, ...(motoristas.data ?? []).map((m: any) => ({ value: m.id, label: m.nome }))]} /></div>
+        <div className="grid w-48 gap-1.5"><Label>Posto</Label><Input value={filtroPosto} onChange={(e) => setFiltroPosto(e.target.value)} placeholder="Nome do posto..." className="h-9" /></div>
+        <div className="grid w-40 gap-1.5"><Label>Nota Fiscal</Label><FieldSelect value={filtroNF} onChange={setFiltroNF} options={[{ value: TODOS, label: "Todas" }, { value: "com", label: "Com NF" }, { value: "sem", label: "Sem NF" }]} /></div>
+        {(mes || filtroVeiculo !== TODOS || filtroMotorista !== TODOS || filtroPosto || filtroNF !== TODOS) && (
+          <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); setFiltroMotorista(TODOS); setFiltroPosto(""); setFiltroNF(TODOS); }} className="mb-[2px]">Limpar Filtros</Button>
+        )}
       </div>
+
       <div className="glass overflow-hidden rounded-2xl">
         <Table className="text-xs">
           <TableHeader>
@@ -464,8 +608,8 @@ export default function Abastecimentos() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rowsOrdenadas.length === 0 && <TableRow><TableCell colSpan={14} className="py-10 text-center text-slate-500">Nenhum abastecimento.</TableCell></TableRow>}
-            {rowsOrdenadas.map(r => (
+            {rowsFiltradas.length === 0 && <TableRow><TableCell colSpan={14} className="py-10 text-center text-slate-500">Nenhum abastecimento.</TableCell></TableRow>}
+            {rowsFiltradas.map(r => (
               <TableRow key={r.id} className="border-slate-800/70">
                 <TableCell className="font-mono px-2 text-center">{dataBR(r.data)}</TableCell>
                 <TableCell className="text-center px-2">{r.origem === "pdf" ? <span className="bg-red-500/20 text-red-400 px-2 py-0.5 font-bold rounded">PDF</span> : r.origem === "excel" ? <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 font-bold rounded">XLS</span> : <span className="bg-slate-500/20 text-slate-400 px-2 py-0.5 font-bold rounded">M</span>}</TableCell>
@@ -492,7 +636,10 @@ export default function Abastecimentos() {
                 <TableCell className="tabular-nums text-sky-300 px-2 text-center">{r.media_km_l != null ? num(r.media_km_l, 2) : "—"}</TableCell>
                 <TableCell className="text-center px-2">
                   <div className="flex gap-1 justify-center">
-                    <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
+                    <Button size="icon-sm" variant="ghost" className="cursor-help" title={`Cadastrado por: ${(r as any).created_by_name || (r as any).created_by || 'Sistema'}`}>
+                      <Info className="size-4 text-slate-400" />
+                    </Button>
+                    <Button size="icon-sm" variant="ghost" onClick={() => r.origem === "pdf" ? toast.error("Proibido editar arquivo de nota fiscal importada via PDF.") : abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
                     {me?.perfil === "admin" && <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4" /></Button>}
                   </div>
                 </TableCell>
@@ -503,135 +650,141 @@ export default function Abastecimentos() {
       </div>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if(!o) setEditingId(null); }}>
-        <DialogContent className="sm:max-w-xl max-h-[95vh] overflow-y-auto p-4 sm:p-6">
+        <DialogContent className="sm:max-w-lg max-h-[95vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
           <DialogHeader><DialogTitle>{editingId ? "Editar" : "Novo"} Abastecimento</DialogTitle></DialogHeader>
           <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
-              <div className="col-span-2 grid gap-1.5"><Label>Veículo *</Label><FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione o veículo" testId="form-veiculo" /></div>
-              <div className="col-span-2 grid gap-1.5"><Label>Motorista</Label><FieldSelect value={form.motorista_id} onChange={set("motorista_id")} options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} testId="form-motorista" /></div>
-              
-              <div className="grid gap-1.5"><Label>Data *</Label><Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} required /></div>
-              <div className="grid gap-1.5"><Label>Hodômetro *</Label><Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} required /></div>
-              
-              <div className="grid gap-1.5"><Label>Litros *</Label><Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} required /></div>
-              <div className="grid gap-1.5"><Label>Preço/L *</Label><Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} required /></div>
+            {/* Veículo */}
+            <div className="col-span-2 grid gap-1.5 overflow-hidden">
+              <Label>Veículo *</Label>
+              <div className={`w-full ${form.origem === "pdf" ? "rounded-md border border-purple-800 bg-purple-950/20 px-3 py-2 pointer-events-none opacity-80" : ""}`}>
+                <FieldSelect 
+                  value={form.veiculo_id} 
+                  onChange={handleVeiculoChange} 
+                  options={veicOpts} 
+                  placeholder="Selecione o veículo" 
+                  disabled={form.origem === "pdf"} 
+                />
+              </div>
+            </div>
 
-              <div className="col-span-2 border-t border-slate-800 pt-2 mt-1">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="grid gap-1.5">
-                    <Label>CNPJ Emitente</Label>
-                    <div className="flex gap-2">
-                      <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: formatCnpj(e.target.value) }))} placeholder="00.000.000/0000-00" maxLength={18} />
-                      <Button type="button" variant="default" onClick={buscarCnpj} disabled={cnpjLoading || form.cnpj.length < 18} className="bg-sky-600 hover:bg-sky-500 px-3 font-medium">
-                        {cnpjLoading ? <Loader2 className="size-4 animate-spin" /> : <><Search className="size-4 mr-1" /> Online</>}
-                      </Button>
-                    </div>
+            {/* Motorista */}
+            <div className="col-span-2 grid gap-1.5 overflow-hidden">
+              <Label>Motorista</Label>
+              <div className={`w-full ${form.origem === "pdf" ? "rounded-md border border-purple-800 bg-purple-950/20 px-3 py-2 pointer-events-none opacity-80" : ""}`}>
+                <FieldSelect 
+                  value={form.motorista_id} 
+                  onChange={set("motorista_id")} 
+                  options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} 
+                  disabled={form.origem === "pdf"} 
+                />
+              </div>
+            </div>
+            
+            {/* Data e Hodômetro */}
+            <div className="grid gap-1.5 overflow-hidden">
+              <Label>Data *</Label>
+              <Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+            </div>
+            <div className="grid gap-1.5 overflow-hidden">
+              <Label>Hodômetro *</Label>
+              <Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+            </div>
+            
+            {/* Litros e Preço */}
+            <div className="grid gap-1.5 overflow-hidden">
+              <Label>Litros *</Label>
+              <Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+            </div>
+            <div className="grid gap-1.5 overflow-hidden">
+              <Label>Preço/L *</Label>
+              <Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+            </div>
+
+            {/* CNPJ, Fornecedor, Cidade e Estado */}
+            <div className="col-span-2 border-t border-slate-800 pt-2 mt-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5 w-full overflow-hidden">
+                  <Label>CNPJ Emitente</Label>
+                  <div className="flex gap-2 w-full">
+                    <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: formatCnpj(e.target.value) }))} placeholder="00.000.000/0000-00" maxLength={18} readOnly={form.origem === "pdf"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+                    <Button type="button" variant="default" onClick={buscarCnpj} disabled={cnpjLoading || form.cnpj.length < 18 || form.origem === "pdf"} className="bg-sky-600 hover:bg-sky-500 px-3 font-medium shrink-0">
+                      {cnpjLoading ? <Loader2 className="size-4 animate-spin" /> : <><Search className="size-4 mr-1" /> Online</>}
+                    </Button>
                   </div>
-                  <div className="grid gap-1.5">
-                    <Label>Fornecedor *</Label>
-                    <FieldSelect value={form.fornecedor} onChange={(v) => {
-                      const f = fornecedores.find((x:any) => x.nome === v);
-                      setForm(s => ({ 
-                        ...s, 
-                        fornecedor: v, 
-                        cnpj: f ? (f.documento || "") : s.cnpj, 
-                        cidade: f ? (f.cidade || "") : s.cidade, 
-                        estado: f ? (f.estado || "") : s.estado,
-                        avaliacao: f ? (f.avaliacao || 0) : s.avaliacao
-                      }));
-                    }} options={fornecedores?.map((f: any) => ({ value: f.nome, label: f.nome })) || []} placeholder="Selecione o fornecedor" />
+                </div>
+                <div className="grid gap-1.5 w-full overflow-hidden">
+                  <Label>Fornecedor *</Label>
+                  <div className={`w-full ${form.origem === "pdf" ? "rounded-md border border-purple-800 bg-purple-950/20 px-3 py-2 pointer-events-none opacity-80" : ""}`}>
+                    <FieldSelect 
+                      value={form.fornecedor} 
+                      onChange={(v) => {
+                        const f = fornecedores.find((x:any) => x.nome === v);
+                        setForm(s => ({ 
+                          ...s, fornecedor: v, cnpj: f ? (f.documento || "") : s.cnpj, 
+                          cidade: f ? (f.cidade || "") : s.cidade, estado: f ? (f.estado || "") : s.estado,
+                          avaliacao: f ? (f.avaliacao || 0) : s.avaliacao
+                        }));
+                      }} 
+                      options={fornecedores?.map((f: any) => ({ value: f.nome, label: f.nome })) || []} 
+                      placeholder="Selecione o fornecedor" 
+                      disabled={form.origem === "pdf"} 
+                    />
                   </div>
-                  <div className="grid gap-1.5"><Label>Cidade</Label><Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} /></div>
-                  <div className="grid gap-1.5"><Label>Estado (UF)</Label><Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} className="uppercase" /></div>
+                </div>
+                <div className="grid gap-1.5 w-full overflow-hidden">
+                  <Label>Cidade</Label>
+                  <Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} readOnly={form.origem === "pdf"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+                </div>
+                <div className="grid gap-1.5 w-full overflow-hidden">
+                  <Label>Estado (UF)</Label>
+                  <Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} readOnly={form.origem === "pdf"} className={`w-full uppercase ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
                 </div>
               </div>
+            </div>
 
-              <div className="col-span-2 flex items-center gap-3 bg-slate-900/30 p-2 rounded-lg border border-slate-800">
-                <Label className="text-xs text-slate-400">Avaliação do Fornecedor:</Label>
-                <div className="flex gap-1 items-center">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <button type="button" key={star} onClick={() => setForm(s => ({ ...s, avaliacao: star }))} className="focus:outline-none hover:scale-110">
-                      <Star className={`size-4 ${star <= form.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
-                    </button>
-                  ))}
-                  <span className="text-[10px] text-slate-500 ml-1">{form.avaliacao === 0 ? "" : `${form.avaliacao}/5`}</span>
-                </div>
-              </div>
-
-              <div className="grid gap-1.5"><Label>Nº NF</Label><Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} placeholder="Ex: 12550" /></div>
-              <div className="grid gap-1.5"><Label>Hora</Label><Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} /></div>
-              <div className="col-span-2 grid gap-1.5"><Label>Chave NF-e</Label><Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} placeholder="3126 1020..." /></div>
-
-              <div className="col-span-2 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 border border-sky-500/30 p-4 flex justify-between items-center shadow-lg shadow-sky-500/10 mt-2">
-                <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Valor Total</span>
-                <span className="text-3xl font-bold text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]">{Number.isFinite(total) ? brl(total) : "R$ 0,00"}</span>
-              </div>
-
-              <DialogFooter className="col-span-2 mt-2"><Button type="submit" disabled={salvar.isPending || !form.veiculo_id}>{editingId ? "Salvar" : "Registrar"}</Button></DialogFooter>
-            </form>
-        </DialogContent>
-      </Dialog>
-
-      
-      <Dialog open={fornecedorPendente !== null} onOpenChange={(o) => !o && setFornecedorPendente(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Fornecedor não encontrado</DialogTitle>
-            <DialogDescription>
-              O CNPJ {fornecedorPendente?.cnpj} não está cadastrado no sistema.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-2">
-            <p className="text-sm text-slate-300"><strong>Nome:</strong> {fornecedorPendente?.nome}</p>
-            <p className="text-sm text-slate-300"><strong>Endereço:</strong> {fornecedorPendente?.endereco}</p>
-            <p className="text-sm text-slate-300"><strong>Bairro:</strong> {fornecedorPendente?.bairro}</p>
-            <p className="text-sm text-slate-300"><strong>Cidade/UF:</strong> {fornecedorPendente?.cidade} / {fornecedorPendente?.estado}</p>
-            <p className="text-sm text-sky-400 font-medium mt-2">Deseja cadastrá-lo automaticamente no sistema?</p>
-            <div className="grid gap-1.5 mt-3">
-              <Label>Avaliação do Fornecedor</Label>
-              <div className="flex gap-2 items-center">
+            {/* Avaliação */}
+            <div className="col-span-2 flex items-center gap-3 bg-slate-900/30 p-2 rounded-lg border border-slate-800">
+              <Label className="text-xs text-slate-400">Avaliação do Fornecedor:</Label>
+              <div className={`flex gap-1 items-center ${form.origem === "pdf" ? "pointer-events-none" : ""}`}>
                 {[1, 2, 3, 4, 5].map(star => (
-                  <button type="button" key={star} onClick={() => setFornecedorPendente(s => s ? { ...s, avaliacao: star } : null)} className="focus:outline-none hover:scale-110">
-                    <Star className={`size-5 ${star <= (fornecedorPendente?.avaliacao || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                  <button type="button" key={star} onClick={() => setForm(s => ({ ...s, avaliacao: star }))} className="focus:outline-none hover:scale-110">
+                    <Star className={`size-4 ${star <= form.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
                   </button>
                 ))}
-                <span className="text-xs text-slate-400 ml-2">{fornecedorPendente?.avaliacao === 0 ? "Sem avaliação" : `${fornecedorPendente?.avaliacao} de 5`}</span>
+                <span className="text-[10px] text-slate-500 ml-1">{form.avaliacao === 0 ? "" : `${form.avaliacao}/5`}</span>
               </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setFornecedorPendente(null)}>Cancelar</Button>
-            <Button onClick={confirmarCadastroFornecedor}>Sim, Cadastrar</Button>
-          </DialogFooter>
+
+            {/* NF, Hora e Chave */}
+            <div className="grid gap-1.5 overflow-hidden">
+              <Label>Nº NF</Label>
+              <Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} placeholder="Ex: 12550" readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} />
+            </div>
+            <div className="grid gap-1.5 overflow-hidden">
+              <Label>Hora</Label>
+              <Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} readOnly={form.origem === "pdf"} className={form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} />
+            </div>
+            <div className="col-span-2 grid gap-1.5 overflow-hidden">
+              <Label>Chave NF-e</Label>
+              <Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} placeholder="3126 1020..." readOnly={form.origem === "pdf"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+            </div>
+
+            {/* Valor Total */}
+            <div className="col-span-2 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 border border-sky-500/30 p-4 flex justify-between items-center shadow-lg shadow-sky-500/10 mt-2">
+              <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Valor Total</span>
+              <span className="text-3xl font-bold text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]">{Number.isFinite(total) ? brl(total) : "R$ 0,00"}</span>
+            </div>
+
+            <DialogFooter className="col-span-2 mt-2">
+              <Button type="submit" disabled={salvar.isPending || !form.veiculo_id}>
+                {editingId ? "Salvar" : "Registrar"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
-      
-      <Dialog open={auditoriaRow !== null} onOpenChange={(o) => !o && setAuditoriaRow(null)}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Info className="size-5 text-sky-400" /> Auditoria do Registro
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4 space-y-3">
-            <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800">
-              <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Criado por</p>
-              <p className="text-sm text-slate-200 font-medium">{auditoriaRow?.created_by_name || auditoriaRow?.created_by || "Sistema"}</p>
-            </div>
-            <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800">
-              <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Data/Hora da Criação</p>
-              <p className="text-sm text-slate-200">{auditoriaRow?.created_at ? new Date(auditoriaRow.created_at).toLocaleString('pt-BR') : "Não informada"}</p>
-            </div>
-            <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800">
-              <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Origem do Registro</p>
-              <p className="text-sm text-sky-400 font-medium uppercase">{auditoriaRow?.origem || "Manual"}</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setAuditoriaRow(null)} variant="outline">Fechar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-<ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir?" description="Ação irreversível." confirmLabel="Excluir" destructive pending={excluir.isPending} onConfirm={() => excluirId && excluir.mutate(excluirId)} testId="excluir" />
+
+      <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir?" description="Ação irreversível." confirmLabel="Excluir" destructive pending={excluir.isPending} onConfirm={() => excluirId && excluir.mutate(excluirId)} testId="excluir" />
 
       <Dialog open={importProgress !== null} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md">
@@ -658,6 +811,46 @@ export default function Abastecimentos() {
             </div>
           )}
           <DialogFooter>{importProgress && importProgress.current >= importProgress.total ? <Button onClick={() => setImportProgress(null)}>Fechar</Button> : <Button disabled variant="outline">Processando...</Button>}</DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={fornecedorPendente !== null} onOpenChange={(o) => {
+          if (!o) {
+            if (pdfPendenteData) {
+              setForm(pdfPendenteData);
+              setPdfPendenteData(null);
+              setOpen(true);
+            }
+            setFornecedorPendente(null);
+          }
+        }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fornecedor não encontrado</DialogTitle>
+            <DialogDescription>O CNPJ {fornecedorPendente?.cnpj} não está cadastrado no sistema.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-2">
+            <p className="text-sm text-slate-300"><strong>Nome:</strong> {fornecedorPendente?.nome}</p>
+            <p className="text-sm text-slate-300"><strong>Endereço:</strong> {fornecedorPendente?.endereco}</p>
+            <p className="text-sm text-slate-300"><strong>Bairro:</strong> {fornecedorPendente?.bairro}</p>
+            <p className="text-sm text-slate-300"><strong>Cidade/UF:</strong> {fornecedorPendente?.cidade} / {fornecedorPendente?.estado}</p>
+            <p className="text-sm text-sky-400 font-medium mt-2">Deseja cadastrá-lo automaticamente no sistema?</p>
+            <div className="grid gap-1.5 mt-3">
+              <Label>Avaliação do Fornecedor</Label>
+              <div className="flex gap-2 items-center">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button type="button" key={star} onClick={() => setFornecedorPendente(s => s ? { ...s, avaliacao: star } : null)} className="focus:outline-none hover:scale-110">
+                    <Star className={`size-5 ${star <= (fornecedorPendente?.avaliacao || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                  </button>
+                ))}
+                <span className="text-xs text-slate-400 ml-2">{fornecedorPendente?.avaliacao === 0 ? "Sem avaliação" : `${fornecedorPendente?.avaliacao} de 5`}</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setFornecedorPendente(null)}>Cancelar</Button>
+            <Button onClick={confirmarCadastroFornecedor}>Sim, Cadastrar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -218,6 +218,19 @@ async def criar(body: dict, request: Request, user: dict = Depends(require("writ
     else:
         doc["motorista_label"] = None
 
+    # Verifica se a nota já foi importada (Duplicidade)
+    chave_nfe_recebida = body.get("chave_nfe")
+    numero_nf_recebido = body.get("numero_nf")
+    
+    if chave_nfe_recebida:
+        existente = await db.abastecimentos.find_one({"chave_nfe": chave_nfe_recebida})
+        if existente:
+            raise HTTPException(409, "Esta nota fiscal já foi importada (Chave NF-e duplicada).")
+    elif numero_nf_recebido and body.get("cnpj"):
+        existente = await db.abastecimentos.find_one({"numero_nf": numero_nf_recebido, "cnpj": body.get("cnpj")})
+        if existente:
+            raise HTTPException(409, "Esta nota fiscal já foi importada (Número da NF e CNPJ duplicados).")
+
     await db.abastecimentos.insert_one(doc)
     doc.pop("_id", None)
     return doc
