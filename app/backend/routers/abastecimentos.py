@@ -172,44 +172,54 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     return doc
 
 @router.post("", response_model=Abastecimento, status_code=201)
-async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depends(require("write"))):
-    veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
+async def criar(body: dict, request: Request, user: dict = Depends(require("write"))):
+    veiculo_id = body.get("veiculo_id")
+    if not veiculo_id:
+        raise HTTPException(400, "Veículo é obrigatório")
+    
+    veiculo = await db.veiculos.find_one({"id": veiculo_id}, {"_id": 0})
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
 
+    # Busca o último abastecimento para calcular KM
     ultimo = await db.abastecimentos.find_one(
-        {"veiculo_id": body.veiculo_id, "data": {"$lt": body.data}},
+        {"veiculo_id": veiculo_id, "data": {"$lt": body.get("data")}},
         {"_id": 0},
         sort=[("data", -1)]
     )
 
-    km_rodados, media_km_l = calcular_km(body.km, body.litros, body.produto, ultimo, veiculo)
+    litros = float(body.get("litros") or 0)
+    preco_litro = float(body.get("preco_litro") or 0)
+    km_atual = float(body.get("km") or 0) # AQUI ESTAVA O ERRO, AGORA ESTÁ DEFINIDO
 
-    doc = body.model_dump()
+    km_rodados = None
+    media_km_l = None
+
+    if ultimo and ultimo.get("km") and km_atual > ultimo["km"]:
+        km_rodados = km_atual - ultimo["km"]
+        if litros > 0:
+            media_km_l = km_rodados / litros
+
+    # Monta o documento
+    doc = {k: v for k, v in body.items() if v is not None}
     doc["id"] = str(uuid.uuid4())
-    doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
-    doc["valor_total"] = round(body.litros * body.preco_litro, 2)
+    doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo.get('modelo', '')}"
+    doc["valor_total"] = round(litros * preco_litro, 2)
     doc["km_rodados"] = km_rodados
     doc["media_km_l"] = media_km_l
-    doc["created_by"] = user["id"]
+    doc["created_by"] = user.get("id", "sistema")
     doc["created_at"] = now_iso()
+    doc["origem"] = doc.get("origem", "manual")
 
-    if body.motorista_id:
-        mot = await db.motoristas.find_one({"id": body.motorista_id}, {"_id": 0})
+    if body.get("motorista_id"):
+        mot = await db.motoristas.find_one({"id": body["motorista_id"]}, {"_id": 0})
         doc["motorista_label"] = mot["nome"] if mot else None
     else:
         doc["motorista_label"] = None
-        
-    if body.combustivel_id and not body.produto:
-        comb = await db.combustiveis.find_one({"id": body.combustivel_id}, {"_id": 0})
-        doc["produto"] = comb["nome"] if comb else "Diesel S-10"
 
     await db.abastecimentos.insert_one(doc)
-    if km_atual > 0:
-        await db.veiculos.update_one({"id": veiculo["id"]}, {"$set": {"hodometro_km": km_atual}})
     doc.pop("_id", None)
     return doc
-
 @router.put("/{id}", response_model=Abastecimento)
 async def atualizar(id: str, body: AbastecimentoCreate, request: Request, user: dict = Depends(require("write"))):
     veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})

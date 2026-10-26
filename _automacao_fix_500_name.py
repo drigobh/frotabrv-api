@@ -1,27 +1,13 @@
 import os
+import re
 
-def fix_backend_model(raiz):
-    caminho = os.path.join(raiz, "app", "backend", "models", "abastecimentos.py")
-    with open(caminho, 'r', encoding='utf-8') as f:
-        c = f.read()
-
-    # Adiciona campos que faltavam no modelo
-    for campo in ['produto', 'cidade', 'estado']:
-        if campo not in c:
-            c = c.replace('cnpj: str | None = None', f'cnpj: str | None = None\n    {campo}: str | None = None')
-    
-    with open(caminho, 'w', encoding='utf-8') as f:
-        f.write(c)
-    print("✅ Modelo atualizado com produto, cidade e estado.")
-
-def fix_backend_router(raiz):
+def fix_backend(raiz):
     caminho = os.path.join(raiz, "app", "backend", "routers", "abastecimentos.py")
     with open(caminho, 'r', encoding='utf-8') as f:
         c = f.read()
 
-    # Substitui a rota de criação para receber dict e ser tolerante
-    import re
-    padrao = re.compile(r'@router\.post\("", response_model=Abastecimento\)\s*async def criar\([\s\S]*?return doc', re.DOTALL)
+    # Encontra a rota de criação manual e substitui pelo bloco correto
+    padrao = re.compile(r'@router\.post\("", response_model=None, status_code=201\)\s*async def criar\([\s\S]*?return doc', re.DOTALL)
     
     nova_rota = '''@router.post("", response_model=None, status_code=201)
 async def criar(body: dict, request: Request, user: dict = Depends(require("write"))):
@@ -33,6 +19,7 @@ async def criar(body: dict, request: Request, user: dict = Depends(require("writ
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
 
+    # Busca o último abastecimento para calcular KM
     ultimo = await db.abastecimentos.find_one(
         {"veiculo_id": veiculo_id, "data": {"$lt": body.get("data")}},
         {"_id": 0},
@@ -51,6 +38,7 @@ async def criar(body: dict, request: Request, user: dict = Depends(require("writ
         if litros > 0:
             media_km_l = km_rodados / litros
 
+    # Monta o documento
     doc = {k: v for k, v in body.items() if v is not None}
     doc["id"] = str(uuid.uuid4())
     doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo.get('modelo', '')}"
@@ -70,35 +58,14 @@ async def criar(body: dict, request: Request, user: dict = Depends(require("writ
     await db.abastecimentos.insert_one(doc)
     doc.pop("_id", None)
     return doc'''
-    
+
     if padrao.search(c):
         c = padrao.sub(lambda m: nova_rota, c)
         with open(caminho, 'w', encoding='utf-8') as f:
             f.write(c)
-        print("✅ Backend: Rota de criação manual reescrita e tolerante.")
+        print("✅ Backend: Função de criação manual reescrita (sem erros de variável).")
     else:
-        print("⚠️ Não foi possível encontrar a rota de criação.")
-
-def fix_frontend(raiz):
-    caminho = os.path.join(raiz, "frontend", "src", "pages", "Abastecimentos.tsx")
-    with open(caminho, 'r', encoding='utf-8') as f:
-        c = f.read()
-
-    # Garantir que a avaliação não seja enviada no payload do abastecimento
-    c = c.replace(
-        'avaliacao: form.avaliacao || 0,', '' # remove se existir no payload
-    )
-
-    # Garantir que o form.origem seja "manual" quando for manual
-    if 'setForm(vazio(hoje))' in c:
-        c = c.replace('setForm(vazio(hoje))', 'setForm({ ...vazio(hoje), origem: "manual" })')
-
-    with open(caminho, 'w', encoding='utf-8') as f:
-        f.write(c)
-    print("✅ Frontend: Ajustado para não enviar avaliação no abastecimento e forçar origem manual.")
+        print("⚠️ Não foi possível encontrar a função de criação.")
 
 if __name__ == "__main__":
-    raiz = os.getcwd()
-    fix_backend_model(raiz)
-    fix_backend_router(raiz)
-    fix_frontend(raiz)
+    fix_backend(os.getcwd())
