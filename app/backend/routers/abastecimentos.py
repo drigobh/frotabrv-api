@@ -180,6 +180,23 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         "created_at": now_iso()
     }
 
+    # Trava de Segurança: Bloqueio de Importação Duplicada
+    codigo_transacao_recebido = body.get("codigo_transacao")
+    
+    if codigo_transacao_recebido:
+        existente = await db.abastecimentos.find_one({"codigo_transacao": codigo_transacao_recebido})
+        if existente:
+            raise HTTPException(409, "Registro duplicado: Código de Transação já importado.")
+    
+    # Se não tiver código (BSOFT), checa por placa + data + litros
+    existente_placa = await db.abastecimentos.find_one({
+        "veiculo_id": veiculo["id"],
+        "data": data_abast,
+        "litros": litros
+    })
+    if existente_placa:
+        raise HTTPException(409, "Registro duplicado: Abastecimento com esta placa, data e litros já existe.")
+
     await db.abastecimentos.insert_one(doc)
     if km_atual > 0:
         await db.veiculos.update_one({"id": veiculo["id"]}, {"$set": {"hodometro_km": km_atual}})
@@ -245,6 +262,23 @@ async def criar(body: dict, request: Request, user: dict = Depends(require("writ
         existente = await db.abastecimentos.find_one({"numero_nf": numero_nf_recebido, "cnpj": body.get("cnpj")})
         if existente:
             raise HTTPException(409, "Esta nota fiscal já foi importada (Número da NF e CNPJ duplicados).")
+
+    # Trava de Segurança: Bloqueio de Importação Duplicada
+    codigo_transacao_recebido = body.get("codigo_transacao")
+    
+    if codigo_transacao_recebido:
+        existente = await db.abastecimentos.find_one({"codigo_transacao": codigo_transacao_recebido})
+        if existente:
+            raise HTTPException(409, "Registro duplicado: Código de Transação já importado.")
+    
+    # Se não tiver código (BSOFT), checa por placa + data + litros
+    existente_placa = await db.abastecimentos.find_one({
+        "veiculo_id": veiculo["id"],
+        "data": data_abast,
+        "litros": litros
+    })
+    if existente_placa:
+        raise HTTPException(409, "Registro duplicado: Abastecimento com esta placa, data e litros já existe.")
 
     await db.abastecimentos.insert_one(doc)
     doc.pop("_id", None)

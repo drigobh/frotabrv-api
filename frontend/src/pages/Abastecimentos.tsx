@@ -24,6 +24,16 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 const TODOS = "__all__";
 const NENHUM = "__none__";
 
+const formatData = (d: string) => {
+  if (!d) return "—";
+  if (d.includes("/")) return d;
+  if (d.includes("-")) {
+      const parts = d.split("T")[0].split("-");
+      if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return d;
+};
+
 const formatCnpj = (val: string) => {
   return val.replace(/\D/g, '')
     .replace(/^(\d{2})(\d)/, '$1.$2')
@@ -425,7 +435,13 @@ export default function Abastecimentos() {
       }
 
       setImportProgress(prev => prev ? { ...prev, current: totalLinhas, errors: erros } : null);
-      if (erros.length === 0) toast.success(`${importados} Edenred importados!`);
+      if (erros.length === 0) {
+        toast.success(`${importados} Edenred importados!`);
+      } else if (importados > 0) {
+        toast.warning(`${importados} importados, mas ${erros.length} deram erro ou já existiam.`);
+      } else {
+        toast.error("Todos os registros já foram importados ou deram erro.");
+      }
       invalidate();
     } catch (error) {
       console.error(error); toast.error("Erro ao ler Edenred."); setImportProgress(null);
@@ -469,7 +485,6 @@ export default function Abastecimentos() {
       setImportProgress({ total: totalLinhas, current: 0, errors: [] });
       let importados = 0; const erros: any[] = [];
 
-      // Função parseNum super robusta
       const parseNum = (val: any) => {
         if (!val) return 0;
         let str = String(val).replace(/[^0-9.,-]/g, "");
@@ -486,7 +501,8 @@ export default function Abastecimentos() {
         const row = rows[i];
         if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAIS")) continue;
 
-        const dataStr = String(row[idxData]).trim().split(" ")[0];
+        let dataStr = String(row[idxData]).trim().split(" ")[0]; 
+
         let placaRaw = String(row[idxPlaca] || "").trim();
         const placa = placaRaw.replace("-", "").split("/")[0].toUpperCase();
 
@@ -514,13 +530,23 @@ export default function Abastecimentos() {
           importados++; 
           await new Promise(r => setTimeout(r, 150)); 
         } catch (err: any) { 
-          erros.push({ linha: i + 1, placa: placa, erro: err.message || "Erro" }); 
+          if (err.message && err.message.includes("409")) {
+            erros.push({ linha: i + 1, placa: placa, erro: "Já importado (duplicado)" });
+          } else {
+            erros.push({ linha: i + 1, placa: placa, erro: err.message || "Erro" }); 
+          }
         }
         setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
       }
 
       setImportProgress(prev => prev ? { ...prev, current: totalLinhas, errors: erros } : null);
-      if (erros.length === 0) toast.success(`${importados} registros BSOFT importados!`);
+      if (erros.length === 0) {
+        toast.success(`${importados} registros BSOFT importados!`);
+      } else if (importados > 0) {
+        toast.warning(`${importados} importados, mas ${erros.length} já existiam ou deram erro.`);
+      } else {
+        toast.error("Todos os registros já foram importados ou deram erro.");
+      }
       invalidate();
     } catch (error) {
       console.error(error); toast.error("Erro ao ler o arquivo BSOFT."); setImportProgress(null);
@@ -707,7 +733,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             {rowsFiltradas.map((r: any) => (
               <TableRow key={r.id} className="border-slate-800/70">
                 {/* Data */}
-                <TableCell className="text-xs text-slate-400 px-2 text-center">{dataBR(r.data)}</TableCell>
+                <TableCell className="text-xs text-slate-400 px-2 text-center">{formatData(r.data)}</TableCell>
                 {/* Origem */}
                 <TableCell className="text-center px-2">
                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
