@@ -120,9 +120,13 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
 
     km_rodados, media_km_l = calcular_km(km_atual, litros, produto, ultimo, veiculo)
 
-    valor_total = body.get("valor_total")
-    if not valor_total:
-        valor_total = litros * preco_litro
+    try:
+        valor_total = float(body.get("valor_total") or 0)
+    except:
+        valor_total = 0
+        
+    if valor_total == 0:
+        valor_total = float(litros) * float(preco_litro)
     valor_total = round(valor_total, 2)
 
     acoplamento = await db.acoplamentos.find_one(

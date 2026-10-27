@@ -119,22 +119,26 @@ export default function Abastecimentos() {
     });
   }, [rowsComCalculo, filtroVeiculo, filtroMotorista, filtroPosto, filtroNF, mes]);
 
-  const resumo = useMemo(() => {
-    const litros = rowsFiltradas.reduce((s, r) => s + (Number(r.litros) || 0), 0);
-    const valor = rowsFiltradas.reduce((s, r) => s + (Number(r.valor_total) || 0), 0);
-    const comKm = rowsFiltradas.filter((r) => r.km_rodados != null && r.km_rodados > 0);
-    const km = comKm.reduce((s, r) => s + (Number(r.km_rodados) || 0), 0);
-    const litrosKm = comKm.reduce((s, r) => s + (Number(r.litros) || 0), 0);
-    const maior = rowsFiltradas.reduce((max, r) => (Number(r.valor_total) || 0) > (Number(max?.valor_total) || 0) ? r : max, null as Abastecimento | null);
-    const menor = rowsFiltradas.reduce((min, r) => (Number(r.valor_total) || 0) < (Number(min?.valor_total) || Infinity) ? r : min, null as Abastecimento | null);
-    const mediaValor = rowsFiltradas.length ? valor / rowsFiltradas.length : 0;
-    const mediaKm = comKm.length ? km / comKm.length : 0;
-    const custoPorKm = km > 0 ? valor / km : 0;
-    const comNF = rowsFiltradas.filter(r => r.numero_nf || r.chave_nfe).length;
-    const semNF = rowsFiltradas.length - comNF;
+  const parseSafe = (val: any) => {
+        if (val === undefined || val === null || val === "") return 0;
+        if (typeof val === 'number') return val;
+        let str = String(val).replace(/[^0-9.,-]/g, "");
+        if (str.includes('.') && str.includes(',')) str = str.replace(/\./g, '').replace(',', '.');
+        else if (str.includes(',')) str = str.replace(',', '.');
+        return Number(str) || 0;
+      };
 
-    return { litros, valor, km, media: litrosKm ? km / litrosKm : 0, preco: litros ? valor / litros : 0, total: rowsFiltradas.length, maior, menor, mediaValor, mediaKm, custoPorKm, comNF, semNF };
-  }, [rowsFiltradas]);
+      const resumo = useMemo(() => {
+        const litros = rowsFiltradas.reduce((s, r) => s + parseSafe(r.litros), 0);
+        const valor = rowsFiltradas.reduce((s, r) => s + parseSafe(r.valor_total), 0);
+        const km = rowsFiltradas.reduce((s, r) => s + parseSafe(r.km_rodados), 0);
+        const comMedia = rowsFiltradas.filter(r => parseSafe(r.media_km_l) > 0);
+        const mediaGeral = comMedia.length > 0 ? comMedia.reduce((s, r) => s + parseSafe(r.media_km_l), 0) / comMedia.length : 0;
+        const preco = litros > 0 ? valor / litros : 0;
+        const maior = rowsFiltradas.reduce((max, r) => parseSafe(r.valor_total) > parseSafe(max?.valor_total) ? r : max, null as Abastecimento | null);
+        const menor = rowsFiltradas.reduce((min, r) => parseSafe(r.valor_total) < parseSafe(min?.valor_total) || !min ? r : min, null as Abastecimento | null);
+        return { litros, valor, km, media: litros > 0 ? km / litros : 0, preco, total: rowsFiltradas.length, maior, menor, mediaValor: rowsFiltradas.length > 0 ? valor / rowsFiltradas.length : 0, mediaKm: rowsFiltradas.length > 0 ? km / rowsFiltradas.length : 0, custoPorKm: km > 0 ? valor / km : 0, comNF: rowsFiltradas.filter(r => r.numero_nf).length, semNF: rowsFiltradas.filter(r => !r.numero_nf).length };
+      }, [rowsFiltradas]);
 
   const ranking = useMemo(() => {
     const porVeiculo: Record<string, { label: string, litros: number, km: number }> = {};
@@ -342,111 +346,65 @@ export default function Abastecimentos() {
 
       if (rows.length < 2) { toast.error("Planilha vazia."); return; }
 
-      const headerRow = rows[0].map((c: any) => String(c).toUpperCase().trim());
-      const findIdx = (name: string) => headerRow.findIndex(h => h.includes(name));
-
-      const idxCod = findIdx("CODIGO TRANSACAO");
-      const idxData = findIdx("DATA TRANSACAO");
-      const idxPlaca = findIdx("PLACA");
-      const idxMotorista = findIdx("NOME MOTORISTA");
-      const idxProduto = findIdx("TIPO COMBUSTIVEL");
-      const idxLitros = findIdx("LITROS");
-      const idxPreco = findIdx("VL/LITRO");
-      const idxKm = findIdx("HODOMETRO");
-      const idxKmRodados = findIdx("KM RODADOS");
-      const idxMedia = findIdx("KM/LITRO");
-      const idxPosto = findIdx("NOME ESTABELECIMENTO");
-      const idxValor = findIdx("VALOR EMISSAO");
-      
-      // Colunas de endereço e CNPJ (se existirem)
-      const idxCnpj = findIdx("CNPJ");
-      const idxCidade = findIdx("CIDADE");
-      const idxEstado = findIdx("UF");
-
       const totalLinhas = rows.length - 1;
       setImportProgress({ total: totalLinhas, current: 0, errors: [] });
       let importados = 0; const erros: any[] = [];
 
-      // Função de conversão super robusta
       const parseNum = (val: any) => {
         if (!val) return 0;
         let str = String(val).trim();
-        if (str.includes('.') && str.includes(',')) {
-            str = str.replace(/\./g, '').replace(',', '.');
-        } else if (str.includes(',')) {
-            str = str.replace(',', '.');
-        }
+        if (str.includes('.') && str.includes(',')) str = str.replace(/\./g, '').replace(',', '.');
+        else if (str.includes(',')) str = str.replace(',', '.');
         const num = Number(str);
         return isNaN(num) ? 0 : num;
       };
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAL")) continue;
+        if (!row || !row[4] || String(row[4]).toUpperCase().includes("TOTAL")) continue;
 
-        const dataStr = String(row[idxData]).trim();
+        // MAPEAMENTO FIXO EDENRED
+        const codigo_transacao = String(row[0] || "").trim();
+        const dataStr = String(row[4] || "").trim();
+        const placa = String(row[5] || "").toUpperCase().trim();
+        const motoristaNome = String(row[11] || "").trim().toUpperCase();
+        const produto = String(row[13] || "DIESEL").toUpperCase();
+        const litros = parseNum(row[14]);
+        const preco_litro = parseNum(row[15]);
+        const km = parseNum(row[16]);
+        const km_rodados = parseNum(row[17]);
+        const media_km_l = parseNum(row[18]);
+        const valor_total = parseNum(row[19]);
+        const fornecedor = String(row[21] || "").trim();
+        const cidade = String(row[25] || "").trim();
+        const estado = String(row[26] || "").trim();
+
         const dataFinal = dataStr.split(" ")[0];
         const horaFinal = dataStr.includes(" ") ? dataStr.split(" ")[1].substring(0, 5) : null;
 
-        const kmNum = parseNum(row[idxKm]);
-        const litrosNum = parseNum(row[idxLitros]);
-        const precoNum = parseNum(row[idxPreco]); // Força a leitura da coluna P
-        const valorNum = idxValor !== -1 ? parseNum(row[idxValor]) : (litrosNum * precoNum); // Força a leitura da coluna T
-        
-        const kmRodadosNum = idxKmRodados !== -1 ? parseNum(row[idxKmRodados]) : null;
-        const mediaNum = idxMedia !== -1 ? parseNum(row[idxMedia]) : null;
-
-        const motoristaNome = idxMotorista !== -1 ? String(row[idxMotorista] || "").trim() : "";
         let motoristaId = NENHUM;
         if (motoristaNome && motoristas.data) {
-          const mot = motoristas.data.find((m: any) => m.nome.toUpperCase() === motoristaNome.toUpperCase());
+          const mot = motoristas.data.find((m: any) => m.nome.toUpperCase() === motoristaNome || m.nome.toUpperCase().includes(motoristaNome));
           if (mot) motoristaId = mot.id;
         }
 
-        let cnpjRaw = idxCnpj !== -1 ? String(row[idxCnpj] || "").replace(/\D/g, "") : "";
-        let cnpjFormatado = cnpjRaw.length === 14 ? formatCnpj(cnpjRaw) : "";
-        
-        const fornecedorNome = String(row[idxPosto] || "").trim();
-        const cidade = idxCidade !== -1 ? String(row[idxCidade] || "").trim() : "";
-        const estado = idxEstado !== -1 ? String(row[idxEstado] || "").trim() : "";
-
-        // Se não tem CNPJ na planilha, tenta buscar via BrasilAPI pelo Nome e Cidade
-        if (!cnpjFormatado && fornecedorNome && cidade) {
-          try {
-            const data = await apiGet<any>(`/fornecedores/consultar-cnpj-por-nome?nome=${encodeURIComponent(fornecedorNome)}&cidade=${encodeURIComponent(cidade)}`);
-            if (data && data.cnpj) {
-              cnpjFormatado = formatCnpj(data.cnpj);
-            }
-          } catch (err) {
-            // Se não achar, segue o baile (não quebra a importação)
-          }
-        }
+        // Busca CNPJ se o fornecedor já existir no banco
+        let cnpjFormatado = "";
+        const existingForn = fornecedores.find((f: any) => f.nome.toLowerCase() === fornecedor.toLowerCase());
+        if (existingForn && existingForn.documento) cnpjFormatado = existingForn.documento;
 
         const payload = {
-          data: dataFinal,
-          placa: String(row[idxPlaca] || "").toUpperCase().trim(),
-          km: kmNum,
-          motorista_id: motoristaId,
-          fornecedor: fornecedorNome,
-          cnpj: cnpjFormatado,
-          cidade: cidade,
-          estado: estado,
-          litros: litrosNum,
-          preco_litro: precoNum,
-          valor_total: valorNum,
-          km_rodados: kmRodadosNum,
-          media_km_l: mediaNum,
-          produto: String(row[idxProduto] || "DIESEL").toUpperCase(),
-          codigo_transacao: String(row[idxCod] || "").trim(),
+          data: dataFinal, placa, km, motorista_id: motoristaId, fornecedor, cnpj: cnpjFormatado, cidade, estado,
+          litros, preco_litro, valor_total, km_rodados, media_km_l, produto, codigo_transacao,
           hora: horaFinal, numero_nf: null, chave_nfe: null, origem: "excel"
         };
 
         try { 
           await apiPost("/abastecimentos/importar", payload); 
           importados++; 
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 100)); 
         } catch (err: any) { 
-          erros.push({ linha: i + 1, placa: payload.placa, erro: err.message || "Erro" }); 
+          erros.push({ linha: i + 1, placa: placa, erro: err.message || "Erro" }); 
         }
         setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
       }
@@ -530,7 +488,7 @@ export default function Abastecimentos() {
       const payload = { 
         data: form.data, veiculo_id: form.veiculo_id, 
         motorista_id: form.motorista_id === NENHUM ? null : form.motorista_id, 
-        litros: Number(form.litros.replace(",", ".")), preco_litro: Number(form.preco_litro.replace(",", ".")),
+        litros: Number(String(form.litros || "").replace(",", ".")) || 0, preco_litro: Number(String(form.preco_litro || "").replace(",", ".")) || 0,
         posto: form.fornecedor || "Importado", km: Number(form.km), observacoes: form.observacoes,
         numero_nf: form.numero_nf || null, chave_nfe: form.chave_nfe || null, hora: form.hora || null,
         cnpj: form.cnpj || null, fornecedor: form.fornecedor || null, cidade: form.cidade || null,
@@ -549,19 +507,21 @@ export default function Abastecimentos() {
     onError: (e) => toast.error(errMsg(e)),
   });
 
-  const total = Number(form.litros.replace(",", ".")) * Number(form.preco_litro.replace(",", "."));
+  const total = (Number(String(form.litros || "").replace(",", ".")) || 0) * (Number(String(form.preco_litro || "").replace(",", ".")) || 0);
   const set = (k: keyof ReturnType<typeof vazio>) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
   const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
   const abrirNovo = () => { setEditingId(null); setForm({ ...vazio(hoje), origem: "manual" }); setOpen(true); };
   const abrirEdicao = (r: Abastecimento) => { 
     setEditingId(r.id); 
+    let dataStr = r.data;
+    if (dataStr.includes("/")) { const [d, m, y] = dataStr.split("/"); dataStr = `${y}-${m}-${d}`; } else { dataStr = dataStr.split("T")[0]; }
     setForm({ 
-      data: r.data, veiculo_id: r.veiculo_id, motorista_id: r.motorista_id || NENHUM, 
-      litros: String(r.litros), preco_litro: String(r.preco_litro), posto: r.posto || "", km: String(r.km), 
-      observacoes: r.observacoes || "", numero_nf: r.numero_nf || "", chave_nfe: r.chave_nfe || "", 
-      hora: r.hora || "", cnpj: r.cnpj || "", fornecedor: (r as any).fornecedor || "", 
-      origem: r.origem || "manual", produto: (r as any).produto || "DIESEL", combustivel_id: (r as any).combustivel_id || "",
-      cidade: (r as any).cidade || "", estado: (r as any).estado || "", avaliacao: (r as any).avaliacao || 0
+      data: dataStr, veiculo_id: r.veiculo_id, motorista_id: r.motorista_id || NENHUM, 
+      combustivel_id: (r as any).combustivel_id || "", litros: String(r.litros || ""), preco_litro: String(r.preco_litro || ""), 
+      posto: r.posto || "", km: String(r.km || ""), observacoes: r.observacoes || "", numero_nf: r.numero_nf || "", 
+      chave_nfe: r.chave_nfe || "", codigo_transacao: (r as any).codigo_transacao || "", hora: r.hora || "", cnpj: r.cnpj || "", fornecedor: (r as any).fornecedor || r.posto || "", cidade: (r as any).cidade || "", estado: (r as any).estado || "", 
+      fornecedor: (r as any).fornecedor || r.posto || "", cidade: (r as any).cidade || "", estado: (r as any).estado || "", 
+      avaliacao: 0, origem: r.origem || "excel", produto: r.produto || "DIESEL" 
     }); 
     setOpen(true); 
   };
@@ -686,88 +646,92 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
       <div className="glass overflow-hidden rounded-2xl">
         <Table className="text-xs">
           <TableHeader>
-            <TableRow className="border-slate-800">
-              {["Data", "Origem", "NF", "Veículo", "Motorista", "Produto", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "Média", "Ações"].map(h => <TableHead key={h} className="text-[10px] uppercase text-slate-500 px-2 text-center">{h}</TableHead>)}
+            <TableRow className="border-slate-800 hover:bg-transparent">
+              {["Data", "Origem", "NF", "Cód.Trans", "Veículo", "Motorista", "Produto", "Litros", "R$/L", "Total", "Posto", "KM", "Rodados", "Média", "Ações"].map(h => (
+                <TableHead key={h} className="text-[10px] uppercase text-slate-500 px-2 text-center">{h}</TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rowsFiltradas.length === 0 && <TableRow><TableCell colSpan={14} className="py-10 text-center text-slate-500">Nenhum abastecimento.</TableCell></TableRow>}
-            {rowsFiltradas.map(r => (
-              <TableRow key={r.id} className="border-slate-800/70">
-                <TableCell className="font-mono px-2 text-center">{dataBR(r.data)}</TableCell>
-                <TableCell className="text-center px-2">{r.origem === "pdf" ? <span className="bg-red-500/20 text-red-400 px-2 py-0.5 font-bold rounded">PDF</span> : r.origem === "excel" ? <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 font-bold rounded">XLS</span> : <span className="bg-slate-500/20 text-slate-400 px-2 py-0.5 font-bold rounded">M</span>}</TableCell>
-                <TableCell className="text-center px-2">
-                  {(r.numero_nf || r.chave_nfe) ? (
-                    <span className="inline-flex items-center justify-center gap-1 bg-emerald-500/20 text-emerald-400 px-2 py-0.5 text-[10px] font-bold rounded" title={`NF: ${r.numero_nf || ''} | Chave: ${r.chave_nfe || ''}`}>
-                      <CheckCircle2 className="size-3" /> OK
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center justify-center gap-1 bg-red-500/20 text-red-400 px-2 py-0.5 text-[10px] font-bold rounded animate-pulse" title="Sem Nota Fiscal">
-                      <AlertTriangle className="size-3" /> SEM
-                    </span>
-                  )}
+            {rowsFiltradas.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={15} className="py-10 text-center text-slate-500">
+                  Nenhum abastecimento encontrado.
                 </TableCell>
-                <TableCell className="font-mono px-2 text-center">{r.veiculo_label.split(" · ")[0]}</TableCell>
-                <TableCell className="text-slate-300 px-2 truncate max-w-[150px] text-center">{r.motorista_label ?? "—"}</TableCell>
-                <TableCell className="text-slate-300 px-2 truncate max-w-[150px] text-center">{(r as any).produto || "—"}</TableCell>
-                <TableCell className="tabular-nums px-2 text-center">{num(r.litros, 3)}</TableCell>
-                <TableCell className="tabular-nums px-2 text-center">{brl(r.preco_litro)}</TableCell>
-                <TableCell className="tabular-nums font-medium px-2 text-center">{brl(r.valor_total)}</TableCell>
-                <TableCell className="text-slate-300 px-2 max-w-[150px] text-center align-middle">
-                      <div className="flex flex-col items-center justify-center">
-                        <span className="truncate w-full" title={r.fornecedor || r.posto}>{r.fornecedor || r.posto || "—"}</span>
-                        {(() => {
-                          const docLimpo = (r.cnpj || "").replace(/\D/g, '');
-                          const nomeLimpo = (r.fornecedor || r.posto || "").toUpperCase();
-                          
-                          const forn = fornecedores?.find((f: any) => 
-                            (f.documento && f.documento.replace(/\D/g, '') === docLimpo && docLimpo.length > 0) || 
-                            (f.nome && f.nome.toUpperCase() === nomeLimpo)
-                          );
-                          
-                          if (!forn || !forn.avaliacao || forn.avaliacao === 0) return null;
-                          
-                          return (
-                            <div className="flex gap-0.5 mt-1 justify-center">
-                              {[1, 2, 3, 4, 5].map(star => (
-                                <Star key={star} className={`size-2.5 ${star <= forn.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-700'}`} />
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </TableCell>
-                <TableCell className="font-mono tabular-nums px-2 text-center">{num(r.km)}</TableCell>
-                <TableCell className="tabular-nums px-2 text-center">{r.km_rodados != null ? num(r.km_rodados) : "—"}</TableCell>
-                <TableCell className="tabular-nums text-sky-300 px-2 text-center">{r.media_km_l != null ? num(r.media_km_l, 2) : "—"}</TableCell>
+              </TableRow>
+            )}
+            {rowsFiltradas.map((r: any) => (
+              <TableRow key={r.id} className="border-slate-800/70">
+                {/* Data */}
+                <TableCell className="text-xs text-slate-400 px-2 text-center">{dataBR(r.data)}</TableCell>
+                {/* Origem */}
                 <TableCell className="text-center px-2">
-                  <div className="flex gap-1 justify-center">
-                    <Button size="icon-sm" variant="ghost" className="cursor-help" title={`Cadastrado por: ${(r as any).created_by_name || (r as any).created_by || 'Sistema'}`}>
-                      <Info className="size-4 text-slate-400" />
-                    </Button>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${r.origem === 'manual' ? 'bg-slate-800 text-slate-300' : r.origem === 'pdf' ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                    {r.origem}
+                  </span>
+                </TableCell>
+                {/* NF */}
+                <TableCell className="text-center px-2">
+                  {r.numero_nf ? <span className="text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">{r.numero_nf}</span> : <span className="text-[10px] text-slate-500">—</span>}
+                </TableCell>
+                {/* Cód.Trans */}
+                <TableCell className="text-center px-2 text-[10px] text-slate-400 font-mono">
+                  {r.codigo_transacao || "—"}
+                </TableCell>
+                {/* Veículo */}
+                <TableCell className="text-xs font-medium text-slate-200 px-2 text-center">
+                  {r.veiculo_label?.split(" · ")[0] || "—"}
+                </TableCell>
+                {/* Motorista */}
+                <TableCell className="text-slate-300 px-2 truncate max-w-[150px] text-center">
+                  {r.motorista_label ?? "—"}
+                </TableCell>
+                {/* Produto */}
+                <TableCell className="text-slate-300 px-2 truncate max-w-[150px] text-center">
+                  {r.produto || "—"}
+                </TableCell>
+                {/* Litros */}
+                <TableCell className="tabular-nums px-2 text-center">{num(r.litros, 3)}</TableCell>
+                {/* R$/L */}
+                <TableCell className="tabular-nums px-2 text-center">{brl(r.preco_litro)}</TableCell>
+                {/* Total */}
+                <TableCell className="tabular-nums px-2 text-center">{brl(r.valor_total)}</TableCell>
+                {/* Posto (com estrelas) */}
+                <TableCell className="text-slate-300 px-2 max-w-[150px] text-center align-middle">
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="truncate w-full" title={r.fornecedor || r.posto}>{r.fornecedor || r.posto || "—"}</span>
+                    {(() => {
+                      const docLimpo = (r.cnpj || "").replace(/\D/g, '');
+                      const nomeLimpo = (r.fornecedor || r.posto || "").toUpperCase();
+                      const forn = fornecedores?.find((f: any) => (f.documento && f.documento.replace(/\D/g, '') === docLimpo && docLimpo.length > 0) || (f.nome && f.nome.toUpperCase() === nomeLimpo));
+                      if (!forn || !forn.avaliacao || forn.avaliacao === 0) return null;
+                      return (
+                        <div className="flex gap-0.5 mt-1 justify-center">
+                          {[1, 2, 3, 4, 5].map(star => <Star key={star} className={`size-2.5 ${star <= forn.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-700'}`} />)}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </TableCell>
+                {/* KM */}
+                <TableCell className="tabular-nums px-2 text-center">{num(r.km)}</TableCell>
+                {/* Rodados */}
+                <TableCell className="tabular-nums px-2 text-center">{r.km_rodados != null ? num(r.km_rodados) : "—"}</TableCell>
+                {/* Média */}
+                <TableCell className="tabular-nums px-2 text-center">{r.media_km_l != null ? num(r.media_km_l) : "—"}</TableCell>
+                {/* Ações */}
+                <TableCell className="text-center px-2">
+                  <div className="flex items-center justify-center gap-1">
+                    <Button size="icon-sm" variant="ghost" onClick={() => { 
+                      setForm({ ...vazio(hoje), ...r, litros: String(r.litros || ""), preco_litro: String(r.preco_litro || ""), km: String(r.km || ""), origem: r.origem || "excel", fornecedor: (r as any).fornecedor || r.posto || "", cnpj: r.cnpj || "", cidade: (r as any).cidade || "", estado: (r as any).estado || "", codigo_transacao: (r as any).codigo_transacao || "" }); 
+                      setOpen(true); setEditingId(r.id); 
+                    }} title="Visualizar"><Eye className="size-4 text-emerald-400" /></Button>
                     <Button size="icon-sm" variant="ghost" onClick={() => {
-      if (r.origem === "pdf") toast.error("Proibido editar arquivo de nota fiscal importada via PDF.");
-      else if (r.origem === "excel") toast.error("Proibido editar arquivo importado via Excel.");
-      else abrirEdicao(r);
-    }}><Pencil className="size-4 text-sky-400" /></Button>
-    <Button size="icon-sm" variant="ghost" onClick={() => { 
-      setForm({ 
-        ...vazio(hoje), 
-        ...r, 
-        litros: String(r.litros || ""), 
-        preco_litro: String(r.preco_litro || ""), 
-        km: String(r.km || ""), 
-        origem: r.origem,
-        fornecedor: r.fornecedor || "",
-        cnpj: r.cnpj || "",
-        cidade: r.cidade || "",
-        estado: r.estado || "",
-        codigo_transacao: r.codigo_transacao || ""
-      }); 
-      setOpen(true); 
-      setEditingId(r.id); 
-    }}><Eye className="size-4 text-emerald-400" /></Button>
-                    {me?.perfil === "admin" && <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4" /></Button>}
+                      if (r.origem === "pdf") toast.error("Proibido editar arquivo importado via PDF.");
+                      else if (r.origem === "excel") toast.error("Proibido editar arquivo importado via Excel.");
+                      else abrirEdicao(r);
+                    }} title="Editar"><Pencil className="size-4 text-sky-400" /></Button>
+                    <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(r.id)} title="Excluir"><Trash2 className="size-4 text-red-400" /></Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -783,13 +747,13 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             {/* Veículo */}
             <div className="col-span-2 grid gap-1.5 overflow-hidden">
               <Label>Veículo *</Label>
-              <div className={`w-full ${form.origem === "pdf" ? "rounded-md border border-purple-800 bg-purple-950/20 px-3 py-2 pointer-events-none opacity-80" : ""}`}>
+              <div className={`w-full ${form.origem !== "manual" ? "rounded-md border border-purple-800 bg-purple-950/20 px-3 py-2 pointer-events-none opacity-80" : ""}`}>
                 <FieldSelect 
                   value={form.veiculo_id} 
                   onChange={handleVeiculoChange} 
                   options={veicOpts} 
                   placeholder="Selecione o veículo" 
-                  disabled={form.origem === "pdf" || form.origem === "excel"} 
+                  disabled={form.origem !== "manual"} 
                 />
               </div>
             </div>
@@ -797,12 +761,12 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             {/* Motorista */}
             <div className="col-span-2 grid gap-1.5 overflow-hidden">
               <Label>Motorista</Label>
-              <div className={`w-full ${form.origem === "pdf" ? "rounded-md border border-purple-800 bg-purple-950/20 px-3 py-2 pointer-events-none opacity-80" : ""}`}>
+              <div className={`w-full ${form.origem !== "manual" ? "rounded-md border border-purple-800 bg-purple-950/20 px-3 py-2 pointer-events-none opacity-80" : ""}`}>
                 <FieldSelect 
                   value={form.motorista_id} 
                   onChange={set("motorista_id")} 
                   options={[{ value: NENHUM, label: "— Nenhum —" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} 
-                  disabled={form.origem === "pdf" || form.origem === "excel"} 
+                  disabled={form.origem !== "manual"} 
                 />
               </div>
             </div>
@@ -810,21 +774,21 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             {/* Data e Hodômetro */}
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Data *</Label>
-              <Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+              <Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} disabled={form.origem !== "manual"} className={form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20 disabled:opacity-100 disabled:text-purple-400" : ""} required />
             </div>
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Hodômetro *</Label>
-              <Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+              <Input type="number" value={form.km} onChange={(e) => set("km")(e.target.value)} disabled={form.origem !== "manual"} className={form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20 disabled:opacity-100 disabled:text-purple-400" : ""} required />
             </div>
             
             {/* Litros e Preço */}
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Litros *</Label>
-              <Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+              <Input inputMode="decimal" value={form.litros} onChange={(e) => set("litros")(e.target.value)} disabled={form.origem !== "manual"} className={form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20 disabled:opacity-100 disabled:text-purple-400" : ""} required />
             </div>
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Preço/L *</Label>
-              <Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} required />
+              <Input inputMode="decimal" value={form.preco_litro} onChange={(e) => set("preco_litro")(e.target.value)} disabled={form.origem !== "manual"} className={form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20 disabled:opacity-100 disabled:text-purple-400" : ""} required />
             </div>
 
             {/* CNPJ, Fornecedor, Cidade e Estado */}
@@ -833,15 +797,15 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                 <div className="grid gap-1.5 w-full overflow-hidden">
                   <Label>CNPJ Emitente</Label>
                   <div className="flex gap-2 w-full">
-                    <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: formatCnpj(e.target.value) }))} placeholder="00.000.000/0000-00" maxLength={18} readOnly={form.origem === "pdf" || form.origem === "excel"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
-                    <Button type="button" variant="default" onClick={buscarCnpj} disabled={cnpjLoading || form.cnpj.length < 18 || form.origem === "pdf"} className="bg-sky-600 hover:bg-sky-500 px-3 font-medium shrink-0">
+                    <Input value={form.cnpj} onChange={(e) => setForm(s => ({ ...s, cnpj: formatCnpj(e.target.value) }))} placeholder="00.000.000/0000-00" maxLength={18} disabled={form.origem !== "manual"} className={`w-full ${form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+                    <Button type="button" variant="default" onClick={buscarCnpj} disabled={cnpjLoading || form.cnpj.length < 18 || form.origem !== "manual"} className="bg-sky-600 hover:bg-sky-500 px-3 font-medium shrink-0">
                       {cnpjLoading ? <Loader2 className="size-4 animate-spin" /> : <><Search className="size-4 mr-1" /> Online</>}
                     </Button>
                   </div>
                 </div>
                 <div className="grid gap-1.5 w-full overflow-hidden">
                   <Label>Fornecedor *</Label>
-                  <div className={`w-full ${form.origem === "pdf" ? "rounded-md border border-purple-800 bg-purple-950/20 px-3 py-2 pointer-events-none opacity-80" : ""}`}>
+                  <div className={`w-full ${form.origem !== "manual" ? "rounded-md border border-purple-800 bg-purple-950/20 px-3 py-2 pointer-events-none opacity-80" : ""}`}>
                     <FieldSelect 
                       value={form.fornecedor} 
                       onChange={(v) => {
@@ -854,17 +818,17 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                       }} 
                       options={fornecedores?.map((f: any) => ({ value: f.nome, label: f.nome })) || []} 
                       placeholder="Selecione o fornecedor" 
-                      disabled={form.origem === "pdf" || form.origem === "excel"} 
+                      disabled={form.origem !== "manual"} 
                     />
                   </div>
                 </div>
                 <div className="grid gap-1.5 w-full overflow-hidden">
                   <Label>Cidade</Label>
-                  <Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} readOnly={form.origem === "pdf" || form.origem === "excel"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+                  <Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} disabled={form.origem !== "manual"} className={`w-full ${form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
                 </div>
                 <div className="grid gap-1.5 w-full overflow-hidden">
                   <Label>Estado (UF)</Label>
-                  <Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} readOnly={form.origem === "pdf" || form.origem === "excel"} className={`w-full uppercase ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+                  <Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} disabled={form.origem !== "manual"} className={`w-full uppercase ${form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
                 </div>
               </div>
             </div>
@@ -872,7 +836,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             {/* Avaliação */}
             <div className="col-span-2 flex items-center gap-3 bg-slate-900/30 p-2 rounded-lg border border-slate-800">
               <Label className="text-xs text-slate-400">Avaliação do Fornecedor:</Label>
-              <div className={`flex gap-1 items-center ${form.origem === "pdf" ? "pointer-events-none" : ""}`}>
+              <div className={`flex gap-1 items-center ${form.origem !== "manual" ? "pointer-events-none" : ""}`}>
                 {[1, 2, 3, 4, 5].map(star => (
                   <button type="button" key={star} onClick={() => setForm(s => ({ ...s, avaliacao: star }))} className="focus:outline-none hover:scale-110">
                     <Star className={`size-4 ${star <= form.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
@@ -885,20 +849,20 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             {/* NF, Hora e Chave */}
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Código de Transação</Label>
-              <Input value={form.codigo_transacao || ""} onChange={(e) => setForm(s => ({ ...s, codigo_transacao: e.target.value }))} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} />
+              <Input value={form.codigo_transacao || ""} onChange={(e) => setForm(s => ({ ...s, codigo_transacao: e.target.value }))} disabled={form.origem !== "manual"} className={form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20 disabled:opacity-100 disabled:text-purple-400" : ""} />
             </div>
 
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Nº NF</Label>
-              <Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} placeholder="Ex: 12550" readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} />
+              <Input value={form.numero_nf} onChange={(e) => setForm(s => ({ ...s, numero_nf: e.target.value }))} placeholder="Ex: 12550" disabled={form.origem !== "manual"} className={form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20 disabled:opacity-100 disabled:text-purple-400" : ""} />
             </div>
             <div className="grid gap-1.5 overflow-hidden">
               <Label>Hora</Label>
-              <Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} readOnly={form.origem === "pdf" || form.origem === "excel"} className={(form.origem === "pdf" || form.origem === "excel") ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""} />
+              <Input type="time" value={form.hora} onChange={(e) => setForm(s => ({ ...s, hora: e.target.value }))} disabled={form.origem !== "manual"} className={form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20 disabled:opacity-100 disabled:text-purple-400" : ""} />
             </div>
             <div className="col-span-2 grid gap-1.5 overflow-hidden">
               <Label>Chave NF-e</Label>
-              <Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} placeholder="3126 1020..." readOnly={form.origem === "pdf" || form.origem === "excel"} className={`w-full ${form.origem === "pdf" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
+              <Input value={form.chave_nfe} onChange={(e) => setForm(s => ({ ...s, chave_nfe: e.target.value }))} placeholder="3126 1020..." disabled={form.origem !== "manual"} className={`w-full ${form.origem !== "manual" ? "text-purple-400 border-purple-800 bg-purple-950/20" : ""}`} />
             </div>
 
             {/* Valor Total */}
@@ -908,7 +872,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             </div>
 
             <DialogFooter className="col-span-2 mt-2">
-              <Button type="submit" disabled={salvar.isPending || !form.veiculo_id || (editingId && (form.origem === "pdf" || form.origem === "excel"))}>
+              <Button type="submit" disabled={salvar.isPending || !form.veiculo_id || (editingId && (form.origem !== "manual" || form.origem === "excel"))}>
                 {editingId ? "Salvar" : "Registrar"}
               </Button>
             </DialogFooter>
