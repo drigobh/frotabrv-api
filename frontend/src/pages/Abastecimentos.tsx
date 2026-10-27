@@ -355,8 +355,21 @@ export default function Abastecimentos() {
         if (val === undefined || val === null || val === "") return 0;
         if (typeof val === 'number') return val;
         let str = String(val).replace(/[^0-9.,-]/g, "");
-        if (str.includes('.') && str.includes(',')) str = str.replace(/\./g, '').replace(',', '.');
-        else if (str.includes(',')) str = str.replace(',', '.');
+        
+        // Verifica se é padrão Americano (1,234.56) ou Brasileiro (1.234,56)
+        if (str.includes('.') && str.includes(',')) {
+            if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+                // Padrão Brasileiro: 1.234,56
+                str = str.replace(/\./g, '').replace(',', '.');
+            } else {
+                // Padrão Americano: 1,234.56
+                str = str.replace(/,/g, '');
+            }
+        } else if (str.includes(',')) {
+            // Só tem vírgula, então é decimal BR (ex: 7,29)
+            str = str.replace(',', '.');
+        }
+        
         const num = Number(str);
         return isNaN(num) ? 0 : num;
       };
