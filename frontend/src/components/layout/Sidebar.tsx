@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 const MENUS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/", isDashboard: true, items: [] },
   {
-    id: "frota", label: "Frota", icon: Truck,
+    id: "frota", label: "Cadastro", icon: Truck,
     items: [
       { label: "Veículos", icon: Truck, path: "/cadastros/veiculos" },
       { label: "Carretas", icon: Car, path: "/cadastros/carretas" },

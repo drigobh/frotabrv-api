@@ -58,3 +58,34 @@ async def consultar_cnpj(cnpj: str, _u: dict = Depends(require("read"))):
             return response.json()
     except httpx.RequestError:
         raise HTTPException(502, "Erro de conexão com a BrasilAPI")
+
+import httpx
+from urllib.parse import quote
+
+@router.get("/consultar-cnpj-por-nome")
+async def consultar_cnpj_por_nome(nome: str, cidade: str = None, _u: dict = Depends(require("read"))):
+    if not nome:
+        raise HTTPException(400, "Nome do estabelecimento é obrigatório.")
+    
+    # Monta a URL de busca do OpenCNPJ
+    # A API aceita filtros por nome e município.
+    query = f"https://api.opencnpj.org/search?query={quote(nome)}"
+    if cidade:
+        query += f"&city={quote(cidade)}"
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(query)
+            if response.status_code == 200:
+                data = response.json()
+                # A resposta pode vir como lista ou objeto com 'results'
+                if isinstance(data, list) and len(data) > 0:
+                    return data[0]  # Retorna o primeiro resultado
+                elif isinstance(data, dict) and 'results' in data and len(data['results']) > 0:
+                    return data['results'][0]
+            # Se não encontrar no OpenCNPJ, tenta fallback com BrasilAPI (se tiver CNPJ)
+            # Mas como não temos CNPJ, não há fallback direto.
+    except Exception as e:
+        print(f"Erro na busca reversa: {e}")
+    
+    raise HTTPException(404, "CNPJ não encontrado para este estabelecimento.")

@@ -357,6 +357,24 @@ export default function Abastecimentos() {
 
       if (rows.length < 2) { toast.error("Planilha vazia."); return; }
 
+      const headerRow = rows[0].map((c: any) => String(c).toUpperCase().trim());
+      const findIdx = (name: string) => headerRow.findIndex(h => h.replace(/\s+/g, '').includes(name.replace(/\s+/g, '')));
+
+      const idxCod = findIdx("CODIGO TRANSACAO");
+      const idxData = findIdx("DATA TRANSACAO");
+      const idxPlaca = findIdx("PLACA");
+      const idxMotorista = findIdx("NOME MOTORISTA");
+      const idxProduto = findIdx("TIPO COMBUSTIVEL");
+      const idxLitros = findIdx("LITROS");
+      const idxPreco = findIdx("VL/LITRO") !== -1 ? findIdx("VL/LITRO") : findIdx("V. LITRO");
+      const idxKm = findIdx("HODOMETRO");
+      const idxKmRodados = findIdx("KM RODADOS");
+      const idxMedia = findIdx("KM/LITRO");
+      const idxPosto = findIdx("NOME ESTABELECIMENTO");
+      const idxValor = findIdx("VALOR EMISSAO");
+      const idxCidade = findIdx("CIDADE");
+      const idxEstado = findIdx("UF");
+
       const totalLinhas = rows.length - 1;
       setImportProgress({ total: totalLinhas, current: 0, errors: [] });
       let importados = 0; const erros: any[] = [];
@@ -365,83 +383,110 @@ export default function Abastecimentos() {
         if (val === undefined || val === null || val === "") return 0;
         if (typeof val === 'number') return val;
         let str = String(val).replace(/[^0-9.,-]/g, "");
-        
-        // Verifica se é padrão Americano (1,234.56) ou Brasileiro (1.234,56)
         if (str.includes('.') && str.includes(',')) {
-            if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
-                // Padrão Brasileiro: 1.234,56
-                str = str.replace(/\./g, '').replace(',', '.');
-            } else {
-                // Padrão Americano: 1,234.56
-                str = str.replace(/,/g, '');
-            }
+            if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\./g, '').replace(',', '.');
+            else str = str.replace(/,/g, '');
         } else if (str.includes(',')) {
-            // Só tem vírgula, então é decimal BR (ex: 7,29)
             str = str.replace(',', '.');
         }
-        
-        const num = Number(str);
-        return isNaN(num) ? 0 : num;
+        return Number(str) || 0;
       };
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || !row[4] || String(row[4]).toUpperCase().includes("TOTAL")) continue;
+        if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAL")) continue;
 
-        // MAPEAMENTO FIXO EDENRED
-        const codigo_transacao = String(row[0] || "").trim();
-        const dataStr = String(row[4] || "").trim();
-        const placa = String(row[5] || "").toUpperCase().trim();
-        const motoristaNome = String(row[11] || "").trim().toUpperCase();
-        const produto = String(row[13] || "DIESEL").toUpperCase();
-        const litros = parseNum(row[14]);
-        const preco_litro = parseNum(row[15]);
-        const km = parseNum(row[16]);
-        const km_rodados = parseNum(row[17]);
-        const media_km_l = parseNum(row[18]);
-        const valor_total = parseNum(row[19]);
-        const fornecedor = String(row[21] || "").trim();
-        const cidade = String(row[25] || "").trim();
-        const estado = String(row[26] || "").trim();
-
+        const dataStr = String(row[idxData]).trim();
         const dataFinal = dataStr.split(" ")[0];
         const horaFinal = dataStr.includes(" ") ? dataStr.split(" ")[1].substring(0, 5) : null;
 
+        const kmNum = parseNum(row[idxKm]);
+        const litrosNum = parseNum(row[idxLitros]);
+        const precoNum = parseNum(row[idxPreco]);
+        const valorNum = idxValor !== -1 ? parseNum(row[idxValor]) : (litrosNum * precoNum);
+        const kmRodadosNum = idxKmRodados !== -1 ? parseNum(row[idxKmRodados]) : null;
+        const mediaNum = idxMedia !== -1 ? parseNum(row[idxMedia]) : null;
+
+        const motoristaNome = idxMotorista !== -1 ? String(row[idxMotorista] || "").trim() : "";
         let motoristaId = NENHUM;
         if (motoristaNome && motoristas.data) {
-          const mot = motoristas.data.find((m: any) => m.nome.toUpperCase() === motoristaNome || m.nome.toUpperCase().includes(motoristaNome));
+          const mot = motoristas.data.find((m: any) => m.nome.toUpperCase() === motoristaNome.toUpperCase() || m.nome.toUpperCase().includes(motoristaNome));
           if (mot) motoristaId = mot.id;
         }
 
-        // Busca CNPJ se o fornecedor já existir no banco
+        const fornecedorNome = String(row[idxPosto] || "").trim();
+        const cidade = idxCidade !== -1 ? String(row[idxCidade] || "").trim() : "";
+        const estado = idxEstado !== -1 ? String(row[idxEstado] || "").trim() : "";
+
         let cnpjFormatado = "";
-        const existingForn = fornecedores.find((f: any) => f.nome.toLowerCase() === fornecedor.toLowerCase());
-        if (existingForn && existingForn.documento) cnpjFormatado = existingForn.documento;
+        let fornecedorExiste = false;
+
+        // 1. Verifica se o fornecedor já existe no banco local
+        const existingForn = fornecedores.find((f: any) => f.nome.toLowerCase() === fornecedorNome.toLowerCase());
+        if (existingForn) {
+          cnpjFormatado = existingForn.documento || "";
+          fornecedorExiste = true;
+        } else {
+          // 2. Se não existe, tenta buscar o CNPJ via API (OpenCNPJ)
+          try {
+            const data = await apiGet<any>(`/fornecedores/consultar-cnpj-por-nome?nome=${encodeURIComponent(fornecedorNome)}&cidade=${encodeURIComponent(cidade)}`);
+            if (data && data.cnpj) {
+              cnpjFormatado = formatCnpj(data.cnpj);
+              // Se encontrou, pergunta se quer cadastrar
+              const confirm = window.confirm(`Fornecedor "${fornecedorNome}" não cadastrado. Deseja cadastrá-lo agora com os dados encontrados?`);
+              if (confirm) {
+                await apiPost("/fornecedores", {
+                  nome: data.razao_social || fornecedorNome,
+                  documento: cnpjFormatado,
+                  endereco: data.logradouro || "",
+                  bairro: data.bairro || "",
+                  cidade: data.municipio || cidade,
+                  estado: data.uf || estado,
+                  ativo: true
+                });
+                await refetchFornecedores();
+                fornecedorExiste = true;
+                toast.success(`Fornecedor ${fornecedorNome} cadastrado!`);
+              }
+            }
+          } catch (err) {
+            // Se não encontrar, não faz nada (segue o fluxo)
+          }
+        }
 
         const payload = {
-          data: dataFinal, placa, km, motorista_id: motoristaId, fornecedor, cnpj: cnpjFormatado, cidade, estado,
-          litros, preco_litro, valor_total, km_rodados, media_km_l, produto, codigo_transacao,
+          data: dataFinal,
+          placa: String(row[idxPlaca] || "").toUpperCase().trim(),
+          km: kmNum,
+          motorista_id: motoristaId,
+          fornecedor: fornecedorNome,
+          cnpj: cnpjFormatado,
+          cidade: cidade,
+          estado: estado,
+          litros: litrosNum,
+          preco_litro: precoNum,
+          valor_total: valorNum,
+          km_rodados: kmRodadosNum,
+          media_km_l: mediaNum,
+          produto: String(row[idxProduto] || "DIESEL").toUpperCase(),
+          codigo_transacao: String(row[idxCod] || "").trim(),
           hora: horaFinal, numero_nf: null, chave_nfe: null, origem: "excel"
         };
 
         try { 
           await apiPost("/abastecimentos/importar", payload); 
           importados++; 
-          await new Promise(resolve => setTimeout(resolve, 100)); 
+          await new Promise(resolve => setTimeout(resolve, 150));
         } catch (err: any) { 
-          erros.push({ linha: i + 1, placa: placa, erro: err.message || "Erro" }); 
+          erros.push({ linha: i + 1, placa: payload.placa, erro: err.message && err.message.includes("409") ? "Já importado" : (err.message || "Erro") }); 
         }
         setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
       }
 
       setImportProgress(prev => prev ? { ...prev, current: totalLinhas, errors: erros } : null);
-      if (erros.length === 0) {
-        toast.success(`${importados} Edenred importados!`);
-      } else if (importados > 0) {
-        toast.warning(`${importados} importados, mas ${erros.length} deram erro ou já existiam.`);
-      } else {
-        toast.error("Todos os registros já foram importados ou deram erro.");
-      }
+      if (erros.length === 0) toast.success(`${importados} Edenred importados!`);
+      else if (importados > 0) toast.warning(`${importados} importados, mas ${erros.length} já existiam.`);
+      else toast.error("Todos os registros já foram importados.");
       invalidate();
     } catch (error) {
       console.error(error); toast.error("Erro ao ler Edenred."); setImportProgress(null);
