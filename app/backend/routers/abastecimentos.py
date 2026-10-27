@@ -98,20 +98,23 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         except:
             data_abast = data_recebida
 
-        # TRAVA DE DUPLICIDADE
+        # TRAVA DE DUPLICIDADE REFORÇADA
         codigo_transacao_recebido = body.get("codigo_transacao")
         chave_nfe_recebida = body.get("chave_nfe")
         numero_nf_recebido = body.get("numero_nf")
         cnpj_recebido = body.get("cnpj")
 
         if codigo_transacao_recebido:
-            if await db.abastecimentos.find_one({"codigo_transacao": codigo_transacao_recebido}):
+            existente = await db.abastecimentos.find_one({"codigo_transacao": codigo_transacao_recebido})
+            if existente:
                 raise HTTPException(409, "Registro duplicado: Código de Transação já importado.")
         elif chave_nfe_recebida:
-            if await db.abastecimentos.find_one({"chave_nfe": chave_nfe_recebida}):
+            existente = await db.abastecimentos.find_one({"chave_nfe": chave_nfe_recebida})
+            if existente:
                 raise HTTPException(409, "Registro duplicado: Chave NF-e já importada.")
         elif numero_nf_recebido and cnpj_recebido:
-            if await db.abastecimentos.find_one({"numero_nf": numero_nf_recebido, "cnpj": cnpj_recebido}):
+            existente = await db.abastecimentos.find_one({"numero_nf": numero_nf_recebido, "cnpj": cnpj_recebido})
+            if existente:
                 raise HTTPException(409, "Registro duplicado: Nota Fiscal já importada.")
         else:
             existente_placa = await db.abastecimentos.find_one({
