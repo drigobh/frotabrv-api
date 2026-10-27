@@ -351,8 +351,9 @@ export default function Abastecimentos() {
       let importados = 0; const erros: any[] = [];
 
       const parseNum = (val: any) => {
-        if (!val) return 0;
-        let str = String(val).trim();
+        if (val === undefined || val === null || val === "") return 0;
+        if (typeof val === 'number') return val;
+        let str = String(val).replace(/[^0-9.,-]/g, "");
         if (str.includes('.') && str.includes(',')) str = str.replace(/\./g, '').replace(',', '.');
         else if (str.includes(',')) str = str.replace(',', '.');
         const num = Number(str);
