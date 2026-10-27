@@ -5,21 +5,21 @@ import zipfile
 
 def backup(raiz):
     agora = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    caminho_zip = os.path.join(raiz, "_automacao", "backups", f"BACKUP_CARDS_{agora}.zip")
+    caminho_zip = os.path.join(raiz, "_automacao", "backups", f"BACKUP_CARDS_MATH_{agora}.zip")
     os.makedirs(os.path.dirname(caminho_zip), exist_ok=True)
     with zipfile.ZipFile(caminho_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for p in ["frontend/src/pages/Abastecimentos.tsx", "app/backend/routers/abastecimentos.py"]:
+        for p in ["frontend/src/pages/Abastecimentos.tsx"]:
             caminho_abs = os.path.join(raiz, p)
             if os.path.exists(caminho_abs):
                 zipf.write(caminho_abs, p)
     print(f"✅ Backup salvo: {caminho_zip}")
 
-def fix_frontend(raiz):
+def fix(raiz):
     caminho = os.path.join(raiz, "frontend", "src", "pages", "Abastecimentos.tsx")
     with open(caminho, 'r', encoding='utf-8') as f:
         c = f.read()
 
-    # Substituir o bloco do resumo por uma versão com parseSafe
+    # 1. Substituir o bloco do resumo por um cálculo 100% à prova de falhas
     inicio = c.find('const resumo = useMemo(() => {')
     fim = c.find('}, [rowsFiltradas]);', inicio)
     
@@ -48,40 +48,14 @@ def fix_frontend(raiz):
       }, [rowsFiltradas]);'''
         
         c = c[:inicio] + novo_bloco + c[fim:]
-        print("✅ Cálculo dos Cards (resumo) corrigido com parseSafe.")
+        print("✅ Cálculo dos Cards blindado com sucesso.")
     else:
         print("⚠️ Não foi possível encontrar o bloco resumo.")
 
     with open(caminho, 'w', encoding='utf-8') as f:
         f.write(c)
 
-def fix_backend(raiz):
-    caminho = os.path.join(raiz, "app", "backend", "routers", "abastecimentos.py")
-    with open(caminho, 'r', encoding='utf-8') as f:
-        c = f.read()
-
-    # Garantir que o backend salve o valor_total como float
-    c = c.replace(
-        '''    valor_total = body.get("valor_total")
-    if not valor_total:
-        valor_total = litros * preco_litro
-    valor_total = round(valor_total, 2)''',
-        '''    try:
-        valor_total = float(body.get("valor_total") or 0)
-    except:
-        valor_total = 0
-        
-    if valor_total == 0:
-        valor_total = float(litros) * float(preco_litro)
-    valor_total = round(valor_total, 2)'''
-    )
-    
-    with open(caminho, 'w', encoding='utf-8') as f:
-        f.write(c)
-    print("✅ Backend atualizado para garantir valor_total como float.")
-
 if __name__ == "__main__":
     raiz = os.getcwd()
     backup(raiz)
-    fix_frontend(raiz)
-    fix_backend(raiz)
+    fix(raiz)

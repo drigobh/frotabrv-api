@@ -128,6 +128,7 @@ export default function Abastecimentos() {
         return Number(str) || 0;
       };
 
+      
       const resumo = useMemo(() => {
         const litros = rowsFiltradas.reduce((s, r) => s + parseSafe(r.litros), 0);
         const valor = rowsFiltradas.reduce((s, r) => s + parseSafe(r.valor_total), 0);

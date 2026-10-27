@@ -98,11 +98,20 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
     if not veiculo:
         raise HTTPException(status_code=404, detail=f"Veículo com placa {placa_limpa} não encontrado.")
 
-    litros = body.get("litros") or 0
-    preco_litro = body.get("preco_litro") or 0
+    def parse_num(val):
+        if val is None: return 0.0
+        if isinstance(val, (int, float)): return float(val)
+        val = str(val).strip()
+        if ',' in val:
+            val = val.replace('.', '').replace(',', '.')
+        try: return float(val)
+        except: return 0.0
+
+    litros = parse_num(body.get("litros"))
+    preco_litro = parse_num(body.get("preco_litro"))
     data_recebida = body.get("data")
-    km_atual = body.get("km") or 0
-    produto = body.get("produto", "DIESEL").upper()
+    km_atual = parse_num(body.get("km"))
+    produto = str(body.get("produto", "DIESEL")).upper()
 
     try:
         if "/" in data_recebida:
@@ -118,15 +127,16 @@ async def importar_pdf(body: dict, request: Request, user: dict = Depends(requir
         sort=[("data", -1)]
     )
 
-    km_rodados, media_km_l = calcular_km(km_atual, litros, produto, ultimo, veiculo)
+    # Se for Edenred (excel) e a planilha mandou o rodados, usa o da planilha!
+    if body.get("origem") == "excel" and body.get("km_rodados") is not None:
+        km_rodados = parse_num(body.get("km_rodados"))
+        media_km_l = parse_num(body.get("media_km_l"))
+    else:
+        km_rodados, media_km_l = calcular_km(km_atual, litros, produto, ultimo, veiculo)
 
-    try:
-        valor_total = float(body.get("valor_total") or 0)
-    except:
-        valor_total = 0
-        
+    valor_total = parse_num(body.get("valor_total"))
     if valor_total == 0:
-        valor_total = float(litros) * float(preco_litro)
+        valor_total = litros * preco_litro
     valor_total = round(valor_total, 2)
 
     acoplamento = await db.acoplamentos.find_one(
