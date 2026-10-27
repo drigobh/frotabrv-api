@@ -435,67 +435,96 @@ export default function Abastecimentos() {
   const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     try {
-      const text = await file.text();
-      const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-      const rows: string[][] = [];
-      let rowMatch;
-      while ((rowMatch = rowRegex.exec(text)) !== null) {
-        const cells: string[] = [];
-        let cellMatch;
-        const cellRegexLocal = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-        while ((cellMatch = cellRegexLocal.exec(rowMatch[1])) !== null) {
-          let cellText = cellMatch[1].replace(/<[^>]+>/g, "").trim().replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
-          cells.push(cellText);
-        }
-        if (cells.length > 0) rows.push(cells);
-      }
-      if (rows.length === 0) { toast.error("Nenhuma linha HTML encontrada."); return; }
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: false });
 
-      let headerRow: string[] = [];
-      let startRow = -1;
+      let headerIdx = -1;
       for (let i = 0; i < rows.length; i++) {
-        const rowStr = rows[i].join(" ").toUpperCase();
+        const rowStr = rows[i].map((c: any) => String(c).toUpperCase()).join(" ");
         if (rowStr.includes("DATA") && rowStr.includes("PLACA") && rowStr.includes("LITROS")) {
-          headerRow = rows[i].map(c => c.toUpperCase().trim());
-          startRow = i + 1; break;
+          headerIdx = i;
+          break;
         }
       }
-      if (startRow === -1) { toast.error("Cabeçalho não encontrado no BSOFT."); return; }
 
-      const findIdx = (name: string) => headerRow.findIndex(h => h.includes(name));
-      const idxData = findIdx("DATA"), idxPlaca = findIdx("PLACA"), idxKm = findIdx("LEITURA"), 
-            idxPosto = findIdx("POSTO"), idxLitros = findIdx("LITROS"), idxPreco = findIdx("V. LITRO"), idxValor = findIdx("VALOR");
+      if (headerIdx === -1) { toast.error("Cabeçalho do BSOFT não encontrado."); return; }
 
-      const totalLinhas = rows.length - startRow;
+      const header = rows[headerIdx].map((c: any) => String(c).toUpperCase().trim());
+      const findIdx = (name: string) => header.findIndex(h => h.includes(name));
+
+      const idxData = findIdx("DATA");
+      const idxPlaca = findIdx("PLACA");
+      const idxKm = findIdx("LEITURA");
+      const idxPosto = findIdx("POSTO");
+      const idxLitros = findIdx("LITROS");
+      const idxValor = findIdx("VALOR");
+      const idxPreco = findIdx("V. LITRO");
+      const idxProduto = findIdx("PRODUTO");
+
+      const totalLinhas = rows.length - headerIdx - 1;
       setImportProgress({ total: totalLinhas, current: 0, errors: [] });
       let importados = 0; const erros: any[] = [];
 
-      for (let i = startRow; i < rows.length; i++) {
+      // Função parseNum super robusta
+      const parseNum = (val: any) => {
+        if (!val) return 0;
+        let str = String(val).replace(/[^0-9.,-]/g, "");
+        if (str.includes('.') && str.includes(',')) {
+            if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\./g, '').replace(',', '.');
+            else str = str.replace(/,/g, '');
+        } else if (str.includes(',')) {
+            str = str.replace(',', '.');
+        }
+        return Number(str) || 0;
+      };
+
+      for (let i = headerIdx + 1; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAIS") || String(row[idxData]).includes("Bsoft")) continue;
-        let dataStr = String(row[idxData]).trim();
-        if (dataStr.includes("-")) { const [y, m, d] = dataStr.split(" ")[0].split("-"); dataStr = `${d}/${m}/${y}`; }
-        const placaRaw = String(row[idxPlaca] || "").trim();
-        const placa = placaRaw.split("/")[0].replace("-", "").toUpperCase();
-        const parseNum = (val: any) => Number(String(val).replace(/[^0-9]/g, ""));
-        const litrosRaw = parseNum(row[idxLitros]) / 1000;
-        const valorLitroRaw = parseNum(row[idxPreco]) / 100;
-        const valorTotal = idxValor !== -1 ? Number(String(row[idxValor]).replace(",", ".")) : litrosRaw * valorLitroRaw;
+        if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAIS")) continue;
+
+        const dataStr = String(row[idxData]).trim().split(" ")[0];
+        let placaRaw = String(row[idxPlaca] || "").trim();
+        const placa = placaRaw.replace("-", "").split("/")[0].toUpperCase();
+
+        if (!placa || placa.length < 7 || placa.includes("BSOFT")) continue;
+
+        const litros = parseNum(row[idxLitros]);
+        const preco_litro = parseNum(row[idxPreco]);
+        const valor_total = parseNum(row[idxValor]);
+        const km = parseNum(row[idxKm]);
 
         const payload = {
-          data: dataStr, placa, km: parseNum(row[idxKm]),
-          fornecedor: String(row[idxPosto] || "").trim(), litros: litrosRaw, preco_litro: valorLitroRaw, valor_total: valorTotal,
-          hora: null, numero_nf: null, chave_nfe: null, cnpj: null, origem: "excel"
+          data: dataStr,
+          placa: placa,
+          km: km,
+          fornecedor: String(row[idxPosto] || "").trim(),
+          litros: litros,
+          preco_litro: preco_litro,
+          valor_total: valor_total,
+          produto: String(row[idxProduto] || "DIESEL").toUpperCase(),
+          origem: "bsoft"
         };
-        try { await apiPost("/abastecimentos/importar", payload); importados++; } 
-        catch (err: any) { erros.push({ linha: i + 1, placa: placa || "N/A", erro: err.message || "Erro" }); }
+
+        try { 
+          await apiPost("/abastecimentos/importar", payload); 
+          importados++; 
+          await new Promise(r => setTimeout(r, 150)); 
+        } catch (err: any) { 
+          erros.push({ linha: i + 1, placa: placa, erro: err.message || "Erro" }); 
+        }
         setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
       }
+
       setImportProgress(prev => prev ? { ...prev, current: totalLinhas, errors: erros } : null);
-      if (erros.length === 0) toast.success(`${importados} abastecimentos BSOFT importados!`);
+      if (erros.length === 0) toast.success(`${importados} registros BSOFT importados!`);
       invalidate();
-    } catch (error) { console.error(error); toast.error("Erro ao ler o BSOFT."); setImportProgress(null); }
+    } catch (error) {
+      console.error(error); toast.error("Erro ao ler o arquivo BSOFT."); setImportProgress(null);
+    }
   };
 
   const salvar = useMutation({
@@ -681,8 +710,13 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                 <TableCell className="text-xs text-slate-400 px-2 text-center">{dataBR(r.data)}</TableCell>
                 {/* Origem */}
                 <TableCell className="text-center px-2">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${r.origem === 'manual' ? 'bg-slate-800 text-slate-300' : r.origem === 'pdf' ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                    {r.origem}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                    r.origem === 'manual' ? 'bg-slate-800 text-slate-300' : 
+                    r.origem === 'pdf' ? 'bg-red-500/20 text-red-400' : 
+                    r.origem === 'bsoft' ? 'bg-orange-500/20 text-orange-400' : 
+                    'bg-emerald-500/20 text-emerald-400'
+                  }`}>
+                    {r.origem === 'bsoft' ? 'Bsoft' : r.origem}
                   </span>
                 </TableCell>
                 {/* NF */}
