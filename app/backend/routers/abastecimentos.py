@@ -92,117 +92,123 @@ def calcular_km(km_atual, litros, produto, ultimo, veiculo):
 
 @router.post("/importar", response_model=None, status_code=201)
 async def importar_pdf(body: dict, request: Request, user: dict = Depends(require("write"))):
-    placa_limpa = body.get("placa", "").strip().upper()
-    
-    veiculo = await db.veiculos.find_one({"placa": placa_limpa}, {"_id": 0})
-    if not veiculo:
-        raise HTTPException(status_code=404, detail=f"Veículo com placa {placa_limpa} não encontrado.")
-
-    def parse_num(val):
+    def safe_float(val):
         if val is None: return 0.0
         if isinstance(val, (int, float)): return float(val)
-        val = str(val).strip()
-        if ',' in val:
-            val = val.replace('.', '').replace(',', '.')
-        try: return float(val)
+        try: return float(str(val).replace(',', '.'))
         except: return 0.0
 
-    litros = parse_num(body.get("litros"))
-    preco_litro = parse_num(body.get("preco_litro"))
-    data_recebida = body.get("data")
-    km_atual = parse_num(body.get("km"))
-    produto = str(body.get("produto", "DIESEL")).upper()
-
     try:
-        if "/" in data_recebida:
-            data_abast = datetime.strptime(data_recebida, "%d/%m/%Y").strftime("%Y-%m-%d")
-        else:
+        placa_limpa = body.get("placa", "").strip().upper()
+        veiculo = await db.veiculos.find_one({"placa": placa_limpa}, {"_id": 0})
+        if not veiculo:
+            raise HTTPException(status_code=404, detail=f"Veículo com placa {placa_limpa} não encontrado.")
+
+        litros = safe_float(body.get("litros"))
+        preco_litro = safe_float(body.get("preco_litro"))
+        km_atual = safe_float(body.get("km"))
+        valor_total = safe_float(body.get("valor_total"))
+        data_recebida = body.get("data")
+
+        try:
+            if data_recebida and "/" in data_recebida:
+                data_abast = datetime.strptime(data_recebida, "%d/%m/%Y").strftime("%Y-%m-%d")
+            else:
+                data_abast = data_recebida
+        except:
             data_abast = data_recebida
-    except:
-        data_abast = data_recebida
 
-    ultimo = await db.abastecimentos.find_one(
-        {"veiculo_id": veiculo["id"], "data": {"$lt": data_abast}},
-        {"_id": 0},
-        sort=[("data", -1)]
-    )
+        # TRAVA DE DUPLICIDADE
+        codigo_transacao_recebido = body.get("codigo_transacao")
+        chave_nfe_recebida = body.get("chave_nfe")
+        numero_nf_recebido = body.get("numero_nf")
+        cnpj_recebido = body.get("cnpj")
 
-    # Se for Edenred (excel) e a planilha mandou o rodados, usa o da planilha!
-    if body.get("origem") == "excel" and body.get("km_rodados") is not None:
-        km_rodados = parse_num(body.get("km_rodados"))
-        media_km_l = parse_num(body.get("media_km_l"))
-    else:
-        km_rodados, media_km_l = calcular_km(km_atual, litros, produto, ultimo, veiculo)
+        if codigo_transacao_recebido:
+            if await db.abastecimentos.find_one({"codigo_transacao": codigo_transacao_recebido}):
+                raise HTTPException(409, "Registro duplicado: Código de Transação já importado.")
+        elif chave_nfe_recebida:
+            if await db.abastecimentos.find_one({"chave_nfe": chave_nfe_recebida}):
+                raise HTTPException(409, "Registro duplicado: Chave NF-e já importada.")
+        elif numero_nf_recebido and cnpj_recebido:
+            if await db.abastecimentos.find_one({"numero_nf": numero_nf_recebido, "cnpj": cnpj_recebido}):
+                raise HTTPException(409, "Registro duplicado: Nota Fiscal já importada.")
+        else:
+            existente_placa = await db.abastecimentos.find_one({
+                "veiculo_id": veiculo["id"],
+                "data": data_abast,
+                "litros": litros
+            })
+            if existente_placa:
+                raise HTTPException(409, "Registro duplicado: Abastecimento com esta placa, data e litros já existe.")
 
-    valor_total = parse_num(body.get("valor_total"))
-    if valor_total == 0:
-        valor_total = litros * preco_litro
-    valor_total = round(valor_total, 2)
+        if valor_total == 0:
+            valor_total = litros * preco_litro
+        valor_total = round(valor_total, 2)
 
-    acoplamento = await db.acoplamentos.find_one(
-        {"veiculo_id": veiculo["id"]},
-        {"_id": 0},
-        sort=[("created_at", -1)]
-    )
-        
-    motorista_id = acoplamento.get("motorista_id") if acoplamento else None
-    motorista_label = None
-    if motorista_id:
-        mot = await db.motoristas.find_one({"id": motorista_id}, {"_id": 0})
-        motorista_label = mot["nome"] if mot else None
+        ultimo = await db.abastecimentos.find_one(
+            {"veiculo_id": veiculo["id"], "data": {"$lt": data_abast}},
+            {"_id": 0},
+            sort=[("data", -1)]
+        )
 
-    doc = {
-        "id": str(uuid.uuid4()),
-        "data": data_abast,
-        "veiculo_id": veiculo["id"],
-        "veiculo_label": f"{veiculo['placa']} · {veiculo['modelo']}",
-        "motorista_id": motorista_id,
-        "motorista_label": motorista_label,
-        "litros": litros,
-        "preco_litro": preco_litro,
-        "valor_total": valor_total,
-        "posto": body.get("fornecedor") or "Importado",
-        "km": km_atual,
-        "km_rodados": km_rodados,
-        "media_km_l": media_km_l,
-        "origem": body.get("origem", "excel"),
-        "produto": produto,
-        "numero_nf": body.get("numero_nf"),
-        "chave_nfe": body.get("chave_nfe"),
-        "codigo_transacao": body.get("codigo_transacao"),
-        "hora": body.get("hora"),
-        "cnpj": body.get("cnpj"),
-        "cidade": body.get("cidade"),
-        "estado": body.get("estado"),
-        "fornecedor": body.get("fornecedor"),
-        "created_by": user.get("id", "sistema"),
-        "created_by_name": user.get("nome", user.get("email", "Sistema")),
-        "created_at": now_iso()
-    }
+        if body.get("origem") == "excel" and body.get("km_rodados") is not None:
+            km_rodados = safe_float(body.get("km_rodados"))
+            media_km_l = safe_float(body.get("media_km_l"))
+        else:
+            km_rodados, media_km_l = calcular_km(km_atual, litros, body.get("produto", "DIESEL").upper(), ultimo, veiculo)
 
-    # Trava de Segurança: Bloqueio de Importação Duplicada
-    codigo_transacao_recebido = body.get("codigo_transacao")
-    
-    if codigo_transacao_recebido:
-        existente = await db.abastecimentos.find_one({"codigo_transacao": codigo_transacao_recebido})
-        if existente:
-            raise HTTPException(409, "Registro duplicado: Código de Transação já importado.")
-    
-    # Se não tiver código (BSOFT), checa por placa + data + litros
-    existente_placa = await db.abastecimentos.find_one({
-        "veiculo_id": veiculo["id"],
-        "data": data_abast,
-        "litros": litros
-    })
-    if existente_placa:
-        raise HTTPException(409, "Registro duplicado: Abastecimento com esta placa, data e litros já existe.")
+        acoplamento = await db.acoplamentos.find_one(
+            {"veiculo_id": veiculo["id"]},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+            
+        motorista_id = acoplamento.get("motorista_id") if acoplamento else None
+        motorista_label = None
+        if motorista_id:
+            mot = await db.motoristas.find_one({"id": motorista_id}, {"_id": 0})
+            motorista_label = mot["nome"] if mot else None
 
-    await db.abastecimentos.insert_one(doc)
-    if km_atual > 0:
-        await db.veiculos.update_one({"id": veiculo["id"]}, {"$set": {"hodometro_km": km_atual}})
-    doc.pop("_id", None)
-    return doc
+        doc = {
+            "id": str(uuid.uuid4()),
+            "data": data_abast,
+            "veiculo_id": veiculo["id"],
+            "veiculo_label": f"{veiculo['placa']} · {veiculo['modelo']}",
+            "motorista_id": motorista_id,
+            "motorista_label": motorista_label,
+            "litros": litros,
+            "preco_litro": preco_litro,
+            "valor_total": valor_total,
+            "posto": body.get("fornecedor") or "Importado",
+            "km": km_atual,
+            "km_rodados": km_rodados,
+            "media_km_l": media_km_l,
+            "origem": body.get("origem", "excel"),
+            "produto": body.get("produto", "DIESEL").upper(),
+            "numero_nf": body.get("numero_nf"),
+            "chave_nfe": body.get("chave_nfe"),
+            "codigo_transacao": body.get("codigo_transacao"),
+            "hora": body.get("hora"),
+            "cnpj": body.get("cnpj"),
+            "cidade": body.get("cidade"),
+            "estado": body.get("estado"),
+            "fornecedor": body.get("fornecedor"),
+            "created_by": user.get("id", "sistema"),
+            "created_by_name": user.get("nome", user.get("email", "Sistema")),
+            "created_at": now_iso()
+        }
 
+        await db.abastecimentos.insert_one(doc)
+        if km_atual > 0:
+            await db.veiculos.update_one({"id": veiculo["id"]}, {"$set": {"hodometro_km": km_atual}})
+        doc.pop("_id", None)
+        return doc
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERRO NA IMPORTACAO: {e}")
+        raise HTTPException(500, f"Erro interno ao importar: {str(e)}")
 @router.post("", response_model=Abastecimento, status_code=201)
 async def criar(body: dict, request: Request, user: dict = Depends(require("write"))):
     veiculo_id = body.get("veiculo_id")

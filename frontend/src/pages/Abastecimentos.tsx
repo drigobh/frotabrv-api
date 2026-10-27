@@ -502,6 +502,18 @@ export default function Abastecimentos() {
         if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAIS")) continue;
 
         let dataStr = String(row[idxData]).trim().split(" ")[0]; 
+        
+        // CONVERSÃO INTELIGENTE DE DATA (M/D/YY -> YYYY-MM-DD)
+        if (dataStr.includes("/")) {
+            const parts = dataStr.split("/");
+            if (parts.length === 3) {
+                let month = parts[0].padStart(2, '0');
+                let day = parts[1].padStart(2, '0');
+                let year = parts[2];
+                if (year.length === 2) year = "20" + year;
+                dataStr = `${year}-${month}-${day}`;
+            }
+        }
 
         let placaRaw = String(row[idxPlaca] || "").trim();
         const placa = placaRaw.replace("-", "").split("/")[0].toUpperCase();
@@ -530,11 +542,7 @@ export default function Abastecimentos() {
           importados++; 
           await new Promise(r => setTimeout(r, 150)); 
         } catch (err: any) { 
-          if (err.message && err.message.includes("409")) {
-            erros.push({ linha: i + 1, placa: placa, erro: "Já importado (duplicado)" });
-          } else {
-            erros.push({ linha: i + 1, placa: placa, erro: err.message || "Erro" }); 
-          }
+          erros.push({ linha: i + 1, placa: placa, erro: err.message && err.message.includes("409") ? "Já importado" : (err.message || "Erro") }); 
         }
         setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
       }
@@ -543,9 +551,9 @@ export default function Abastecimentos() {
       if (erros.length === 0) {
         toast.success(`${importados} registros BSOFT importados!`);
       } else if (importados > 0) {
-        toast.warning(`${importados} importados, mas ${erros.length} já existiam ou deram erro.`);
+        toast.warning(`${importados} importados, mas ${erros.length} já existiam.`);
       } else {
-        toast.error("Todos os registros já foram importados ou deram erro.");
+        toast.error("Todos os registros já foram importados.");
       }
       invalidate();
     } catch (error) {
