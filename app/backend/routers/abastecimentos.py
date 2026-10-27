@@ -195,6 +195,15 @@ async def criar(body: AbastecimentoCreate, request: Request, user: dict = Depend
     veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
+        
+    # TRAVA DE SEGURANÇA: Bloqueio de PDF Duplicado no Formulário
+    if body.origem == "pdf":
+        if body.chave_nfe:
+            if await db.abastecimentos.find_one({"chave_nfe": body.chave_nfe}):
+                raise HTTPException(409, "Esta Nota Fiscal (PDF) já foi importada no sistema.")
+        elif body.numero_nf and body.cnpj:
+            if await db.abastecimentos.find_one({"numero_nf": body.numero_nf, "cnpj": body.cnpj}):
+                raise HTTPException(409, "Esta Nota Fiscal (PDF) já foi importada no sistema.")
 
     ultimo = await db.abastecimentos.find_one(
         {"veiculo_id": body.veiculo_id, "data": {"$lt": body.data}},
