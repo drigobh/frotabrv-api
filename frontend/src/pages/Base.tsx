@@ -13,6 +13,7 @@ const COLECOES = [
   { id: "motoristas", nome: "Motoristas" },
   { id: "acoplamentos", nome: "Acoplamentos" },
   { id: "abastecimentos", nome: "Abastecimentos" },
+  { id: "fornecedores", nome: "Fornecedores" },
 ];
 
 export default function Base() {

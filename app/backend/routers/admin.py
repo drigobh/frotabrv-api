@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
 @router.post("/limpar-base")
 async def limpar_base(colecao: str, user: dict = Depends(require("admin"))):
-    colecoes_permitidas = ["veiculos", "carretas", "motoristas", "acoplamentos", "abastecimentos"]
+    colecoes_permitidas = ["veiculos", "carretas", "motoristas", "acoplamentos", "abastecimentos", "fornecedores"]
     
     if colecao not in colecoes_permitidas:
         raise HTTPException(status_code=400, detail="Coleção inválida.")

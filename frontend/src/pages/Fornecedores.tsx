@@ -166,7 +166,14 @@ export default function Fornecedores() {
       <html><head><title>Lista de Fornecedores</title><style>body{font-family:sans-serif;font-size:12px;}table{width:100%;border-collapse:collapse;margin-top:20px;}th,td{border:1px solid #ccc;padding:8px;text-align:left;}th{background-color:#f0f0f0;}h1{font-size:18px;}</style></head>
       <body><h1>Lista de Fornecedores - FrotaBRV</h1><p>Gerado em: ${new Date().toLocaleDateString('pt-BR')}</p>
       <table><thead><tr><th>Nome</th><th>Tipo</th><th>Documento</th><th>Cidade/UF</th><th>Telefone</th><th>Status</th></tr></thead>
-      <tbody>${rowsFiltradas.map(r => `<tr><td>${r.nome}</td><td>${r.tipo_pessoa}</td><td>${r.documento || "—"}</td><td>${r.cidade ? `${r.cidade}/${r.estado}` : "—"}</td><td>${r.telefone || "—"}</td><td>${r.ativo ? "Ativo" : "Inativo"}</td></tr>`).join('')}</tbody></table></body></html>`;
+      <tbody>${rowsFiltradas.map(r => `<tr><td>${r.nome}</td><td>${r.tipo_pessoa}</td><td>$<div className="flex flex-col items-center justify-center">
+                <span>{r.documento || "—"}</span>
+                {(!r.documento || String(r.documento).trim() === "") && (
+                  <span className="text-red-500 animate-pulse font-bold text-[9px] flex items-center justify-center gap-1 mt-1">
+                    <AlertTriangle className="size-3" /> CNPJ Pendente
+                  </span>
+                )}
+              </div></td><td>${r.cidade ? `${r.cidade}/${r.estado}` : "—"}</td><td>${r.telefone || "—"}</td><td>${r.ativo ? "Ativo" : "Inativo"}</td></tr>`).join('')}</tbody></table></body></html>`;
     printWindow.document.write(html);
     printWindow.document.close();
     printWindow.print();
@@ -242,7 +249,14 @@ export default function Fornecedores() {
                     {r.tipo_pessoa === 'PJ' ? <Building2 className="size-4 text-sky-400" /> : <User className="size-4 text-purple-400" />}
                     <div>
                       <div className="flex items-center gap-2">{r.nome}<span className="text-[9px] font-bold bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{r.tipo_pessoa}</span></div>
-                      <div className="text-slate-500 font-mono text-xs">{r.documento || "—"}</div>
+                      <div className="text-slate-500 font-mono text-xs"><div className="flex flex-col items-center justify-center">
+                <span>{r.documento || "—"}</span>
+                {(!r.documento || String(r.documento).trim() === "") && (
+                  <span className="text-red-500 animate-pulse font-bold text-[9px] flex items-center justify-center gap-1 mt-1">
+                    <AlertTriangle className="size-3" /> CNPJ Pendente
+                  </span>
+                )}
+              </div></div>
                     </div>
                   </div>
                 </TableCell>

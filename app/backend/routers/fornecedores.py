@@ -89,3 +89,9 @@ async def consultar_cnpj_por_nome(nome: str, cidade: str = None, _u: dict = Depe
         print(f"Erro na busca reversa: {e}")
     
     raise HTTPException(404, "CNPJ não encontrado para este estabelecimento.")
+
+
+@router.delete("/limpar")
+async def limpar_fornecedores(_u: dict = Depends(require("delete"))):
+    await db.fornecedores.delete_many({})
+    return {"ok": True}
