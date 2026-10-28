@@ -70,8 +70,11 @@ export default function Abastecimentos() {
   const [openPdfConfirm, setOpenPdfConfirm] = useState(false);
   const [importandoEdenred, setImportandoEdenred] = useState(false);
   const [importandoPDF, setImportandoPDF] = useState(false);
-  const [openPdfModal, setOpenPdfModal] = useState(false);
+  const [pdfPendingFornecedor, setPdfPendingFornecedor] = useState<any>(null);
+  const [openPdfFornecedorConfirm, setOpenPdfFornecedorConfirm] = useState(false);
+  const [avaliacaoPdf, setAvaliacaoPdf] = useState(0);
   const [pdfArquivosLote, setPdfArquivosLote] = useState<File[]>([]);
+  const [openPdfModal, setOpenPdfModal] = useState(false);
   const [pdfFilesSelected, setPdfFilesSelected] = useState<File[]>([]);
   const [openPdfLoteConfirm, setOpenPdfLoteConfirm] = useState(false);
   const isImportingPDFRef = useRef(false);
@@ -723,25 +726,27 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
   
 
   
+  
+
+  
   const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setPdfArquivosLote(Array.from(files));
-    setOpenPdfModal(true);
+    executarImportacaoPDFLote(Array.from(files));
     e.target.value = "";
   };
 
-  const executarImportacaoPDFLote = async () => {
-    if (importandoPDF || pdfArquivosLote.length === 0) return;
+  const executarImportacaoPDFLote = async (arquivos: File[]) => {
+    if (importandoPDF || arquivos.length === 0) return;
 
     setImportandoPDF(true);
-    setOpenPdfModal(false);
-
     let importados = 0;
     const erros: string[] = [];
+    let fornecedorPendenteData: any = null;
 
-    for (let fileIdx = 0; fileIdx < pdfArquivosLote.length; fileIdx++) {
-      const file = pdfArquivosLote[fileIdx];
+    for (let fileIdx = 0; fileIdx < arquivos.length; fileIdx++) {
+      const file = arquivos[fileIdx];
       try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await Promise.race([
@@ -799,36 +804,93 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           origem: "pdf"
         };
 
-        // Cadastra fornecedor automaticamente se não existir
+        // Se fornecedor não existe, para o lote e abre modal
         if (fornecedorNome) {
           const existingForn = fornecedores.find((f: any) => f.nome.toUpperCase() === fornecedorNome.toUpperCase());
           if (!existingForn) {
-            try { 
-              await apiPost("/fornecedores", { 
-                nome: fornecedorNome, documento: payload.cnpj, ativo: true, avaliacao: 0 
-              }); 
-              await refetchFornecedores();
-            } catch (err) {}
+            fornecedorPendenteData = { nome: fornecedorNome, cnpj: payload.cnpj, payload, restantes: arquivos.slice(fileIdx + 1) };
+            break; // Sai do loop para mostrar o modal
           }
         }
 
+        // Se fornecedor existe (ou não tem nome), importa direto
         await apiPost("/abastecimentos/importar", payload);
         importados++;
         await new Promise(r => setTimeout(r, 150));
       } catch (err: any) {
-        erros.push(`${file.name}: ${err.message || "Erro"}`);
+        if (err.message && (err.message.includes("409") || err.message.toLowerCase().includes("duplicado"))) {
+          erros.push(`${file.name}: Nota já importada anteriormente.`);
+        } else {
+          erros.push(`${file.name}: ${err.message || "Erro"}`);
+        }
       }
     }
 
-    if (erros.length === 0) toast.success(`${importados} PDF(s) importado(s) com sucesso!`);
+    setImportandoPDF(false);
+
+    if (fornecedorPendenteData) {
+      // Pausa e abre modal de avaliação
+      setPdfPendingFornecedor(fornecedorPendenteData);
+      setAvaliacaoPdf(0);
+      setOpenPdfFornecedorConfirm(true);
+      if (importados > 0) toast.success(`${importados} PDF(s) importado(s) antes da pausa.`);
+      return;
+    }
+
+    if (erros.length === 0) toast.success(`${importados} PDF(s) importado(s)!`);
     else if (importados > 0) toast.warning(`${importados} importado(s), ${erros.length} com erro.`);
-    else toast.error("Nenhum PDF importado. Verifique os arquivos.");
+    else toast.error("Nenhum PDF importado.");
 
     invalidate();
-    setImportandoPDF(false);
     setPdfArquivosLote([]);
   };
-  return (
+
+  const confirmarFornecedorPdf = async (cadastrar: boolean) => {
+    if (!pdfPendingFornecedor) return;
+
+    const { nome, cnpj, payload, restantes } = pdfPendingFornecedor;
+
+    if (cadastrar) {
+      try {
+        await apiPost("/fornecedores", {
+          nome,
+          documento: cnpj || "",
+          ativo: true,
+          avaliacao: avaliacaoPdf
+        });
+        await refetchFornecedores();
+        toast.success(`Fornecedor ${nome} cadastrado!`);
+      } catch (err: any) {
+        if (err.message?.includes("409")) {
+          toast.warning(`Fornecedor ${nome} já existe.`);
+        }
+      }
+    }
+
+    // Importa o abastecimento
+    try {
+      await apiPost("/abastecimentos/importar", payload);
+      toast.success("Nota Fiscal importada com sucesso!");
+    } catch (err: any) {
+      if (err.message && (err.message.includes("409") || err.message.toLowerCase().includes("duplicado"))) {
+        toast.error("Nota Fiscal já importada anteriormente.");
+      } else {
+        toast.error("Erro ao importar: " + (err.message || ""));
+      }
+    }
+
+    invalidate();
+    setOpenPdfFornecedorConfirm(false);
+    setPdfPendingFornecedor(null);
+    setAvaliacaoPdf(0);
+
+    // Continua o lote com os arquivos restantes
+    if (restantes && restantes.length > 0) {
+      executarImportacaoPDFLote(restantes);
+    } else {
+      setPdfArquivosLote([]);
+    }
+  };  return (
     <div>
       <PageHeader eyebrow="Operação" title="Abastecimentos" description="Registro detalhado." actions={
         <div className="flex gap-2">
@@ -1393,26 +1455,42 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
     
       
     
-      <Dialog open={openPdfModal} onOpenChange={setOpenPdfModal}>
+      
+    
+      <Dialog open={openPdfFornecedorConfirm} onOpenChange={(o) => { if (!o) { setOpenPdfFornecedorConfirm(false); setPdfPendingFornecedor(null); setAvaliacaoPdf(0); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirmar Importação de PDF</DialogTitle>
+            <DialogTitle>Fornecedor não cadastrado (PDF)</DialogTitle>
             <DialogDescription>
-              Você selecionou <strong>{pdfArquivosLote.length}</strong> arquivo(s). Deseja importar todos?
+              O fornecedor "{pdfPendingFornecedor?.nome}" não está cadastrado. Deseja cadastrá-lo com uma avaliação?
             </DialogDescription>
           </DialogHeader>
-          <div className="my-4 p-3 bg-red-950/40 border border-red-800/50 rounded-lg">
-            <p className="text-red-400 animate-pulse font-bold text-sm text-center flex items-center justify-center gap-2">
-              <AlertTriangle className="size-5" /> 
-              Atenção: O sistema processará apenas esta leitura. Não clique várias vezes.
-            </p>
+          
+          <div className="py-4 flex flex-col items-center gap-3">
+            <Label className="text-sm text-slate-400">Avaliação do Fornecedor</Label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map(star => (
+                <button type="button" key={star} onClick={() => setAvaliacaoPdf(star)} className="focus:outline-none hover:scale-110">
+                  <Star className={`size-8 ${star <= avaliacaoPdf ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-slate-500">
+              {avaliacaoPdf === 0 ? "Selecione uma nota" : `${avaliacaoPdf} de 5 estrelas`}
+            </span>
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => { setOpenPdfModal(false); setPdfArquivosLote([]); }}>
-              Cancelar
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="ghost" onClick={() => { 
+              setOpenPdfFornecedorConfirm(false); 
+              setPdfPendingFornecedor(null); 
+              setAvaliacaoPdf(0); 
+            }}>Cancelar</Button>
+            <Button variant="outline" onClick={() => confirmarFornecedorPdf(false)}>
+              Apenas Importar
             </Button>
-            <Button onClick={executarImportacaoPDFLote} disabled={importandoPDF}>
-              {importandoPDF ? "Importando..." : "Sim, Importar"}
+            <Button onClick={() => confirmarFornecedorPdf(true)} disabled={avaliacaoPdf === 0}>
+              Cadastrar com Avaliação e Importar
             </Button>
           </DialogFooter>
         </DialogContent>
