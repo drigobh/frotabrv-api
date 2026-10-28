@@ -59,14 +59,13 @@ export default function Abastecimentos() {
   const [mes, setMes] = useState("");
   const [filtroMotorista, setFiltroMotorista] = useState(TODOS);
   const [filtroPosto, setFiltroPosto] = useState("");
+  const [filtroProduto, setFiltroProduto] = useState(TODOS);
   const [filtroNF, setFiltroNF] = useState(TODOS);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const [pendingEdenredRows, setPendingEdenredRows] = useState<any[]>([]);
-  const [duplicateErrors, setDuplicateErrors] = useState<any[]>([]);
-  const [openDuplicateModal, setOpenDuplicateModal] = useState(false);
   const [pdfPendingData, setPdfPendingData] = useState<any>(null);
   const [avaliacaoPendentePdf, setAvaliacaoPendentePdf] = useState(0);
   const [openPdfConfirm, setOpenPdfConfirm] = useState(false);
@@ -106,7 +105,41 @@ export default function Abastecimentos() {
     queryFn: () => apiGet<Abastecimento[]>(`/abastecimentos?${params.toString()}`),
     staleTime: 0,
   });
-  const rows = q.isError ? [] : (q.data ?? []);
+  const rows = q.isError ? [] : (q.data ?? []);  const rowsOrdenadas = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const d1 = a.data.split("-").join("");
+      const d2 = b.data.split("-").join("");
+      if (d1 !== d2) return d2.localeCompare(d1);
+      return (b.created_at || "").localeCompare(a.created_at || "");
+    });
+  }, [rows]);
+
+  const produtoOpts = useMemo(() => {
+    const unicos = Array.from(new Set(rows.map(r => r.produto).filter(Boolean)));
+    return [{ value: TODOS, label: "Todos" }, ...unicos.map(p => ({ value: p, label: p }))];
+  }, [rows]);
+
+  const rowsFiltradas = useMemo(() => {
+    return rowsOrdenadas.filter(r => {
+      if (filtroVeiculo !== TODOS && r.veiculo_id !== filtroVeiculo) return false;
+      if (filtroMotorista !== TODOS && r.motorista_id !== filtroMotorista) return false;
+      if (filtroPosto && !(r.fornecedor || r.posto || "").toLowerCase().includes(filtroPosto.toLowerCase())) return false;
+      if (filtroNF !== TODOS) {
+        if (filtroNF === "com" && !r.numero_nf) return false;
+        if (filtroNF === "sem" && r.numero_nf) return false;
+      }
+      if (filtroProduto !== TODOS && r.produto !== filtroProduto) return false;
+      return true;
+    });
+  }, [rowsOrdenadas, filtroVeiculo, filtroMotorista, filtroPosto, filtroNF, filtroProduto]);
+
+
+
+
+
+
+
+
 
   const rowsComCalculo = useMemo(() => {
     const porVeiculo: Record<string, any[]> = {};
@@ -141,17 +174,7 @@ export default function Abastecimentos() {
     return rowsFinais.sort((a, b) => b.data.localeCompare(a.data) || b.km - a.km);
   }, [rows]);
 
-  const rowsFiltradas = useMemo(() => {
-    return rowsComCalculo.filter(r => {
-      if (filtroVeiculo !== TODOS && r.veiculo_id !== filtroVeiculo) return false;
-      if (filtroMotorista !== TODOS && r.motorista_id !== filtroMotorista) return false;
-      if (filtroPosto && !(r.posto || (r as any).fornecedor || "").toLowerCase().includes(filtroPosto.toLowerCase())) return false;
-      if (filtroNF === "com" && !(r.numero_nf || r.chave_nfe)) return false;
-      if (filtroNF === "sem" && (r.numero_nf || r.chave_nfe)) return false;
-      if (mes && !r.data.startsWith(mes)) return false;
-      return true;
-    });
-  }, [rowsComCalculo, filtroVeiculo, filtroMotorista, filtroPosto, filtroNF, mes]);
+  
 
   const parseSafe = (val: any) => {
         if (val === undefined || val === null || val === "") return 0;
@@ -164,27 +187,52 @@ export default function Abastecimentos() {
 
       
       const resumo = useMemo(() => {
-        const litros = rowsFiltradas.reduce((s, r) => s + parseSafe(r.litros), 0);
-        const valor = rowsFiltradas.reduce((s, r) => s + parseSafe(r.valor_total), 0);
-        const km = rowsFiltradas.reduce((s, r) => s + parseSafe(r.km_rodados), 0);
-        const comMedia = rowsFiltradas.filter(r => parseSafe(r.media_km_l) > 0);
-        const mediaGeral = comMedia.length > 0 ? comMedia.reduce((s, r) => s + parseSafe(r.media_km_l), 0) / comMedia.length : 0;
-        const preco = litros > 0 ? valor / litros : 0;
-        const maior = rowsFiltradas.reduce((max, r) => parseSafe(r.valor_total) > parseSafe(max?.valor_total) ? r : max, null as Abastecimento | null);
-        const menor = rowsFiltradas.reduce((min, r) => parseSafe(r.valor_total) < parseSafe(min?.valor_total) || !min ? r : min, null as Abastecimento | null);
-        return { litros, valor, km, media: litros > 0 ? km / litros : 0, preco, total: rowsFiltradas.length, maior, menor, mediaValor: rowsFiltradas.length > 0 ? valor / rowsFiltradas.length : 0, mediaKm: rowsFiltradas.length > 0 ? km / rowsFiltradas.length : 0, custoPorKm: km > 0 ? valor / km : 0, comNF: rowsFiltradas.filter(r => r.numero_nf).length, semNF: rowsFiltradas.filter(r => !r.numero_nf).length };
-      }, [rowsFiltradas]);
+    const validRows = rowsFiltradas.filter(r => !r.produto?.toUpperCase().includes("ARLA"));
+    const litros = validRows.reduce((s, r) => s + (Number(r.litros) || 0), 0);
+    const valor = validRows.reduce((s, r) => s + (Number(r.valor_total) || 0), 0);
+    const km = validRows.reduce((s, r) => s + (Number(r.km_rodados) || 0), 0);
+    
+    // A média geral é a média das médias dos registros válidos (que já foram calculadas corretamente pelo backend)
+    const comMedia = validRows.filter(r => r.media_km_l != null && r.media_km_l > 0);
+    const mediaGeral = comMedia.length > 0 ? comMedia.reduce((s, r) => s + Number(r.media_km_l), 0) / comMedia.length : 0;
+    
+    const preco = litros > 0 ? valor / litros : 0;
+    const maior = validRows.reduce((max, r) => (Number(r.valor_total) || 0) > (Number(max?.valor_total) || 0) ? r : max, null as any);
+    const menor = validRows.reduce((min, r) => (Number(r.valor_total) || 0) < (Number(min?.valor_total) || Infinity) ? r : min, null as any);
+    
+    return { 
+      litros, valor, km, 
+      media: mediaGeral, 
+      preco, 
+      total: validRows.length, 
+      maior, menor, 
+      mediaValor: validRows.length > 0 ? valor / validRows.length : 0, 
+      mediaKm: validRows.length > 0 ? km / validRows.length : 0, 
+      custoPorKm: km > 0 ? valor / km : 0, 
+      comNF: validRows.filter(r => r.numero_nf).length, 
+      semNF: validRows.filter(r => !r.numero_nf).length,
+      mediaGeral: mediaGeral
+    };
+  }, [rowsFiltradas]);
 
   const ranking = useMemo(() => {
-    const porVeiculo: Record<string, { label: string, litros: number, km: number }> = {};
-    rowsFiltradas.forEach(r => {
-      if (r.km_rodados != null && r.km_rodados > 0 && r.media_km_l != null) {
-        if (!porVeiculo[r.veiculo_id]) porVeiculo[r.veiculo_id] = { label: r.veiculo_label.split(" · ")[0], litros: 0, km: 0 };
-        porVeiculo[r.veiculo_id].litros += (Number(r.litros) || 0);
-        porVeiculo[r.veiculo_id].km += (Number(r.km_rodados) || 0);
+    const porVeiculo: Record<string, { label: string, soma: number, count: number }> = {};
+    for (const r of rowsFiltradas) {
+      // Ignora ARLA e registros sem média calculada
+      if (r.produto?.toUpperCase().includes("ARLA")) continue;
+      if (r.media_km_l == null || r.media_km_l <= 0) continue;
+      
+      if (!porVeiculo[r.veiculo_id]) {
+        porVeiculo[r.veiculo_id] = { label: r.veiculo_label?.split(" · ")[0] || "—", soma: 0, count: 0 };
       }
-    });
-    return Object.values(porVeiculo).map(v => ({ label: v.label, media: v.litros > 0 ? v.km / v.litros : 0 })).sort((a, b) => b.media - a.media).slice(0, 5);
+      porVeiculo[r.veiculo_id].soma += Number(r.media_km_l);
+      porVeiculo[r.veiculo_id].count += 1;
+    }
+    return Object.values(porVeiculo)
+      .map(v => ({ label: v.label, media: v.count > 0 ? v.soma / v.count : 0 }))
+      .filter(v => v.media > 0)
+      .sort((a, b) => b.media - a.media)
+      .slice(0, 5);
   }, [rowsFiltradas]);
 
   const invalidate = () => {
@@ -447,6 +495,8 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
         const valorNum = idxValor !== -1 ? parseNum(row[idxValor]) : (litrosNum * precoNum);
         const kmRodadosNum = idxKmRodados !== -1 ? parseNum(row[idxKmRodados]) : null;
         const mediaNum = idxMedia !== -1 ? parseNum(row[idxMedia]) : null;
+        const finalKmRodados = (kmRodadosNum !== null && kmRodadosNum > 0) ? kmRodadosNum : null;
+        const finalMedia = (mediaNum !== null && mediaNum > 0) ? mediaNum : null;
 
         const motoristaNome = idxMotorista !== -1 ? String(row[idxMotorista] || "").trim() : "";
         let motoristaId = NENHUM;
@@ -475,7 +525,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           data: dataFinal, placa: String(row[idxPlaca] || "").toUpperCase().trim(), km: kmNum,
           motorista_id: motoristaId, fornecedor: fornecedorNome, cnpj: cnpjFormatado,
           cidade, estado, litros: litrosNum, preco_litro: precoNum, valor_total: valorNum,
-          km_rodados: kmRodadosNum, media_km_l: mediaNum,
+          km_rodados: finalKmRodados, media_km_l: finalMedia,
           produto: String(row[idxProduto] || "DIESEL").toUpperCase(),
           codigo_transacao: String(row[idxCod] || "").trim(),
           hora: horaFinal, numero_nf: null, chave_nfe: null, origem: "excel"
@@ -508,13 +558,17 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
   const executarImportacaoEdenred = async (rowsData: any[]) => {
     if (isImportingEdenredRef.current) return;
     isImportingEdenredRef.current = true;
-    setImportandoEdenred(true);
+    
+    // Fecha TODOS os modais ANTES de iniciar
     setOpenConfirmImport(false);
     setOpenFornecedoresModal(false);
+    setOpenEdenredConfirm(false); // <--- FECHA O MODAL DE "IMPORTAR PLANILHA EDENRED?"
+    setOpen(false); // Fecha qualquer outro modal que possa estar aberto
+    
+    setImportandoEdenred(true);
     setImportProgress({ total: rowsData.length, current: 0, errors: [] });
     
-    let importados = 0; 
-    const errosDetalhados: any[] = [];
+    let importados = 0; const erros: any[] = [];
     
     try {
       for (let i = 0; i < rowsData.length; i++) {
@@ -524,36 +578,30 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           importados++; 
           await new Promise(resolve => setTimeout(resolve, 150));
         } catch (err: any) { 
-          const isDup = err.message && (err.message.includes("409") || err.message.toLowerCase().includes("duplicado"));
-          const motivo = isDup ? (err.message.split(":").pop()?.trim() || "Registro duplicado") : (err.message || "Erro de validação");
-          
-          let identificador = `Data: ${payload.data} | Placa: ${payload.placa}`;
-          if (payload.numero_nf) identificador = `NF: ${payload.numero_nf} | ` + identificador;
-          if (payload.codigo_transacao) identificador = `Cód: ${payload.codigo_transacao} | ` + identificador;
-
-          errosDetalhados.push({ identificador, motivo });
+          erros.push({ linha: i + 1, placa: payload.placa, erro: err.message && err.message.includes("409") ? "Já importado" : (err.message || "Erro") }); 
         }
-        setImportProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
+        setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
       }
       
-      if (errosDetalhados.length === 0) {
-        toast.success(`${importados} registros importados com sucesso!`);
-      } else if (importados > 0) {
-        setDuplicateErrors(errosDetalhados);
-        setOpenDuplicateModal(true);
-        toast.warning(`${importados} importados, mas ${errosDetalhados.length} foram bloqueados.`);
-      } else {
-        setDuplicateErrors(errosDetalhados);
-        setOpenDuplicateModal(true);
-        toast.error("Nenhum registro importado. Verifique os bloqueios.");
-      }
+      setImportProgress(prev => prev ? { ...prev, current: rowsData.length, errors: erros } : null);
+      
+      if (erros.length === 0) toast.success(`${importados} Edenred importados!`);
+      else if (importados > 0) toast.warning(`${importados} importados, mas ${erros.length} deram erro ou já existiam.`);
+      else toast.error("Todos os registros já foram importados ou deram erro.");
       
       invalidate();
     } finally {
-      isImportingEdenredRef.current = false;
+      // DESLIGA O OVERLAY E LIMPA TUDO
       setImportandoEdenred(false);
+      isImportingEdenredRef.current = false;
       setPendingEdenredRows([]);
       setImportProgress(null);
+      
+      // Garante que todos os modais estejam fechados no final
+      setOpenConfirmImport(false);
+      setOpenFornecedoresModal(false);
+      setOpenEdenredConfirm(false);
+      setOpen(false);
     }
   };
 
@@ -635,7 +683,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
 
     setImportandoPDF(true);
     let importados = 0;
-    const errosDetalhados: any[] = [];
+    const erros: string[] = [];
     let fornecedorPendenteData: any = null;
 
     for (let fileIdx = 0; fileIdx < arquivos.length; fileIdx++) {
@@ -658,10 +706,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
         const placaMatch = text.match(/PLACA[:\s]*([A-Z0-9]{7})/i);
         const placa = placaMatch ? placaMatch[1].toUpperCase() : "";
         const veiculo = veiculos.data?.find((v: any) => v.placa.replace("-", "").toUpperCase() === placa.replace("-", "").toUpperCase());
-        if (!veiculo) { 
-          errosDetalhados.push({ identificador: `Placa: ${placa}`, motivo: "Veículo não cadastrado" });
-          continue; 
-        }
+        if (!veiculo) { erros.push(`${file.name}: veículo não encontrado`); continue; }
 
         const kmMatch = text.match(/KM[:\s]*(\d+)/i);
         const km = kmMatch ? Number(kmMatch[1]) : 0;
@@ -700,49 +745,42 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           origem: "pdf"
         };
 
+        // Se fornecedor não existe, para o lote e abre modal
         if (fornecedorNome) {
           const existingForn = fornecedores.find((f: any) => f.nome.toUpperCase() === fornecedorNome.toUpperCase());
           if (!existingForn) {
             fornecedorPendenteData = { nome: fornecedorNome, cnpj: payload.cnpj, payload, restantes: arquivos.slice(fileIdx + 1) };
-            break;
+            break; // Sai do loop para mostrar o modal
           }
         }
 
+        // Se fornecedor existe (ou não tem nome), importa direto
         await apiPost("/abastecimentos/importar", payload);
         importados++;
         await new Promise(r => setTimeout(r, 150));
       } catch (err: any) {
-        const isDup = err.message && (err.message.includes("409") || err.message.toLowerCase().includes("duplicado"));
-        const motivo = isDup ? (err.message.split(":").pop()?.trim() || "Registro duplicado") : (err.message || "Erro desconhecido");
-        errosDetalhados.push({ identificador: `Arquivo: ${file.name}`, motivo });
+        if (err.message && (err.message.includes("409") || err.message.toLowerCase().includes("duplicado"))) {
+          erros.push(`${file.name}: Nota já importada anteriormente.`);
+        } else {
+          erros.push(`${file.name}: ${err.message || "Erro"}`);
+        }
       }
     }
 
     setImportandoPDF(false);
 
     if (fornecedorPendenteData) {
+      // Pausa e abre modal de avaliação
       setPdfPendingFornecedor(fornecedorPendenteData);
       setAvaliacaoPdf(0);
       setOpenPdfFornecedorConfirm(true);
       if (importados > 0) toast.success(`${importados} PDF(s) importado(s) antes da pausa.`);
-      if (errosDetalhados.length > 0) {
-         setDuplicateErrors(errosDetalhados);
-         setOpenDuplicateModal(true);
-      }
       return;
     }
 
-    if (errosDetalhados.length === 0) {
-      toast.success(`${importados} PDF(s) importado(s)!`);
-    } else if (importados > 0) {
-      setDuplicateErrors(errosDetalhados);
-      setOpenDuplicateModal(true);
-      toast.warning(`${importados} importado(s), mas ${errosDetalhados.length} bloqueados.`);
-    } else {
-      setDuplicateErrors(errosDetalhados);
-      setOpenDuplicateModal(true);
-      toast.error("Nenhum PDF importado.");
-    }
+    if (erros.length === 0) toast.success(`${importados} PDF(s) importado(s)!`);
+    else if (importados > 0) toast.warning(`${importados} importado(s), ${erros.length} com erro.`);
+    else toast.error("Nenhum PDF importado.");
 
     invalidate();
     setPdfArquivosLote([]);
@@ -913,6 +951,8 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
       toast.error("Erro ao ler o arquivo BSOFT.");
     }
   };
+  
+
   return (
     <div>
       <PageHeader eyebrow="Operação" title="Abastecimentos" description="Registro detalhado." actions={
@@ -979,10 +1019,11 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
         <div className="grid w-64 gap-1.5"><Label>Veículo</Label><FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} testId="filtro-veiculo" /></div>
         <div className="grid gap-1.5"><Label>Mês</Label><Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" /></div>
         <div className="grid w-48 gap-1.5"><Label>Motorista</Label><FieldSelect value={filtroMotorista} onChange={setFiltroMotorista} options={[{ value: TODOS, label: "Todos" }, ...(motoristas.data ?? []).map((m: any) => ({ value: m.id, label: m.nome }))]} /></div>
+        <div className="grid w-48 gap-1.5"><Label>Produto</Label><FieldSelect value={filtroProduto} onChange={setFiltroProduto} options={produtoOpts} placeholder="Todos" /></div>
         <div className="grid w-48 gap-1.5"><Label>Posto</Label><Input value={filtroPosto} onChange={(e) => setFiltroPosto(e.target.value)} placeholder="Nome do posto..." className="h-9" /></div>
         <div className="grid w-40 gap-1.5"><Label>Nota Fiscal</Label><FieldSelect value={filtroNF} onChange={setFiltroNF} options={[{ value: TODOS, label: "Todas" }, { value: "com", label: "Com NF" }, { value: "sem", label: "Sem NF" }]} /></div>
         {(mes || filtroVeiculo !== TODOS || filtroMotorista !== TODOS || filtroPosto || filtroNF !== TODOS) && (
-          <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); setFiltroMotorista(TODOS); setFiltroPosto(""); setFiltroNF(TODOS); }} className="mb-[2px]">Limpar Filtros</Button>
+          <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); setFiltroMotorista(TODOS); setFiltroPosto(""); setFiltroProduto(TODOS); setFiltroNF(TODOS); }} className="mb-[2px]">Limpar Filtros</Button>
         )}
       </div>
 
@@ -1515,40 +1556,6 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             <Button onClick={() => confirmarFornecedorPdf(true)} disabled={avaliacaoPdf === 0}>
               Cadastrar com Avaliação e Importar
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    
-      <Dialog open={openDuplicateModal} onOpenChange={setOpenDuplicateModal}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-red-400 flex items-center gap-2">
-              <AlertTriangle className="size-5" /> Registros Bloqueados / Não Importados
-            </DialogTitle>
-            <DialogDescription>
-              Os registros abaixo já existiam no sistema (duplicados) ou continham erros de validação.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Identificação do Registro</TableHead>
-                  <TableHead>Motivo do Bloqueio</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {duplicateErrors.map((err, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="text-xs font-mono text-slate-300">{err.identificador}</TableCell>
-                    <TableCell className="text-xs text-red-400">{err.motivo}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => { setOpenDuplicateModal(false); setDuplicateErrors([]); }}>Entendido</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
