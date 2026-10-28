@@ -65,7 +65,16 @@ export default function Abastecimentos() {
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const [pendingEdenredRows, setPendingEdenredRows] = useState<any[]>([]);
+  const [pdfPendingData, setPdfPendingData] = useState<any>(null);
+  const [avaliacaoPendentePdf, setAvaliacaoPendentePdf] = useState(0);
+  const [openPdfConfirm, setOpenPdfConfirm] = useState(false);
   const [importandoEdenred, setImportandoEdenred] = useState(false);
+  const [importandoPDF, setImportandoPDF] = useState(false);
+  const [openPdfModal, setOpenPdfModal] = useState(false);
+  const [pdfArquivosLote, setPdfArquivosLote] = useState<File[]>([]);
+  const [pdfFilesSelected, setPdfFilesSelected] = useState<File[]>([]);
+  const [openPdfLoteConfirm, setOpenPdfLoteConfirm] = useState(false);
+  const isImportingPDFRef = useRef(false);
   const [openConfirmImport, setOpenConfirmImport] = useState(false);
   const [cliquesConfirmacao, setCliquesConfirmacao] = useState(0);
   const [openEdenredConfirm, setOpenEdenredConfirm] = useState(false);
@@ -174,11 +183,9 @@ export default function Abastecimentos() {
   }, [rowsFiltradas]);
 
   const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["abastecimentos"] });
-    void qc.invalidateQueries({ queryKey: ["dashboard"] });
-    void qc.invalidateQueries({ queryKey: ["veiculos"] });
-    void qc.invalidateQueries({ queryKey: ["financeiro"] });
-    void qc.invalidateQueries({ queryKey: ["ranking"] });
+    qc.invalidateQueries({ queryKey: ["abastecimentos"] });
+    qc.invalidateQueries({ queryKey: ["fornecedores"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
   const buscarCnpj = async () => {
@@ -235,125 +242,11 @@ export default function Abastecimentos() {
     }
   };
 
-  const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let text = "";
+  
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        text += content.items.map((item: any) => item.str).join(" ") + "\n";
-      }
+  
 
-      text = text.replace(/\n/g, " ").replace(/\s+/g, " ");
-
-      const placaMatch = text.match(/PLACA[:\s]*([A-Z0-9]{7})/i);
-      const placa = placaMatch ? placaMatch[1].toUpperCase() : "";
-      
-      const veiculo = veiculos.data?.find((v: any) => v.placa.replace("-", "").toUpperCase() === placa.replace("-", "").toUpperCase());
-      if (!veiculo) { toast.error(`Veículo com placa ${placa} não encontrado no cadastro.`); return; }
-
-      const kmMatch = text.match(/KM[:\s]*(\d+)/i);
-      const km = kmMatch ? Number(kmMatch[1]) : 0;
-      
-      const dateMatch = text.match(/DATA DA EMISS[ÃA]O.*?(\d{2}\/\d{2}\/\d{4})/i);
-      let dataStr = "";
-      if (dateMatch) {
-        const [d, m, y] = dateMatch[1].split("/");
-        dataStr = `${y}-${m}-${d}`;
-      } else {
-        dataStr = new Date().toISOString().split("T")[0];
-      }
-
-      const timeMatch = text.match(/HORA DA SA[ÍI]DA.*?(\d{2}:\d{2})/i);
-      const nfMatch = text.match(/N[º°]\s*(\d+)/i);
-      const chaveMatch = text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/i);
-      const cnpjMatch = text.match(/C\.N\.P\.J\.\s*\/\s*C\.P\.F\.\s*([\d\.\/\-]+)/i) || text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/i);
-      const fornMatch = text.match(/RECEBEMOS DE\s+([^,]+?)(?:\s*\(|,)/i);
-      
-      const motoristaMatch = text.match(/MOTORISTA[:\s]+([A-Z\s]+)(?=\||nBico|$)/i);
-      let motoristaId = NENHUM;
-      if (motoristaMatch && motoristas.data) {
-        const motNome = motoristaMatch[1].trim().toUpperCase();
-        const mot = motoristas.data.find((m: any) => m.nome.toUpperCase().includes(motNome) || motNome.includes(m.nome.toUpperCase()));
-        if (mot) motoristaId = mot.id;
-      }
-
-      const litrosMatch = text.match(/L\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i);
-      
-      const parseNum = (val: string) => {
-        if (!val) return 0;
-        let str = String(val).replace(/[^\d.,]/g, "");
-        if (str.includes('.') && str.includes(',')) str = str.replace(/\./g, '').replace(',', '.');
-        else if (str.includes(',')) str = str.replace(',', '.');
-        return Number(str);
-      };
-
-      const cnpjLimpo = cnpjMatch ? cnpjMatch[1].replace(/\D/g, '') : "";
-      
-      const acoplamento = await apiGet<any[]>("/acoplamentos");
-      const acoplamentoAtivo = acoplamento.find(a => a.veiculo_id === veiculo.id);
-      const motId = acoplamentoAtivo?.motorista_id || motoristaId;
-
-      const baseForm = {
-        data: dataStr,
-        veiculo_id: veiculo.id,
-        motorista_id: motId || NENHUM,
-        litros: litrosMatch ? String(parseNum(litrosMatch[1])) : "",
-        preco_litro: litrosMatch ? String(parseNum(litrosMatch[2])) : "",
-        posto: fornMatch ? fornMatch[1].trim() : "Importado",
-        km: km ? String(km) : "",
-        observacoes: "",
-        numero_nf: nfMatch ? nfMatch[1] : "",
-        chave_nfe: chaveMatch ? chaveMatch[1].replace(/\s/g, "") : "",
-        hora: timeMatch ? timeMatch[1] : "",
-        cnpj: cnpjLimpo ? formatCnpj(cnpjLimpo) : "",
-        fornecedor: fornMatch ? fornMatch[1].trim() : "",
-        cidade: "",
-        estado: "",
-        avaliacao: 0,
-        origem: "pdf",
-        produto: "DIESEL",
-        combustivel_id: ""
-      };
-
-      if (cnpjLimpo.length === 14) {
-        const existente = fornecedores.find((f: any) => f.documento && f.documento.replace(/\D/g, '') === cnpjLimpo);
-        if (existente) {
-          baseForm.fornecedor = existente.nome;
-          baseForm.posto = existente.nome;
-          baseForm.cidade = existente.cidade || "";
-          baseForm.estado = existente.estado || "";
-          baseForm.avaliacao = existente.avaliacao || 0;
-          setForm(baseForm);
-          setOpen(true);
-          toast.success(`Fornecedor ${existente.nome} carregado.`);
-        } else {
-          const data = await apiGet<any>(`/fornecedores/consultar-cnpj/${cnpjLimpo}`);
-          setPdfPendenteData(baseForm); 
-          setFornecedorPendente({ 
-            nome: data.razao_social, 
-            cnpj: formatCnpj(cnpjLimpo), 
-            cidade: data.municipio, 
-            estado: data.uf,
-            endereco: `${data.logradouro || ''}, ${data.numero || ''}`.trim(),
-            bairro: data.bairro || '',
-            avaliacao: 0
-          });
-        }
-      } else {
-        setForm(baseForm);
-        setOpen(true);
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao importar o PDF.");
-    }
-  };
+  
 
   
   
@@ -801,6 +694,140 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
       isImportingEdenredRef.current = false;
     }
   };
+  
+
+  
+
+  
+
+  
+
+  
+  
+  
+
+  
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+  
+  
+  
+
+  
+  const handleImportPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setPdfArquivosLote(Array.from(files));
+    setOpenPdfModal(true);
+    e.target.value = "";
+  };
+
+  const executarImportacaoPDFLote = async () => {
+    if (importandoPDF || pdfArquivosLote.length === 0) return;
+
+    setImportandoPDF(true);
+    setOpenPdfModal(false);
+
+    let importados = 0;
+    const erros: string[] = [];
+
+    for (let fileIdx = 0; fileIdx < pdfArquivosLote.length; fileIdx++) {
+      const file = pdfArquivosLote[fileIdx];
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await Promise.race([
+          pdfjsLib.getDocument({ data: arrayBuffer }).promise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout (10s)")), 10000))
+        ]) as any;
+
+        let text = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map((item: any) => item.str).join(" ") + "\n";
+        }
+        text = text.replace(/\n/g, " ").replace(/\s+/g, " ");
+
+        const placaMatch = text.match(/PLACA[:\s]*([A-Z0-9]{7})/i);
+        const placa = placaMatch ? placaMatch[1].toUpperCase() : "";
+        const veiculo = veiculos.data?.find((v: any) => v.placa.replace("-", "").toUpperCase() === placa.replace("-", "").toUpperCase());
+        if (!veiculo) { erros.push(`${file.name}: veículo não encontrado`); continue; }
+
+        const kmMatch = text.match(/KM[:\s]*(\d+)/i);
+        const km = kmMatch ? Number(kmMatch[1]) : 0;
+        const dateMatch = text.match(/DATA DA EMISS[ÃA]O.*?(\d{2}\/\d{2}\/\d{4})/i);
+        let dataStr = new Date().toISOString().split("T")[0];
+        if (dateMatch) { const [d, m, y] = dateMatch[1].split("/"); dataStr = `${y}-${m}-${d}`; }
+
+        const timeMatch = text.match(/HORA DA SA[ÍI]DA.*?(\d{2}:\d{2})/i);
+        const nfMatch = text.match(/N[º°]\s*(\d+)/i);
+        const chaveMatch = text.match(/CHAVE DE ACESSO DA NF-E\s*([\d\s]+)/i);
+        const cnpjMatch = text.match(/C\.N\.P\.J\.\s*\/\s*C\.P\.F\.\s*([\d\.\/\-]+)/i) || text.match(/C\.N\.P\.J\.\s*([\d\.\/\-]+)/i);
+        const fornMatch = text.match(/RECEBEMOS DE\s+([^,]+?)(?:\s*\(|,)/i);
+        const litrosMatch = text.match(/L\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i);
+        
+        const parseNum = (val: string) => {
+          if (!val) return 0;
+          let str = String(val).replace(/[^\d.,]/g, "");
+          if (str.includes('.') && str.includes(',')) str = str.replace(/\./g, '').replace(',', '.');
+          else if (str.includes(',')) str = str.replace(',', '.');
+          return Number(str);
+        };
+
+        const cnpjLimpo = cnpjMatch ? cnpjMatch[1].replace(/\D/g, '') : "";
+        const fornecedorNome = fornMatch ? fornMatch[1].trim() : "";
+        const payload = {
+          data: dataStr, placa, km,
+          fornecedor: fornecedorNome,
+          cnpj: cnpjLimpo ? formatCnpj(cnpjLimpo) : "",
+          litros: litrosMatch ? parseNum(litrosMatch[1]) : 0,
+          preco_litro: litrosMatch ? parseNum(litrosMatch[2]) : 0,
+          valor_total: litrosMatch ? parseNum(litrosMatch[3]) : 0,
+          produto: "DIESEL",
+          numero_nf: nfMatch ? nfMatch[1] : null,
+          chave_nfe: chaveMatch ? chaveMatch[1].replace(/\s/g, "") : null,
+          hora: timeMatch ? timeMatch[1] : null,
+          origem: "pdf"
+        };
+
+        // Cadastra fornecedor automaticamente se não existir
+        if (fornecedorNome) {
+          const existingForn = fornecedores.find((f: any) => f.nome.toUpperCase() === fornecedorNome.toUpperCase());
+          if (!existingForn) {
+            try { 
+              await apiPost("/fornecedores", { 
+                nome: fornecedorNome, documento: payload.cnpj, ativo: true, avaliacao: 0 
+              }); 
+              await refetchFornecedores();
+            } catch (err) {}
+          }
+        }
+
+        await apiPost("/abastecimentos/importar", payload);
+        importados++;
+        await new Promise(r => setTimeout(r, 150));
+      } catch (err: any) {
+        erros.push(`${file.name}: ${err.message || "Erro"}`);
+      }
+    }
+
+    if (erros.length === 0) toast.success(`${importados} PDF(s) importado(s) com sucesso!`);
+    else if (importados > 0) toast.warning(`${importados} importado(s), ${erros.length} com erro.`);
+    else toast.error("Nenhum PDF importado. Verifique os arquivos.");
+
+    invalidate();
+    setImportandoPDF(false);
+    setPdfArquivosLote([]);
+  };
   return (
     <div>
       <PageHeader eyebrow="Operação" title="Abastecimentos" description="Registro detalhado." actions={
@@ -819,8 +846,8 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             {importandoEdenred ? "Importando..." : "Importar Edenred"}
           </Button>
 
-          <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()}><FileText className="size-4 mr-2" /> Importar NF</Button>
+          <input type="file" accept=".pdf" multiple ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
+          <Button variant="outline" disabled={importandoPDF} onClick={() => fileInputRef.current?.click()}><FileText className="size-4 mr-2" /> {importandoPDF ? "Importando..." : "Importar NF"}</Button>
           <Button onClick={abrirNovo}><Plus className="size-4" /> Novo</Button>
         </div>
       }/>
@@ -1349,6 +1376,43 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
               disabled={isImportingEdenredRef.current}
             >
               Sim, Importar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      <Dialog open={openPdfModal} onOpenChange={setOpenPdfModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar Importação de PDF</DialogTitle>
+            <DialogDescription>
+              Você selecionou <strong>{pdfArquivosLote.length}</strong> arquivo(s). Deseja importar todos?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="my-4 p-3 bg-red-950/40 border border-red-800/50 rounded-lg">
+            <p className="text-red-400 animate-pulse font-bold text-sm text-center flex items-center justify-center gap-2">
+              <AlertTriangle className="size-5" /> 
+              Atenção: O sistema processará apenas esta leitura. Não clique várias vezes.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setOpenPdfModal(false); setPdfArquivosLote([]); }}>
+              Cancelar
+            </Button>
+            <Button onClick={executarImportacaoPDFLote} disabled={importandoPDF}>
+              {importandoPDF ? "Importando..." : "Sim, Importar"}
             </Button>
           </DialogFooter>
         </DialogContent>
