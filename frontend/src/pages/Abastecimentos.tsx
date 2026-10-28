@@ -65,6 +65,8 @@ export default function Abastecimentos() {
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const [pendingEdenredRows, setPendingEdenredRows] = useState<any[]>([]);
+  const [duplicateErrors, setDuplicateErrors] = useState<any[]>([]);
+  const [openDuplicateModal, setOpenDuplicateModal] = useState(false);
   const [pdfPendingData, setPdfPendingData] = useState<any>(null);
   const [avaliacaoPendentePdf, setAvaliacaoPendentePdf] = useState(0);
   const [openPdfConfirm, setOpenPdfConfirm] = useState(false);
@@ -265,118 +267,7 @@ export default function Abastecimentos() {
     setSelectedFornecedores(newSelected);
   };
 
-  const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: false });
-
-      let headerIdx = -1;
-      for (let i = 0; i < rows.length; i++) {
-        const rowStr = rows[i].map((c: any) => String(c).toUpperCase()).join(" ");
-        if (rowStr.includes("DATA") && rowStr.includes("PLACA") && rowStr.includes("LITROS")) {
-          headerIdx = i;
-          break;
-        }
-      }
-
-      if (headerIdx === -1) { toast.error("Cabeçalho do BSOFT não encontrado."); return; }
-
-      const header = rows[headerIdx].map((c: any) => String(c).toUpperCase().trim());
-      const findIdx = (name: string) => header.findIndex(h => h.includes(name));
-
-      const idxData = findIdx("DATA");
-      const idxPlaca = findIdx("PLACA");
-      const idxKm = findIdx("LEITURA");
-      const idxPosto = findIdx("POSTO");
-      const idxLitros = findIdx("LITROS");
-      const idxValor = findIdx("VALOR");
-      const idxPreco = findIdx("V. LITRO");
-      const idxProduto = findIdx("PRODUTO");
-
-      const totalLinhas = rows.length - headerIdx - 1;
-      setImportProgress({ total: totalLinhas, current: 0, errors: [] });
-      let importados = 0; const erros: any[] = [];
-
-      const parseNum = (val: any) => {
-        if (!val) return 0;
-        let str = String(val).replace(/[^0-9.,-]/g, "");
-        if (str.includes('.') && str.includes(',')) {
-            if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\./g, '').replace(',', '.');
-            else str = str.replace(/,/g, '');
-        } else if (str.includes(',')) {
-            str = str.replace(',', '.');
-        }
-        return Number(str) || 0;
-      };
-
-      for (let i = headerIdx + 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAIS")) continue;
-
-        let dataStr = String(row[idxData]).trim().split(" ")[0]; 
-        
-        // CONVERSÃO INTELIGENTE DE DATA (M/D/YY -> YYYY-MM-DD)
-        if (dataStr.includes("/")) {
-            const parts = dataStr.split("/");
-            if (parts.length === 3) {
-                let month = parts[0].padStart(2, '0');
-                let day = parts[1].padStart(2, '0');
-                let year = parts[2];
-                if (year.length === 2) year = "20" + year;
-                dataStr = `${year}-${month}-${day}`;
-            }
-        }
-
-        let placaRaw = String(row[idxPlaca] || "").trim();
-        const placa = placaRaw.replace("-", "").split("/")[0].toUpperCase();
-
-        if (!placa || placa.length < 7 || placa.includes("BSOFT")) continue;
-
-        const litros = parseNum(row[idxLitros]);
-        const preco_litro = parseNum(row[idxPreco]);
-        const valor_total = parseNum(row[idxValor]);
-        const km = parseNum(row[idxKm]);
-
-        const payload = {
-          data: dataStr,
-          placa: placa,
-          km: km,
-          fornecedor: String(row[idxPosto] || "").trim(),
-          litros: litros,
-          preco_litro: preco_litro,
-          valor_total: valor_total,
-          produto: String(row[idxProduto] || "DIESEL").toUpperCase(),
-          origem: "bsoft"
-        };
-
-        try { 
-          await apiPost("/abastecimentos/importar", payload); 
-          importados++; 
-          await new Promise(r => setTimeout(r, 150)); 
-        } catch (err: any) { 
-          erros.push({ linha: i + 1, placa: placa, erro: err.message && err.message.includes("409") ? "Já importado" : (err.message || "Erro") }); 
-        }
-        setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
-      }
-
-      setImportProgress(prev => prev ? { ...prev, current: totalLinhas, errors: erros } : null);
-      if (erros.length === 0) {
-        toast.success(`${importados} registros BSOFT importados!`);
-      } else if (importados > 0) {
-        toast.warning(`${importados} importados, mas ${erros.length} já existiam.`);
-      } else {
-        toast.error("Todos os registros já foram importados.");
-      }
-      invalidate();
-    } catch (error) {
-      console.error(error); toast.error("Erro ao ler o arquivo BSOFT."); setImportProgress(null);
-    }
-  };
+  
 
   const salvar = useMutation({
     mutationFn: () => {
@@ -617,17 +508,13 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
   const executarImportacaoEdenred = async (rowsData: any[]) => {
     if (isImportingEdenredRef.current) return;
     isImportingEdenredRef.current = true;
-    
-    // Fecha TODOS os modais ANTES de iniciar
+    setImportandoEdenred(true);
     setOpenConfirmImport(false);
     setOpenFornecedoresModal(false);
-    setOpenEdenredConfirm(false); // <--- FECHA O MODAL DE "IMPORTAR PLANILHA EDENRED?"
-    setOpen(false); // Fecha qualquer outro modal que possa estar aberto
-    
-    setImportandoEdenred(true);
     setImportProgress({ total: rowsData.length, current: 0, errors: [] });
     
-    let importados = 0; const erros: any[] = [];
+    let importados = 0; 
+    const errosDetalhados: any[] = [];
     
     try {
       for (let i = 0; i < rowsData.length; i++) {
@@ -637,30 +524,36 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           importados++; 
           await new Promise(resolve => setTimeout(resolve, 150));
         } catch (err: any) { 
-          erros.push({ linha: i + 1, placa: payload.placa, erro: err.message && err.message.includes("409") ? "Já importado" : (err.message || "Erro") }); 
+          const isDup = err.message && (err.message.includes("409") || err.message.toLowerCase().includes("duplicado"));
+          const motivo = isDup ? (err.message.split(":").pop()?.trim() || "Registro duplicado") : (err.message || "Erro de validação");
+          
+          let identificador = `Data: ${payload.data} | Placa: ${payload.placa}`;
+          if (payload.numero_nf) identificador = `NF: ${payload.numero_nf} | ` + identificador;
+          if (payload.codigo_transacao) identificador = `Cód: ${payload.codigo_transacao} | ` + identificador;
+
+          errosDetalhados.push({ identificador, motivo });
         }
-        setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
+        setImportProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
       }
       
-      setImportProgress(prev => prev ? { ...prev, current: rowsData.length, errors: erros } : null);
-      
-      if (erros.length === 0) toast.success(`${importados} Edenred importados!`);
-      else if (importados > 0) toast.warning(`${importados} importados, mas ${erros.length} deram erro ou já existiam.`);
-      else toast.error("Todos os registros já foram importados ou deram erro.");
+      if (errosDetalhados.length === 0) {
+        toast.success(`${importados} registros importados com sucesso!`);
+      } else if (importados > 0) {
+        setDuplicateErrors(errosDetalhados);
+        setOpenDuplicateModal(true);
+        toast.warning(`${importados} importados, mas ${errosDetalhados.length} foram bloqueados.`);
+      } else {
+        setDuplicateErrors(errosDetalhados);
+        setOpenDuplicateModal(true);
+        toast.error("Nenhum registro importado. Verifique os bloqueios.");
+      }
       
       invalidate();
     } finally {
-      // DESLIGA O OVERLAY E LIMPA TUDO
-      setImportandoEdenred(false);
       isImportingEdenredRef.current = false;
+      setImportandoEdenred(false);
       setPendingEdenredRows([]);
       setImportProgress(null);
-      
-      // Garante que todos os modais estejam fechados no final
-      setOpenConfirmImport(false);
-      setOpenFornecedoresModal(false);
-      setOpenEdenredConfirm(false);
-      setOpen(false);
     }
   };
 
@@ -742,7 +635,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
 
     setImportandoPDF(true);
     let importados = 0;
-    const erros: string[] = [];
+    const errosDetalhados: any[] = [];
     let fornecedorPendenteData: any = null;
 
     for (let fileIdx = 0; fileIdx < arquivos.length; fileIdx++) {
@@ -765,7 +658,10 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
         const placaMatch = text.match(/PLACA[:\s]*([A-Z0-9]{7})/i);
         const placa = placaMatch ? placaMatch[1].toUpperCase() : "";
         const veiculo = veiculos.data?.find((v: any) => v.placa.replace("-", "").toUpperCase() === placa.replace("-", "").toUpperCase());
-        if (!veiculo) { erros.push(`${file.name}: veículo não encontrado`); continue; }
+        if (!veiculo) { 
+          errosDetalhados.push({ identificador: `Placa: ${placa}`, motivo: "Veículo não cadastrado" });
+          continue; 
+        }
 
         const kmMatch = text.match(/KM[:\s]*(\d+)/i);
         const km = kmMatch ? Number(kmMatch[1]) : 0;
@@ -804,42 +700,49 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           origem: "pdf"
         };
 
-        // Se fornecedor não existe, para o lote e abre modal
         if (fornecedorNome) {
           const existingForn = fornecedores.find((f: any) => f.nome.toUpperCase() === fornecedorNome.toUpperCase());
           if (!existingForn) {
             fornecedorPendenteData = { nome: fornecedorNome, cnpj: payload.cnpj, payload, restantes: arquivos.slice(fileIdx + 1) };
-            break; // Sai do loop para mostrar o modal
+            break;
           }
         }
 
-        // Se fornecedor existe (ou não tem nome), importa direto
         await apiPost("/abastecimentos/importar", payload);
         importados++;
         await new Promise(r => setTimeout(r, 150));
       } catch (err: any) {
-        if (err.message && (err.message.includes("409") || err.message.toLowerCase().includes("duplicado"))) {
-          erros.push(`${file.name}: Nota já importada anteriormente.`);
-        } else {
-          erros.push(`${file.name}: ${err.message || "Erro"}`);
-        }
+        const isDup = err.message && (err.message.includes("409") || err.message.toLowerCase().includes("duplicado"));
+        const motivo = isDup ? (err.message.split(":").pop()?.trim() || "Registro duplicado") : (err.message || "Erro desconhecido");
+        errosDetalhados.push({ identificador: `Arquivo: ${file.name}`, motivo });
       }
     }
 
     setImportandoPDF(false);
 
     if (fornecedorPendenteData) {
-      // Pausa e abre modal de avaliação
       setPdfPendingFornecedor(fornecedorPendenteData);
       setAvaliacaoPdf(0);
       setOpenPdfFornecedorConfirm(true);
       if (importados > 0) toast.success(`${importados} PDF(s) importado(s) antes da pausa.`);
+      if (errosDetalhados.length > 0) {
+         setDuplicateErrors(errosDetalhados);
+         setOpenDuplicateModal(true);
+      }
       return;
     }
 
-    if (erros.length === 0) toast.success(`${importados} PDF(s) importado(s)!`);
-    else if (importados > 0) toast.warning(`${importados} importado(s), ${erros.length} com erro.`);
-    else toast.error("Nenhum PDF importado.");
+    if (errosDetalhados.length === 0) {
+      toast.success(`${importados} PDF(s) importado(s)!`);
+    } else if (importados > 0) {
+      setDuplicateErrors(errosDetalhados);
+      setOpenDuplicateModal(true);
+      toast.warning(`${importados} importado(s), mas ${errosDetalhados.length} bloqueados.`);
+    } else {
+      setDuplicateErrors(errosDetalhados);
+      setOpenDuplicateModal(true);
+      toast.error("Nenhum PDF importado.");
+    }
 
     invalidate();
     setPdfArquivosLote([]);
@@ -890,12 +793,132 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
     } else {
       setPdfArquivosLote([]);
     }
-  };  return (
+  };  const handleImportXLS = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: false });
+
+      let headerIdx = -1;
+      for (let i = 0; i < rows.length; i++) {
+        const rowStr = rows[i].map((c: any) => String(c).toUpperCase()).join(" ");
+        if (rowStr.includes("DATA") && rowStr.includes("PLACA") && rowStr.includes("LITROS")) {
+          headerIdx = i;
+          break;
+        }
+      }
+
+      if (headerIdx === -1) { toast.error("Cabeçalho do BSOFT não encontrado."); return; }
+
+      const header = rows[headerIdx].map((c: any) => String(c).toUpperCase().trim());
+      const findIdx = (name: string) => header.findIndex(h => h.includes(name));
+
+      const idxData = findIdx("DATA");
+      const idxPlaca = findIdx("PLACA");
+      const idxKm = findIdx("LEITURA");
+      const idxPosto = findIdx("POSTO");
+      const idxLitros = findIdx("LITROS");
+      const idxValor = findIdx("VALOR");
+      const idxPreco = findIdx("V. LITRO");
+      const idxProduto = findIdx("PRODUTO");
+
+      const parseNum = (val: any) => {
+        if (!val) return 0;
+        let str = String(val).replace(/[^0-9.,-]/g, "");
+        if (str.includes('.') && str.includes(',')) {
+            if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\./g, '').replace(',', '.');
+            else str = str.replace(/,/g, '');
+        } else if (str.includes(',')) {
+            str = str.replace(',', '.');
+        }
+        return Number(str) || 0;
+      };
+
+      const mapFornecedores = new Set(fornecedores.map((f: any) => f.nome.toUpperCase().trim()));
+      const unregistered = new Map<string, any>();
+      const payloads: any[] = [];
+
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAIS")) continue;
+
+        let dataStr = String(row[idxData]).trim().split(" ")[0];
+        if (dataStr.includes("/")) {
+            const parts = dataStr.split("/");
+            if (parts.length === 3) {
+                let month = parts[0].padStart(2, '0');
+                let day = parts[1].padStart(2, '0');
+                let year = parts[2];
+                if (year.length === 2) year = "20" + year;
+                dataStr = `${year}-${month}-${day}`;
+            }
+        }
+
+        let placaRaw = String(row[idxPlaca] || "").trim();
+        const placa = placaRaw.replace("-", "").split("/")[0].toUpperCase();
+
+        if (!placa || placa.length < 7 || placa.includes("BSOFT")) continue;
+
+        const litros = parseNum(row[idxLitros]);
+        const preco_litro = parseNum(row[idxPreco]);
+        const valor_total = parseNum(row[idxValor]);
+        const km = parseNum(row[idxKm]);
+        const fornecedorNome = String(row[idxPosto] || "").trim();
+
+        if (fornecedorNome && !mapFornecedores.has(fornecedorNome.toUpperCase().trim())) {
+          unregistered.set(fornecedorNome, { nome: fornecedorNome, cidade: "", estado: "", endereco: "", bairro: "" });
+        }
+
+        payloads.push({
+          data: dataStr,
+          placa: placa,
+          km: km,
+          fornecedor: fornecedorNome,
+          litros: litros,
+          preco_litro: preco_litro,
+          valor_total: valor_total,
+          produto: String(row[idxProduto] || "DIESEL").toUpperCase(),
+          origem: "bsoft",
+          motorista_id: NENHUM,
+          cnpj: "",
+          codigo_transacao: ""
+        });
+      }
+
+      const pendentes = Array.from(unregistered.values());
+      if (pendentes.length > 0) {
+        const initialSelected: Record<string, boolean> = {};
+        const initialAvaliacoes: Record<string, number> = {};
+        pendentes.forEach(f => {
+          initialSelected[f.nome] = true;
+          initialAvaliacoes[f.nome] = 0;
+        });
+        setSelectedFornecedores(initialSelected);
+        setAvaliacoesPendentes(initialAvaliacoes);
+        setFornecedoresPendentes(pendentes);
+        setPendingEdenredRows(payloads);
+        setOpenFornecedoresModal(true);
+      } else {
+        setPendingEdenredRows(payloads);
+        setOpenConfirmImport(true);
+      }
+
+      e.target.value = "";
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao ler o arquivo BSOFT.");
+    }
+  };
+  return (
     <div>
       <PageHeader eyebrow="Operação" title="Abastecimentos" description="Registro detalhado." actions={
         <div className="flex gap-2">
           <input type="file" accept=".xls,.xlsx" ref={xlsInputRef} onChange={handleImportXLS} className="hidden" />
-          <Button variant="outline" onClick={() => xlsInputRef.current?.click()}><Upload className="size-4 mr-2" /> Importar BSOFT</Button>
+          <Button variant="outline" disabled={importandoEdenred || openConfirmImport || openFornecedoresModal} onClick={() => xlsInputRef.current?.click()}><Upload className="size-4 mr-2" /> {importandoEdenred ? "Importando..." : "Importar BSOFT"}</Button>
           
           <input type="file" accept=".xlsx" ref={edenredInputRef} onChange={handleImportEdenred} className="hidden" />
           <Button 
@@ -1492,6 +1515,40 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             <Button onClick={() => confirmarFornecedorPdf(true)} disabled={avaliacaoPdf === 0}>
               Cadastrar com Avaliação e Importar
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    
+      <Dialog open={openDuplicateModal} onOpenChange={setOpenDuplicateModal}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-red-400 flex items-center gap-2">
+              <AlertTriangle className="size-5" /> Registros Bloqueados / Não Importados
+            </DialogTitle>
+            <DialogDescription>
+              Os registros abaixo já existiam no sistema (duplicados) ou continham erros de validação.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Identificação do Registro</TableHead>
+                  <TableHead>Motivo do Bloqueio</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {duplicateErrors.map((err, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="text-xs font-mono text-slate-300">{err.identificador}</TableCell>
+                    <TableCell className="text-xs text-red-400">{err.motivo}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { setOpenDuplicateModal(false); setDuplicateErrors([]); }}>Entendido</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
