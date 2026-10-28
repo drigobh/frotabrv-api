@@ -65,6 +65,11 @@ export default function Abastecimentos() {
   const [form, setForm] = useState(() => vazio(""));
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const [pendingEdenredRows, setPendingEdenredRows] = useState<any[]>([]);
+  const [importandoEdenred, setImportandoEdenred] = useState(false);
+  const [openConfirmImport, setOpenConfirmImport] = useState(false);
+  const [cliquesConfirmacao, setCliquesConfirmacao] = useState(0);
+  const [openEdenredConfirm, setOpenEdenredConfirm] = useState(false);
+  const isImportingEdenredRef = useRef(false);
   const [openFornecedoresModal, setOpenFornecedoresModal] = useState(false);
   const [fornecedoresPendentes, setFornecedoresPendentes] = useState<any[]>([]);
   const [selectedFornecedores, setSelectedFornecedores] = useState<Record<string, boolean>>({});
@@ -350,174 +355,13 @@ export default function Abastecimentos() {
     }
   };
 
-  const executarImportacaoEdenred = async (rowsData: any[]) => {
-    setImportProgress({ total: rowsData.length, current: 0, errors: [] });
-    let importados = 0; const erros: any[] = [];
-    
-    for (let i = 0; i < rowsData.length; i++) {
-      const payload = rowsData[i];
-      try { 
-        await apiPost("/abastecimentos/importar", payload); 
-        importados++; 
-        await new Promise(resolve => setTimeout(resolve, 150));
-      } catch (err: any) { 
-        erros.push({ linha: i + 1, placa: payload.placa, erro: err.message && err.message.includes("409") ? "Já importado" : (err.message || "Erro") }); 
-      }
-      setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
-    }
-    
-    setImportProgress(prev => prev ? { ...prev, current: rowsData.length, errors: erros } : null);
-    if (erros.length === 0) toast.success(`${importados} Edenred importados!`);
-    else if (importados > 0) toast.warning(`${importados} importados, mas ${erros.length} deram erro ou já existiam.`);
-    else toast.error("Todos os registros já foram importados ou deram erro.");
-    
-    invalidate();
-    setOpenFornecedoresModal(false);
-  };
+  
+  
 
-  const handleImportEdenred = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  
 
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: false });
-
-      if (rows.length < 2) { toast.error("Planilha vazia."); return; }
-
-      const headerRow = rows[0].map((c: any) => String(c).toUpperCase().trim());
-      const findIdx = (name: string) => headerRow.findIndex(h => h.replace(/\s+/g, '').includes(name.replace(/\s+/g, '')));
-
-      const idxCod = findIdx("CODIGO TRANSACAO");
-      const idxData = findIdx("DATA TRANSACAO");
-      const idxPlaca = findIdx("PLACA");
-      const idxMotorista = findIdx("NOME MOTORISTA");
-      const idxProduto = findIdx("TIPO COMBUSTIVEL");
-      const idxLitros = findIdx("LITROS");
-      const idxPreco = findIdx("VL/LITRO") !== -1 ? findIdx("VL/LITRO") : findIdx("V. LITRO");
-      const idxKm = findIdx("HODOMETRO");
-      const idxKmRodados = findIdx("KM RODADOS");
-      const idxMedia = findIdx("KM/LITRO");
-      const idxPosto = findIdx("NOME ESTABELECIMENTO");
-      const idxValor = findIdx("VALOR EMISSAO");
-      const idxCidade = findIdx("CIDADE");
-      const idxEstado = findIdx("UF");
-      const idxEndereco = findIdx("ENDERECO");
-      const idxBairro = findIdx("BAIRRO");
-
-      const parseNum = (val: any) => {
-        if (val === undefined || val === null || val === "") return 0;
-        if (typeof val === 'number') return val;
-        let str = String(val).replace(/[^0-9.,-]/g, "");
-        if (str.includes('.') && str.includes(',')) {
-            if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\./g, '').replace(',', '.');
-            else str = str.replace(/,/g, '');
-        } else if (str.includes(',')) {
-            str = str.replace(',', '.');
-        }
-        return Number(str) || 0;
-      };
-
-      const mapFornecedores = new Set(fornecedores.map((f: any) => f.nome.toUpperCase().trim()));
-      const unregistered = new Map<string, any>();
-      const payloads: any[] = [];
-
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAL")) continue;
-
-        const dataStr = String(row[idxData]).trim();
-        const dataFinal = dataStr.split(" ")[0];
-        const horaFinal = dataStr.includes(" ") ? dataStr.split(" ")[1].substring(0, 5) : null;
-
-        const kmNum = parseNum(row[idxKm]);
-        const litrosNum = parseNum(row[idxLitros]);
-        const precoNum = parseNum(row[idxPreco]);
-        const valorNum = idxValor !== -1 ? parseNum(row[idxValor]) : (litrosNum * precoNum);
-        const kmRodadosNum = idxKmRodados !== -1 ? parseNum(row[idxKmRodados]) : null;
-        const mediaNum = idxMedia !== -1 ? parseNum(row[idxMedia]) : null;
-
-        const motoristaNome = idxMotorista !== -1 ? String(row[idxMotorista] || "").trim() : "";
-        let motoristaId = NENHUM;
-        if (motoristaNome && motoristas.data) {
-          const mot = motoristas.data.find((m: any) => m.nome.toUpperCase() === motoristaNome.toUpperCase() || m.nome.toUpperCase().includes(motoristaNome));
-          if (mot) motoristaId = mot.id;
-        }
-
-        const fornecedorNome = String(row[idxPosto] || "").trim();
-        const cidade = idxCidade !== -1 ? String(row[idxCidade] || "").trim() : "";
-        const estado = idxEstado !== -1 ? String(row[idxEstado] || "").trim() : "";
-        const endereco = idxEndereco !== -1 ? String(row[idxEndereco] || "").trim() : "";
-        const bairro = idxBairro !== -1 ? String(row[idxBairro] || "").trim() : "";
-
-        if (fornecedorNome && !mapFornecedores.has(fornecedorNome.toUpperCase().trim())) {
-          unregistered.set(fornecedorNome, { nome: fornecedorNome, cidade, estado, endereco, bairro });
-        }
-
-        let cnpjFormatado = "";
-        const existingForn = fornecedores.find((f: any) => f.nome.toUpperCase() === fornecedorNome.toUpperCase());
-        if (existingForn && existingForn.documento) {
-          cnpjFormatado = existingForn.documento;
-        }
-
-        payloads.push({
-          data: dataFinal, placa: String(row[idxPlaca] || "").toUpperCase().trim(), km: kmNum,
-          motorista_id: motoristaId, fornecedor: fornecedorNome, cnpj: cnpjFormatado,
-          cidade, estado, litros: litrosNum, preco_litro: precoNum, valor_total: valorNum,
-          km_rodados: kmRodadosNum, media_km_l: mediaNum,
-          produto: String(row[idxProduto] || "DIESEL").toUpperCase(),
-          codigo_transacao: String(row[idxCod] || "").trim(),
-          hora: horaFinal, numero_nf: null, chave_nfe: null, origem: "excel"
-        });
-      }
-
-      const pendentes = Array.from(unregistered.values());
-      if (pendentes.length > 0) {
-        // Configura o estado do modal
-        const initialSelected: Record<string, boolean> = {};
-        const initialAvaliacoes: Record<string, number> = {};
-        pendentes.forEach(f => {
-          initialSelected[f.nome] = true;
-          initialAvaliacoes[f.nome] = 0;
-        });
-        setSelectedFornecedores(initialSelected);
-        setAvaliacoesPendentes(initialAvaliacoes);
-        setFornecedoresPendentes(pendentes);
-        setPendingEdenredRows(payloads);
-        setOpenFornecedoresModal(true);
-      } else {
-        // Nenhum fornecedor pendente, importa direto
-        executarImportacaoEdenred(payloads);
-      }
-    } catch (error) {
-      console.error(error); toast.error("Erro ao ler Edenred."); setImportProgress(null);
-    }
-  };
-
-  const confirmarCadastroLote = async () => {
-    const selecionados = fornecedoresPendentes.filter(f => selectedFornecedores[f.nome]);
-    for (const f of selecionados) {
-      try {
-        await apiPost("/fornecedores", {
-          nome: f.nome,
-          documento: "", // Planilha não traz CNPJ
-          endereco: f.endereco,
-          bairro: f.bairro,
-          cidade: f.cidade,
-          estado: f.estado,
-          ativo: true,
-          avaliacao: avaliacoesPendentes[f.nome] || 0
-        });
-      } catch (err: any) {
-        if (!err.message?.includes("409")) console.error(`Erro ao cadastrar ${f.nome}`, err);
-      }
-    }
-    await refetchFornecedores();
-    toast.success(`${selecionados.length} fornecedores cadastrados!`);
-    executarImportacaoEdenred(pendingEdenredRows);
-  };
+  
+  
 
   const toggleAllFornecedores = (checked: boolean) => {
     const newSelected: Record<string, boolean> = {};
@@ -733,6 +577,230 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
     { label: "Custo por KM", valor: brl(resumo.custoPorKm), icon: DollarSign, color: "#34d399", sub: "combustível", tip: "Valor Total / KM." },
   ];
 
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  const handleImportEdenred = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: false });
+
+      if (rows.length < 2) { 
+        toast.error("Planilha vazia."); 
+        return; 
+      }
+
+      const headerRow = rows[0].map((c: any) => String(c).toUpperCase().trim());
+      const findIdx = (name: string) => headerRow.findIndex(h => h.replace(/\\s+/g, '').includes(name.replace(/\\s+/g, '')));
+
+      const idxCod = findIdx("CODIGO TRANSACAO");
+      const idxData = findIdx("DATA TRANSACAO");
+      const idxPlaca = findIdx("PLACA");
+      const idxMotorista = findIdx("NOME MOTORISTA");
+      const idxProduto = findIdx("TIPO COMBUSTIVEL");
+      const idxLitros = findIdx("LITROS");
+      const idxPreco = findIdx("VL/LITRO") !== -1 ? findIdx("VL/LITRO") : findIdx("V. LITRO");
+      const idxKm = findIdx("HODOMETRO");
+      const idxKmRodados = findIdx("KM RODADOS");
+      const idxMedia = findIdx("KM/LITRO");
+      const idxPosto = findIdx("NOME ESTABELECIMENTO");
+      const idxValor = findIdx("VALOR EMISSAO");
+      const idxCidade = findIdx("CIDADE");
+      const idxEstado = findIdx("UF");
+      const idxEndereco = findIdx("ENDERECO");
+      const idxBairro = findIdx("BAIRRO");
+
+      const parseNum = (val: any) => {
+        if (val === undefined || val === null || val === "") return 0;
+        if (typeof val === 'number') return val;
+        let str = String(val).replace(/[^0-9.,-]/g, "");
+        if (str.includes('.') && str.includes(',')) {
+            if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\\./g, '').replace(',', '.');
+            else str = str.replace(/,/g, '');
+        } else if (str.includes(',')) {
+            str = str.replace(',', '.');
+        }
+        return Number(str) || 0;
+      };
+
+      const mapFornecedores = new Set(fornecedores.map((f: any) => f.nome.toUpperCase().trim()));
+      const unregistered = new Map<string, any>();
+      const payloads: any[] = [];
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[idxData] || String(row[idxData]).toUpperCase().includes("TOTAL")) continue;
+
+        const dataStr = String(row[idxData]).trim();
+        const dataFinal = dataStr.split(" ")[0];
+        const horaFinal = dataStr.includes(" ") ? dataStr.split(" ")[1].substring(0, 5) : null;
+
+        const kmNum = parseNum(row[idxKm]);
+        const litrosNum = parseNum(row[idxLitros]);
+        const precoNum = parseNum(row[idxPreco]);
+        const valorNum = idxValor !== -1 ? parseNum(row[idxValor]) : (litrosNum * precoNum);
+        const kmRodadosNum = idxKmRodados !== -1 ? parseNum(row[idxKmRodados]) : null;
+        const mediaNum = idxMedia !== -1 ? parseNum(row[idxMedia]) : null;
+
+        const motoristaNome = idxMotorista !== -1 ? String(row[idxMotorista] || "").trim() : "";
+        let motoristaId = NENHUM;
+        if (motoristaNome && motoristas.data) {
+          const mot = motoristas.data.find((m: any) => m.nome.toUpperCase() === motoristaNome.toUpperCase() || m.nome.toUpperCase().includes(motoristaNome));
+          if (mot) motoristaId = mot.id;
+        }
+
+        const fornecedorNome = String(row[idxPosto] || "").trim();
+        const cidade = idxCidade !== -1 ? String(row[idxCidade] || "").trim() : "";
+        const estado = idxEstado !== -1 ? String(row[idxEstado] || "").trim() : "";
+        const endereco = idxEndereco !== -1 ? String(row[idxEndereco] || "").trim() : "";
+        const bairro = idxBairro !== -1 ? String(row[idxBairro] || "").trim() : "";
+
+        if (fornecedorNome && !mapFornecedores.has(fornecedorNome.toUpperCase().trim())) {
+          unregistered.set(fornecedorNome, { nome: fornecedorNome, cidade, estado, endereco, bairro });
+        }
+
+        let cnpjFormatado = "";
+        const existingForn = fornecedores.find((f: any) => f.nome.toUpperCase() === fornecedorNome.toUpperCase());
+        if (existingForn && existingForn.documento) {
+          cnpjFormatado = existingForn.documento;
+        }
+
+        payloads.push({
+          data: dataFinal, placa: String(row[idxPlaca] || "").toUpperCase().trim(), km: kmNum,
+          motorista_id: motoristaId, fornecedor: fornecedorNome, cnpj: cnpjFormatado,
+          cidade, estado, litros: litrosNum, preco_litro: precoNum, valor_total: valorNum,
+          km_rodados: kmRodadosNum, media_km_l: mediaNum,
+          produto: String(row[idxProduto] || "DIESEL").toUpperCase(),
+          codigo_transacao: String(row[idxCod] || "").trim(),
+          hora: horaFinal, numero_nf: null, chave_nfe: null, origem: "excel"
+        });
+      }
+
+      const pendentes = Array.from(unregistered.values());
+      if (pendentes.length > 0) {
+        const initialSelected: Record<string, boolean> = {};
+        const initialAvaliacoes: Record<string, number> = {};
+        pendentes.forEach(f => {
+          initialSelected[f.nome] = true;
+          initialAvaliacoes[f.nome] = 0;
+        });
+        setSelectedFornecedores(initialSelected);
+        setAvaliacoesPendentes(initialAvaliacoes);
+        setFornecedoresPendentes(pendentes);
+        setPendingEdenredRows(payloads);
+        setOpenFornecedoresModal(true);
+      } else {
+        setPendingEdenredRows(payloads);
+        setOpenConfirmImport(true);
+      }
+    } catch (error) {
+      console.error(error); 
+      toast.error("Erro ao ler Edenred."); 
+    }
+  };
+
+  const executarImportacaoEdenred = async (rowsData: any[]) => {
+    if (isImportingEdenredRef.current) return;
+    isImportingEdenredRef.current = true;
+    
+    // Fecha TODOS os modais ANTES de iniciar
+    setOpenConfirmImport(false);
+    setOpenFornecedoresModal(false);
+    setOpenEdenredConfirm(false); // <--- FECHA O MODAL DE "IMPORTAR PLANILHA EDENRED?"
+    setOpen(false); // Fecha qualquer outro modal que possa estar aberto
+    
+    setImportandoEdenred(true);
+    setImportProgress({ total: rowsData.length, current: 0, errors: [] });
+    
+    let importados = 0; const erros: any[] = [];
+    
+    try {
+      for (let i = 0; i < rowsData.length; i++) {
+        const payload = rowsData[i];
+        try { 
+          await apiPost("/abastecimentos/importar", payload); 
+          importados++; 
+          await new Promise(resolve => setTimeout(resolve, 150));
+        } catch (err: any) { 
+          erros.push({ linha: i + 1, placa: payload.placa, erro: err.message && err.message.includes("409") ? "Já importado" : (err.message || "Erro") }); 
+        }
+        setImportProgress(prev => prev ? { ...prev, current: prev.current + 1, errors: erros } : null);
+      }
+      
+      setImportProgress(prev => prev ? { ...prev, current: rowsData.length, errors: erros } : null);
+      
+      if (erros.length === 0) toast.success(`${importados} Edenred importados!`);
+      else if (importados > 0) toast.warning(`${importados} importados, mas ${erros.length} deram erro ou já existiam.`);
+      else toast.error("Todos os registros já foram importados ou deram erro.");
+      
+      invalidate();
+    } finally {
+      // DESLIGA O OVERLAY E LIMPA TUDO
+      setImportandoEdenred(false);
+      isImportingEdenredRef.current = false;
+      setPendingEdenredRows([]);
+      setImportProgress(null);
+      
+      // Garante que todos os modais estejam fechados no final
+      setOpenConfirmImport(false);
+      setOpenFornecedoresModal(false);
+      setOpenEdenredConfirm(false);
+      setOpen(false);
+    }
+  };
+
+  const confirmarCadastroLote = async () => {
+    if (isImportingEdenredRef.current) return;
+    isImportingEdenredRef.current = true;
+    
+    const selecionados = fornecedoresPendentes.filter(f => selectedFornecedores[f.nome]);
+    const semAvaliacao = selecionados.filter(f => !avaliacoesPendentes[f.nome] || avaliacoesPendentes[f.nome] === 0);
+    
+    if (semAvaliacao.length > 0) {
+      toast.error("Por favor, atribua uma nota (estrelas) para todos os fornecedores selecionados.");
+      isImportingEdenredRef.current = false;
+      return;
+    }
+
+    try {
+      for (const f of selecionados) {
+        await apiPost("/fornecedores", {
+          nome: f.nome, documento: "", endereco: f.endereco, bairro: f.bairro,
+          cidade: f.cidade, estado: f.estado, ativo: true, avaliacao: avaliacoesPendentes[f.nome] || 0
+        }).catch(err => {
+          if (!err.message?.includes("409")) console.error(`Erro ao cadastrar ${f.nome}`, err);
+        });
+      }
+      await refetchFornecedores();
+      toast.success(`${selecionados.length} fornecedores cadastrados!`);
+      
+      setOpenFornecedoresModal(false);
+      setOpenConfirmImport(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      isImportingEdenredRef.current = false;
+    }
+  };
   return (
     <div>
       <PageHeader eyebrow="Operação" title="Abastecimentos" description="Registro detalhado." actions={
@@ -741,7 +809,15 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           <Button variant="outline" onClick={() => xlsInputRef.current?.click()}><Upload className="size-4 mr-2" /> Importar BSOFT</Button>
           
           <input type="file" accept=".xlsx" ref={edenredInputRef} onChange={handleImportEdenred} className="hidden" />
-          <Button variant="outline" onClick={() => edenredInputRef.current?.click()}><Upload className="size-4 mr-2" /> Importar Edenred</Button>
+          <Button 
+            variant="outline" 
+            
+            disabled={importandoEdenred || openEdenredConfirm} 
+            onClick={() => setOpenEdenredConfirm(true)}
+          >
+            <Upload className="size-4 mr-2" /> 
+            {importandoEdenred ? "Importando..." : "Importar Edenred"}
+          </Button>
 
           <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
           <Button variant="outline" onClick={() => fileInputRef.current?.click()}><FileText className="size-4 mr-2" /> Importar NF</Button>
@@ -1046,7 +1122,9 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
       </Dialog>
 
       
-      <Dialog open={openFornecedoresModal} onOpenChange={setOpenFornecedoresModal}>
+      
+      
+      <Dialog open={openFornecedoresModal} onOpenChange={(o) => { if (!o) { isImportingEdenredRef.current = false; setImportandoEdenred(false); } setOpenFornecedoresModal(o); }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>Fornecedores Pendentes de Cadastro</DialogTitle>
@@ -1061,7 +1139,11 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                   <TableHead className="w-10">
                     <input type="checkbox" className="size-4 rounded border-slate-700 bg-slate-900" 
                       checked={fornecedoresPendentes.length > 0 && fornecedoresPendentes.every(f => selectedFornecedores[f.nome])}
-                      onChange={(e) => toggleAllFornecedores(e.target.checked)} 
+                      onChange={(e) => {
+                        const newSelected: Record<string, boolean> = {};
+                        fornecedoresPendentes.forEach(f => { newSelected[f.nome] = e.target.checked; });
+                        setSelectedFornecedores(newSelected);
+                      }} 
                     />
                   </TableHead>
                   <TableHead>Fornecedor</TableHead>
@@ -1096,11 +1178,12 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpenFornecedoresModal(false)}>Cancelar</Button>
-            <Button onClick={confirmarCadastroLote}>Cadastrar Selecionados e Importar</Button>
+            <Button onClick={confirmarCadastroLote} disabled={fornecedoresPendentes.filter(f => selectedFornecedores[f.nome]).some(f => !avaliacoesPendentes[f.nome] || avaliacoesPendentes[f.nome] === 0)}>Cadastrar Selecionados e Importar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir?" description="Ação irreversível." confirmLabel="Excluir" destructive pending={excluir.isPending} onConfirm={() => excluirId && excluir.mutate(excluirId)} testId="excluir" />
+
+<ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir?" description="Ação irreversível." confirmLabel="Excluir" destructive pending={excluir.isPending} onConfirm={() => excluirId && excluir.mutate(excluirId)} testId="excluir" />
 
       <Dialog open={importProgress !== null} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md">
@@ -1166,6 +1249,107 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           <DialogFooter>
             <Button variant="ghost" onClick={() => setFornecedorPendente(null)}>Cancelar</Button>
             <Button onClick={confirmarCadastroFornecedor}>Sim, Cadastrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    
+      {importandoEdenred && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-xl w-96 flex flex-col items-center gap-4 shadow-2xl">
+            <Loader2 className="size-10 text-sky-500 animate-spin" />
+            <h3 className="text-lg font-bold text-slate-100">Importando Edenred</h3>
+            <p className="text-sm text-slate-400 text-center">
+              Por favor, aguarde. Isso pode levar alguns minutos.
+            </p>
+            {importProgress && (
+              <div className="w-full mt-2">
+                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                  <span>Progresso</span>
+                  <span>{importProgress.current} de {importProgress.total}</span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                  <div 
+                    className="bg-sky-500 h-2.5 rounded-full transition-all duration-300" 
+                    style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    
+      <Dialog open={openEdenredConfirm} onOpenChange={(o) => { if (!importandoEdenred) { setOpenEdenredConfirm(o); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Importar planilha Edenred?</DialogTitle>
+            <DialogDescription>
+              Você será redirecionado para selecionar o arquivo. Aguarde o término da importação.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 flex flex-col items-center gap-4">
+            {importandoEdenred ? (
+              <>
+                <Loader2 className="size-10 text-sky-500 animate-spin" />
+                <p className="text-sm text-slate-300 font-medium">Importando...</p>
+                {importProgress && (
+                  <div className="w-full mt-2">
+                    <div className="flex justify-between text-xs text-slate-400 mb-1">
+                      <span>Progresso</span>
+                      <span>{importProgress.current} de {importProgress.total}</span>
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                      <div className="bg-sky-500 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}></div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-slate-400 text-center">
+                Clique em "Selecionar Arquivo" para escolher a planilha do Edenred.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            {!importandoEdenred && (
+              <>
+                <Button variant="ghost" onClick={() => setOpenEdenredConfirm(false)}>Cancelar</Button>
+                <Button onClick={() => { setOpenEdenredConfirm(false); edenredInputRef.current?.click(); }}>Selecionar Arquivo</Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    
+      <Dialog open={openConfirmImport} onOpenChange={(o) => { if (!isImportingEdenredRef.current) setOpenConfirmImport(o); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar Importação</DialogTitle>
+            <DialogDescription>
+              Deseja realmente importar {pendingEdenredRows.length} registros da planilha Edenred?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="my-4 p-3 bg-red-950/40 border border-red-800/50 rounded-lg">
+            <p className="text-red-400 animate-pulse font-bold text-sm text-center flex items-center justify-center gap-2">
+              <AlertTriangle className="size-5" /> 
+              Atenção: O sistema importará apenas a PRIMEIRA leitura da planilha.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { 
+                setOpenConfirmImport(false); 
+                setPendingEdenredRows([]);
+              }}>Cancelar</Button>
+            <Button 
+              onClick={() => { 
+                setOpenConfirmImport(false); setOpenEdenredConfirm(false); executarImportacaoEdenred(pendingEdenredRows); 
+              }} 
+              disabled={isImportingEdenredRef.current}
+            >
+              Sim, Importar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
