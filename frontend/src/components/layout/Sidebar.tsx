@@ -1,14 +1,14 @@
-import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Building, useState, useEffect } from "react";
+import { Building, Link, useLocation } from "react-router-dom";
 import {
   CalendarClock, LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox
 , Tag } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useMe } from "@/hooks/useSession";
-import { Button } from "@/components/ui/button";
+import { Building, cn } from "@/lib/utils";
+import { Building, useMe } from "@/hooks/useSession";
+import { Building, Button } from "@/components/ui/button";
 
 const MENUS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/", isDashboard: true, items: [] },
@@ -50,6 +50,7 @@ const MENUS = [
       { label: "Auditoria", icon: FileBox, path: "/admin/auditoria" },
       { label: "Avisos", icon: Bell, path: "/admin/avisos" },
       { label: "Segurança", icon: Shield, path: "/admin/seguranca" },
+      { label: "Empresa", icon: Building, path: "/admin/empresa" },
       { label: "Parametrização", icon: Settings, path: "/admin/parametrizacao" },
       { label: "Base (Limpeza)", icon: FileText, path: "/admin/base" },
     ]

@@ -17,6 +17,7 @@ import Carretas from "@/pages/Carretas";
 import Motoristas from "@/pages/Motoristas";
 import Combustiveis from "@/pages/Combustiveis";
 import Acoplamentos from "@/pages/Acoplamentos";
+import Empresa from "@/pages/Empresa";
 import Parametrizacao from "@/pages/Parametrizacao";
 import Base from "@/pages/Base";
 import Financeiro from "@/pages/Financeiro";
@@ -68,6 +69,7 @@ export default function App() {
               <Route path="/cadastros/fornecedores" element={<Fornecedores />} />
               <Route path="/cadastros/tipos-fornecedores" element={<TiposFornecedores />} />
               <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
+              <Route path="/admin/empresa" element={<Empresa />} />
               <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
               <Route path="/admin/base" element={<Base />} />
               <Route path="/admin/usuarios" element={<Usuarios />} />

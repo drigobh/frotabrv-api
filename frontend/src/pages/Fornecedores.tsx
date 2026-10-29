@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, User, MapPin, Star, Pencil, Trash2, Plus, Search, AlertTriangle, Wrench } from "lucide-react";
+import { MessageCircle, Building2, User, MapPin, Star, Pencil, Trash2, Plus, Search, AlertTriangle, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -26,7 +26,7 @@ export default function Fornecedores() {
 
   const [form, setForm] = useState({
     nome: "", tipo_fornecedor_id: "", documento: "", tipo_pessoa: "PJ",
-    telefone: "", email: "", endereco: "", bairro: "", cidade: "", estado: "",
+    telefone: "", contato: "", whatsapp: "", email: "", endereco: "", bairro: "", cidade: "", estado: "",
     avaliacao: 0, ativo: true
   });
 
@@ -59,7 +59,7 @@ export default function Fornecedores() {
 
   const abrirNovo = () => {
     setEditingId(null);
-    setForm({ nome: "", tipo_fornecedor_id: "", documento: "", tipo_pessoa: "PJ", telefone: "", email: "", endereco: "", bairro: "", cidade: "", estado: "", avaliacao: 0, ativo: true });
+    setForm({ nome: "", tipo_fornecedor_id: "", documento: "", tipo_pessoa: "PJ", telefone: "", contato: "", whatsapp: "", email: "", endereco: "", bairro: "", cidade: "", estado: "", avaliacao: 0, ativo: true });
     setOpen(true);
   };
 
@@ -67,7 +67,7 @@ export default function Fornecedores() {
     setEditingId(r.id);
     setForm({
       nome: r.nome, tipo_fornecedor_id: r.tipo_fornecedor_id || "", documento: r.documento || "", tipo_pessoa: r.tipo_pessoa || "PJ",
-      telefone: r.telefone || "", email: r.email || "", endereco: r.endereco || "", bairro: r.bairro || "", cidade: r.cidade || "", estado: r.estado || "",
+      telefone: r.telefone || "", contato: r.contato || "", whatsapp: r.whatsapp || "", email: r.email || "", endereco: r.endereco || "", bairro: r.bairro || "", cidade: r.cidade || "", estado: r.estado || "",
       avaliacao: r.avaliacao || 0, ativo: r.ativo
     });
     setOpen(true);
@@ -187,6 +187,17 @@ export default function Fornecedores() {
 
             <div className="grid gap-1"><Label className="text-xs">Telefone</Label><Input value={form.telefone} onChange={(e) => setForm(s => ({ ...s, telefone: e.target.value }))} className="h-9" /></div>
             <div className="grid gap-1"><Label className="text-xs">E-mail</Label><Input type="email" value={form.email} onChange={(e) => setForm(s => ({ ...s, email: e.target.value }))} className="h-9" /></div>
+            
+            <div className="grid gap-1">
+              <Label className="text-xs">Contato</Label>
+              <Input value={form.contato} onChange={(e) => setForm(s => ({ ...s, contato: e.target.value }))} placeholder="Nome do contato" className="h-9" />
+            </div>
+            <div className="grid gap-1">
+              <Label className="text-xs flex items-center gap-1">
+                <MessageCircle className="size-3 text-emerald-500" /> WhatsApp
+              </Label>
+              <Input value={form.whatsapp} onChange={(e) => setForm(s => ({ ...s, whatsapp: e.target.value }))} placeholder="(00) 00000-0000" className="h-9" />
+            </div>
 
             <div className="col-span-2 grid gap-1"><Label className="text-xs">Endereço</Label><Input value={form.endereco} onChange={(e) => setForm(s => ({ ...s, endereco: e.target.value }))} className="h-9" /></div>
 
