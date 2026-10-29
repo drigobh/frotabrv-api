@@ -7,6 +7,11 @@ Campo = Literal["veiculo", "carreta", "motorista"]
 
 class AcoplamentoCreate(BaseModel):
     veiculo_id: str
+    data_inicio: str | None = None
+    data_fim: str | None = None
+    data_inicio: str | None = None
+    data_fim: str | None = None
+    updated_by: str | None = None
     carreta_id: str | None = None
     motorista_id: str | None = None
 
@@ -19,6 +24,9 @@ class AcoplamentoTroca(BaseModel):
 class Acoplamento(BaseModel):
     id: str
     veiculo_id: str
+    data_inicio: str | None = None
+    data_fim: str | None = None
+    updated_by: str | None = None
     veiculo_label: str
     carreta_id: str | None = None
     carreta_label: str | None = None

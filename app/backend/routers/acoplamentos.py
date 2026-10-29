@@ -58,6 +58,9 @@ async def criar(body: AcoplamentoCreate, request: Request, user: dict = Depends(
         "completo": bool(body.carreta_id and body.motorista_id),
         "created_at": now_iso(),
         "created_by": user["nome"],
+        "updated_by": user["nome"],
+        "data_inicio": body.data_inicio,
+        "data_fim": body.data_fim,
         "updated_at": now_iso()
     }
     
@@ -84,4 +87,31 @@ async def criar(body: AcoplamentoCreate, request: Request, user: dict = Depends(
 @router.get("/historico", response_model=list[HistoricoItem])
 async def historico(limit: int = 100, _u: dict = Depends(require("read"))):
     docs = await db.acoplamentos_historico.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return [HistoricoItem(**d) for d in docs]
+
+@router.put("/{id}", response_model=Acoplamento)
+async def atualizar(id: str, body: AcoplamentoCreate, request: Request, user: dict = Depends(require("write"))):
+    v_label, c_label, m_label = await _get_labels(body.veiculo_id, body.carreta_id, body.motorista_id)
+    update_data = {
+        "veiculo_id": body.veiculo_id, "veiculo_label": v_label,
+        "carreta_id": body.carreta_id, "carreta_label": c_label,
+        "motorista_id": body.motorista_id, "motorista_label": m_label,
+        "data_inicio": body.data_inicio, "data_fim": body.data_fim,
+        "completo": bool(body.carreta_id and body.motorista_id),
+        "updated_at": now_iso(), "updated_by": user["nome"]
+    }
+    await db.acoplamentos.update_one({"id": id}, {"$set": update_data})
+    await audit(user, "atualizar", "acoplamentos", id, f"Veículo: {v_label}", request)
+    doc = await db.acoplamentos.find_one({"id": id})
+    return Acoplamento(**doc)
+
+@router.delete("/{id}")
+async def excluir(id: str, request: Request, user: dict = Depends(require("write"))):
+    await db.acoplamentos.update_one({"id": id}, {"$set": {"status": "inativo", "updated_at": now_iso(), "updated_by": user["nome"]}})
+    await audit(user, "excluir", "acoplamentos", id, "Desacoplamento", request)
+    return {"ok": True}
+
+@router.get("/{id}/historico", response_model=list[HistoricoItem])
+async def historico_item(id: str, _u: dict = Depends(require("read"))):
+    docs = await db.acoplamentos_historico.find({"acoplamento_id": id}, {"_id": 0}).sort("created_at", -1).to_list(100)
     return [HistoricoItem(**d) for d in docs]
