@@ -89,11 +89,10 @@ const abrirNovo = () => { setEditingId(null); setForm({ nome: "", categoria_pai_
         description="Classificação para insumos, serviços, tecnologia e terceirização."
         actions={<div className="flex gap-2">
           {config?.mostrar_seed_fornecedores && (
-            
+            <Button variant="outline" onClick={popularLista} disabled={seed.isPending} className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10">
+              <Database className="size-4 mr-2" /> {seed.isPending ? "Populando..." : "Popular Lista Base"}
+            </Button>
           )}
-          <Button variant="outline" onClick={popularLista} disabled={seed.isPending} className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10">
-            <Database className="size-4 mr-2" /> {seed.isPending ? "Populando..." : "Popular Lista Base"}
-          </Button>
           <Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500"><Plus className="size-4 mr-2" /> Novo Tipo</Button>
         </div>}
       />

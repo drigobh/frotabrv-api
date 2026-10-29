@@ -60,6 +60,7 @@ const formatDoc = (value: string, tipo: string) => {
 
 export default function Fornecedores() {
   const qc = useQueryClient();
+  const tiposQ = useQuery({ queryKey: ["tipos-fornecedores"], queryFn: () => apiGet<any[]>("/tipos-fornecedores") });
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [buscandoDoc, setBuscandoDoc] = useState(false);
@@ -70,10 +71,11 @@ export default function Fornecedores() {
   const [filtroNome, setFiltroNome] = useState("");
   const [filtroCidade, setFiltroCidade] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("__all__");
+  const [filtroTipoForn, setFiltroTipoForn] = useState("__all__");
   const [filtroStatus, setFiltroStatus] = useState("__all__");
 
   const [form, setForm] = useState({
-    tipo_pessoa: "PJ", nome: "", tipo_fornecedor_id: "", documento: "", telefone: "", email: "", 
+    tipo_pessoa: "PJ", nome: "", tipo_fornecedor_id: "", tipo_fornecedor_id: "", documento: "", telefone: "", email: "", 
     endereco: "", bairro: "", cidade: "", estado: "", atividade: "", latitude: "", longitude: "", avaliacao: 0, ativo: true
   });
 
@@ -181,7 +183,7 @@ export default function Fornecedores() {
 
   const abrirNovo = () => { 
     setEditingId(null); setErroDoc(false);
-    setForm({ tipo_pessoa: "PJ", nome: "", tipo_fornecedor_id: "", documento: "", telefone: "", email: "", endereco: "", bairro: "", cidade: "", estado: "", atividade: "", latitude: "", longitude: "", avaliacao: 0, ativo: true }); 
+    setForm({ tipo_pessoa: "PJ", nome: "", tipo_fornecedor_id: "", tipo_fornecedor_id: "", documento: "", telefone: "", email: "", endereco: "", bairro: "", cidade: "", estado: "", atividade: "", latitude: "", longitude: "", avaliacao: 0, ativo: true }); 
     setOpen(true); 
   };
   
@@ -195,6 +197,36 @@ export default function Fornecedores() {
     setOpen(true); 
   };
 
+
+  const bulkUpdateTipos = useMutation({
+    mutationFn: async () => {
+      // Acha o ID do tipo "Combustíveis e lubrificantes"
+      const tipoAlvo = tiposQ.data?.find((t: any) => t.nome.toLowerCase().includes("combustíveis e lubrificantes"));
+      if (!tipoAlvo) {
+        throw new Error("Tipo 'Combustíveis e lubrificantes' não encontrado.");
+      }
+
+      // Pega todos os fornecedores que estão sem tipo
+      const semTipo = rowsFiltradas.filter(r => !r.tipo_fornecedor_id);
+      
+      for (const f of semTipo) {
+        // Atualiza um por um
+        await apiPut(`/fornecedores/${f.id}`, { ...f, tipo_fornecedor_id: tipoAlvo.id });
+      }
+      return semTipo.length;
+    },
+    onSuccess: (qtd) => {
+      toast.success(`${qtd} fornecedores atualizados com o tipo "Combustíveis e lubrificantes".`);
+      qc.invalidateQueries({ queryKey: ["fornecedores"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao preencher em massa.")
+  });
+
+  const preencherTiposEmMassa = () => {
+    if (confirm("Isso vai preencher o tipo 'Combustíveis e lubrificantes' em TODOS os fornecedores que estão SEM tipo. Deseja continuar?")) {
+      bulkUpdateTipos.mutate();
+    }
+  };
   return (
     <div>
       <PageHeader 
@@ -222,11 +254,25 @@ export default function Fornecedores() {
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-2">
-        <Input placeholder="Buscar por Nome ou Documento..." value={filtroNome} onChange={(e) => setFiltroNome(e.target.value)} />
-        <Input placeholder="Cidade..." value={filtroCidade} onChange={(e) => setFiltroCidade(e.target.value)} />
-        <FieldSelect value={filtroTipo} onChange={setFiltroTipo} options={[{ value: "__all__", label: "PJ e PF" }, { value: "PJ", label: "Apenas PJ" }, { value: "PF", label: "Apenas PF" }]} testId="filtro-tipo" />
-        <FieldSelect value={filtroStatus} onChange={setFiltroStatus} options={[{ value: "__all__", label: "Todos os Status" }, { value: "ativo", label: "Apenas Ativos" }, { value: "inativo", label: "Apenas Inativos" }]} testId="filtro-status" />
+      <div className="grid gap-1.5 w-48">
+              <Label>Tipo de Fornecedor</Label>
+              <FieldSelect 
+                value={filtroTipo} 
+                onChange={setFiltroTipo} 
+                options={[{ value: "__all__", label: "Todos os Tipos" }, ...(tiposQ.data || []).filter((t: any) => t.categoria_pai_id).map((t: any) => ({ value: t.id, label: t.nome }))]} 
+              />
+            </div>
+            <FieldSelect 
+          value={filtroTipoForn} 
+          onChange={setFiltroTipoForn} 
+          options={[{ value: "__all__", label: "Todos os Tipos de Fornec." }, ...(tiposQ.data || []).filter((t: any) => t.categoria_pai_id).map((t: any) => ({ value: t.id, label: t.nome }))]} 
+        />
+        <div className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-2">
+        <Input placeholder="Buscar por Nome ou Documento..." value={filtroNome} onChange={(e) => setFiltroNome(e.target.value)} className="h-9" />
+        <Input placeholder="Cidade..." value={filtroCidade} onChange={(e) => setFiltroCidade(e.target.value)} className="h-9" />
+        <FieldSelect value={filtroTipo} onChange={setFiltroTipo} options={[{ value: "__all__", label: "PJ e PF" }, { value: "PJ", label: "Apenas PJ" }, { value: "PF", label: "Apenas PF" }]} />
+        <FieldSelect value={filtroStatus} onChange={setFiltroStatus} options={[{ value: "__all__", label: "Todos os Status" }, { value: "ativo", label: "Apenas Ativos" }, { value: "inativo", label: "Apenas Inativos" }]} />
+        <FieldSelect value={filtroTipoForn} onChange={setFiltroTipoForn} options={[{ value: "__all__", label: "Todos os Tipos" }, ...(tiposQ.data || []).filter((t: any) => t.categoria_pai_id).map((t: any) => ({ value: t.id, label: t.nome }))]} />
       </div>
 
       <div className="glass overflow-hidden rounded-2xl">
@@ -234,6 +280,8 @@ export default function Fornecedores() {
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
               <TableHead className="text-xs uppercase text-slate-500">Fornecedor</TableHead>
+              <TableHead className="text-xs uppercase text-slate-500">Tipo</TableHead>
+                      <TableHead className="text-xs uppercase text-slate-500">Tipo de Fornecedor</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Localização</TableHead>
               <TableHead className="text-xs uppercase text-slate-500 text-center">Avaliação</TableHead>
               <TableHead className="text-xs uppercase text-slate-500 text-center">Status</TableHead>
@@ -241,7 +289,7 @@ export default function Fornecedores() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rowsFiltradas.length === 0 && <TableRow><TableCell colSpan={5} className="py-10 text-center text-slate-500">Nenhum fornecedor encontrado.</TableCell></TableRow>}
+            {rowsFiltradas.length === 0 && <TableRow><TableCell colSpan={6} className="py-10 text-center text-slate-500">Nenhum fornecedor encontrado.</TableCell></TableRow>}
             {rowsFiltradas.map((r) => (
               <TableRow key={r.id} className="border-slate-800/70">
                 <TableCell className="font-medium text-slate-200">
@@ -259,6 +307,9 @@ export default function Fornecedores() {
               </div></div>
                     </div>
                   </div>
+                </TableCell>
+                <TableCell className="text-xs text-slate-400">
+                  {tiposQ.data?.find((t: any) => t.id === r.tipo_fornecedor_id)?.nome || "—"}
                 </TableCell>
                 <TableCell className="text-slate-400 text-xs">
                   <div className="flex flex-col gap-1">
@@ -314,6 +365,15 @@ export default function Fornecedores() {
               {erroDoc && <p className="text-[10px] text-red-400 mt-1">Documento inválido.</p>}
             </div>
 
+            <div className="col-span-2 grid gap-1">
+              <Label className="text-xs">Tipo de Fornecedor *</Label>
+              <FieldSelect 
+                value={form.tipo_fornecedor_id || ""} 
+                onChange={(v) => setForm(s => ({ ...s, tipo_fornecedor_id: v }))} 
+                options={(tiposQ.data || []).filter((t: any) => t.categoria_pai_id).map((t: any) => ({ value: t.id, label: t.nome }))} 
+                placeholder="Selecione o tipo..." 
+              />
+            </div>
             <div className="col-span-2 grid gap-1"><Label className="text-xs">Nome / Razão Social *</Label><Input value={form.nome} onChange={(e) => setForm(s => ({ ...s, nome: e.target.value }))} className="h-9" required /></div>
             
             <div className="grid gap-1"><Label className="text-xs">Telefone</Label><Input value={form.telefone} onChange={(e) => setForm(s => ({ ...s, telefone: e.target.value }))} className="h-9" /></div>
@@ -364,7 +424,7 @@ export default function Fornecedores() {
             </div>
             
             <DialogFooter className="col-span-2 mt-2">
-              <Button type="submit" className="h-9" disabled={salvar.isPending || !form.nome || !form.documento}>{editingId ? "Salvar" : "Cadastrar"}</Button>
+              <Button type="submit" className="h-9" disabled={salvar.isPending || !form.nome || !form.documento || !form.tipo_fornecedor_id}>{editingId ? "Salvar" : "Cadastrar"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
