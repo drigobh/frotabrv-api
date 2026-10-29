@@ -198,20 +198,25 @@ export default function Fornecedores() {
   };
 
 
-  const bulkUpdateTipos = useMutation({
+    const bulkUpdateTipos = useMutation({
     mutationFn: async () => {
-      // Acha o ID do tipo "Combustíveis e lubrificantes"
       const tipoAlvo = tiposQ.data?.find((t: any) => t.nome.toLowerCase().includes("combustíveis e lubrificantes"));
-      if (!tipoAlvo) {
-        throw new Error("Tipo 'Combustíveis e lubrificantes' não encontrado.");
-      }
+      if (!tipoAlvo) throw new Error("Tipo 'Combustíveis e lubrificantes' não encontrado.");
 
-      // Pega todos os fornecedores que estão sem tipo
       const semTipo = rowsFiltradas.filter(r => !r.tipo_fornecedor_id);
       
+      // Faz as requisições PUT para atualizar um por um
       for (const f of semTipo) {
-        // Atualiza um por um
         await apiPut(`/fornecedores/${f.id}`, { ...f, tipo_fornecedor_id: tipoAlvo.id });
+      }
+      return semTipo.length;
+    },
+    onSuccess: (qtd) => {
+      toast.success(`${qtd} fornecedores atualizados com o tipo "Combustíveis e lubrificantes".`);
+      qc.invalidateQueries({ queryKey: ["fornecedores"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao preencher em massa.")
+  });
       }
       return semTipo.length;
     },

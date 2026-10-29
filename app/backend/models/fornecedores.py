@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 class FornecedorCreate(BaseModel):
-    tipo_fornecedor_id: str  # Obrigatório
+    tipo_fornecedor_id: str | None = None | None = None
     tipo_pessoa: str = "PJ" # PJ ou PF
     nome: str = Field(min_length=2)
     documento: Optional[str] = None # CNPJ ou CPF
