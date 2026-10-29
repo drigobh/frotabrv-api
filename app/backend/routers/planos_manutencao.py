@@ -26,6 +26,7 @@ async def criar(body: PlanoManutencaoCreate, _u: dict = Depends(require("write")
     doc["id"] = str(uuid.uuid4())
     doc["veiculo_label"] = f"{veiculo.get('placa', veiculo.get('codigo', ''))} - {veiculo.get('modelo', '')}"
     doc["created_at"] = now_iso()
+    doc["data_abertura"] = body.data_abertura
     doc["created_by"] = user["nome"]
     
     await db.planos_manutencao.insert_one(dict(doc))

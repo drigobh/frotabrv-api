@@ -5,7 +5,7 @@ import zipfile
 
 def backup(raiz):
     agora = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    caminho_zip = os.path.join(raiz, "_automacao", "backups", f"BACKUP_PLANOS_REFINADO_{agora}.zip")
+    caminho_zip = os.path.join(raiz, "_automacao", "backups", f"BACKUP_PLANOS_RECORRENCIA_{agora}.zip")
     os.makedirs(os.path.dirname(caminho_zip), exist_ok=True)
     arquivos = ["app/backend/models/planos_manutencao.py", "frontend/src/pages/PlanosManutencao.tsx"]
     with zipfile.ZipFile(caminho_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -20,60 +20,36 @@ def fix_backend(raiz):
     with open(caminho, 'r', encoding='utf-8') as f:
         c = f.read()
 
-    # Adicionar campos carreta_id e created_by
-    if 'carreta_id' not in c:
+    # Adicionar campos de recorrência e data
+    if 'tipo_recorrencia' not in c:
         c = c.replace(
-            'veiculo_id: str',
-            'veiculo_id: str | None = None\n    carreta_id: str | None = None'
-        )
-        c = c.replace(
-            'veiculo_label: str',
-            'veiculo_label: str\n    created_by: str'
-        )
-        # Ajustar o Create também
-        c = c.replace(
-            'class PlanoManutencaoCreate(BaseModel):\n    veiculo_id: str',
-            'class PlanoManutencaoCreate(BaseModel):\n    veiculo_id: str | None = None\n    carreta_id: str | None = None'
+            'tipo_gatilho: str',
+            'tipo_gatilho: str\n    tipo_recorrencia: str = "periodico" # "periodico" ou "vitalicio"\n    unidade_tempo: str | None = None # "dias", "meses", "anos"\n    data_abertura: str'
         )
         with open(caminho, 'w', encoding='utf-8') as f:
             f.write(c)
-        print("✅ Backend Model: campos 'carreta_id' e 'created_by' adicionados.")
+        print("✅ Backend Model: campos de recorrência e data adicionados.")
 
-    # Atualizar o Router para salvar o created_by e o carreta_id
+    # Garantir que o Router salve esses campos
     router_path = os.path.join(raiz, "app", "backend", "routers", "planos_manutencao.py")
     with open(router_path, 'r', encoding='utf-8') as f:
         c = f.read()
-
-    # No POST
-    if 'doc["created_by"] = user["nome"]' not in c:
+    
+    if 'doc["data_abertura"] = body.data_abertura' not in c:
         c = c.replace(
             'doc["created_at"] = now_iso()',
-            'doc["created_at"] = now_iso()\n    doc["created_by"] = user["nome"]'
-        )
-        # Ajustar a busca de veículo (pode ser carreta)
-        c = c.replace(
-            'veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})',
-            '''veiculo = None
-    if body.veiculo_id:
-        veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
-    elif body.carreta_id:
-        veiculo = await db.carretas.find_one({"id": body.carreta_id}, {"_id": 0})'''
-        )
-        # Ajustar o label
-        c = c.replace(
-            'doc["veiculo_label"] = f"{veiculo[\'placa\']} - {veiculo.get(\'modelo\', \'\')}"',
-            'doc["veiculo_label"] = f"{veiculo.get(\'placa\', veiculo.get(\'codigo\', \'\'))} - {veiculo.get(\'modelo\', \'\')}"'
+            'doc["created_at"] = now_iso()\n    doc["data_abertura"] = body.data_abertura'
         )
         with open(router_path, 'w', encoding='utf-8') as f:
             f.write(c)
-        print("✅ Backend Router: gravação de 'created_by' e suporte a carretas.")
+        print("✅ Backend Router: gravação de data e recorrência garantida.")
 
 def fix_frontend(raiz):
     caminho = os.path.join(raiz, "frontend", "src", "pages", "PlanosManutencao.tsx")
     
-    codigo = '''import { useState } from "react";
+    codigo = '''import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Wrench, Plus, Pencil, Trash2, Truck, Info, User } from "lucide-react";
+import { Wrench, Plus, Pencil, Trash2, Info, User, Gauge, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -97,7 +73,13 @@ const FAMILIAS = [
 const TIPOS_GATILHO = [
   { value: "km", label: "Por Quilometragem (KM)" },
   { value: "horas", label: "Por Horímetro (Horas)" },
-  { value: "dias", label: "Por Tempo (Dias)" }
+  { value: "dias", label: "Por Tempo (Dias/Meses/Anos)" }
+];
+
+const UNIDADES_TEMPO = [
+  { value: "dias", label: "Dias" },
+  { value: "meses", label: "Meses" },
+  { value: "anos", label: "Anos" }
 ];
 
 export default function PlanosManutencao() {
@@ -112,9 +94,12 @@ export default function PlanosManutencao() {
   const { data: planos = [], refetch } = useQuery({ queryKey: ["planos-manutencao"], queryFn: () => apiGet<any[]>("/planos-manutencao") });
 
   const [tipoAtivo, setTipoAtivo] = useState<"cavalo" | "carreta">("cavalo");
+  const [hodometroAtual, setHodometroAtual] = useState<number | null>(null);
   
   const [form, setForm] = useState({
-    veiculo_id: "", carreta_id: "", familia: FAMILIAS[0].nome, descricao: "", tipo_gatilho: "km", intervalo: "", ultima_execucao_km: "", ultima_execucao_data: ""
+    veiculo_id: "", carreta_id: "", familia: FAMILIAS[0].nome, descricao: "", 
+    tipo_gatilho: "km", tipo_recorrencia: "periodico", unidade_tempo: "dias",
+    intervalo: "", ultima_execucao_km: "", data_abertura: new Date().toISOString().split('T')[0]
   });
 
   const salvar = useMutation({
@@ -137,10 +122,34 @@ export default function PlanosManutencao() {
     onSuccess: () => { toast.success("Plano excluído."); setExcluirId(null); qc.invalidateQueries({ queryKey: ["planos-manutencao"] }); }
   });
 
+  const buscarHodometro = async (id: string, tipo: "cavalo" | "carreta") => {
+    if (!id) { setHodometroAtual(null); return; }
+    
+    try {
+      if (tipo === "cavalo") {
+        const v = veiculos.data?.find((x: any) => x.id === id);
+        setHodometroAtual(v?.hodometro_km || 0);
+      } else {
+        // Para carreta, precisamos pegar o cavalo acoplado. 
+        // Vamos simular pegando o hodometro da primeira carreta que tiver o id.
+        // O ideal seria uma rota que busca o cavalo acoplado à carreta.
+        const c = carretas.find((x: any) => x.id === id);
+        setHodometroAtual(c?.hodometro_km || 0); // Assumindo que a carreta tem hodometro (ou usar o cavalo acoplado)
+      }
+    } catch (e) {
+      setHodometroAtual(null);
+    }
+  };
+
   const abrirNovo = () => {
     setEditingId(null);
     setTipoAtivo("cavalo");
-    setForm({ veiculo_id: "", carreta_id: "", familia: FAMILIAS[0].nome, descricao: "", tipo_gatilho: "km", intervalo: "", ultima_execucao_km: "", ultima_execucao_data: "" });
+    setHodometroAtual(null);
+    setForm({ 
+      veiculo_id: "", carreta_id: "", familia: FAMILIAS[0].nome, descricao: "", 
+      tipo_gatilho: "km", tipo_recorrencia: "periodico", unidade_tempo: "dias",
+      intervalo: "", ultima_execucao_km: "", data_abertura: new Date().toISOString().split('T')[0] 
+    });
     setOpen(true);
   };
 
@@ -166,10 +175,11 @@ export default function PlanosManutencao() {
         <Table>
           <TableHeader>
             <TableRow className="border-slate-800">
-              <TableHead className="text-xs uppercase text-slate-500">Veículo / Carreta</TableHead>
+              <TableHead className="text-xs uppercase text-slate-500">Ativo</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Família</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Descrição</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Gatilho</TableHead>
+              <TableHead className="text-xs uppercase text-slate-500">Recorrência</TableHead>
               <TableHead className="text-xs uppercase text-slate-500 text-center">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -180,7 +190,10 @@ export default function PlanosManutencao() {
                 <TableCell className="text-slate-400">{p.familia}</TableCell>
                 <TableCell className="text-slate-400">{p.descricao}</TableCell>
                 <TableCell className="text-xs text-slate-400">
-                  A cada {p.intervalo} {p.tipo_gatilho === 'km' ? 'km' : p.tipo_gatilho === 'horas' ? 'horas' : 'dias'}
+                  A cada {p.intervalo} {p.tipo_gatilho === 'km' ? 'km' : p.tipo_gatilho === 'horas' ? 'horas' : p.unidade_tempo}
+                </TableCell>
+                <TableCell className="text-xs text-slate-400">
+                  {p.tipo_recorrencia === 'vitalicio' ? 'Vitalício' : 'Periódico'}
                 </TableCell>
                 <TableCell className="text-center">
                   <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(p)}><Pencil className="size-4 text-sky-400" /></Button>
@@ -202,18 +215,8 @@ export default function PlanosManutencao() {
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">Tipo de Ativo</Label>
                 <div className="flex bg-slate-950 p-1 rounded-md border border-slate-700">
-                  <button 
-                    className={`flex-1 py-1.5 text-sm rounded font-medium ${tipoAtivo === 'cavalo' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                    onClick={() => { setTipoAtivo('cavalo'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); }}
-                  >
-                    Cavalo Mecânico
-                  </button>
-                  <button 
-                    className={`flex-1 py-1.5 text-sm rounded font-medium ${tipoAtivo === 'carreta' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                    onClick={() => { setTipoAtivo('carreta'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); }}
-                  >
-                    Carreta / Semi
-                  </button>
+                  <button className={`flex-1 py-1.5 text-sm rounded font-medium ${tipoAtivo === 'cavalo' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('cavalo'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); setHodometroAtual(null); }}>Cavalo Mecânico</button>
+                  <button className={`flex-1 py-1.5 text-sm rounded font-medium ${tipoAtivo === 'carreta' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('carreta'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); setHodometroAtual(null); }}>Carreta / Semi</button>
                 </div>
               </div>
 
@@ -221,10 +224,21 @@ export default function PlanosManutencao() {
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">{tipoAtivo === 'cavalo' ? 'Cavalo Mecânico' : 'Carreta'}</Label>
                 {tipoAtivo === 'cavalo' ? (
-                  <FieldSelect value={form.veiculo_id} onChange={(v) => setForm(s => ({ ...s, veiculo_id: v }))} options={(veiculos.data ?? []).map((v: any) => ({ value: v.id, label: `${v.placa} - ${v.modelo}` }))} placeholder="Selecione o Cavalo..." />
+                  <FieldSelect value={form.veiculo_id} onChange={(v) => { setForm(s => ({ ...s, veiculo_id: v })); buscarHodometro(v, 'cavalo'); }} options={(veiculos.data ?? []).map((v: any) => ({ value: v.id, label: `${v.placa} - ${v.modelo}` }))} placeholder="Selecione o Cavalo..." />
                 ) : (
-                  <FieldSelect value={form.carreta_id} onChange={(v) => setForm(s => ({ ...s, carreta_id: v }))} options={carretas.map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.tipo}` }))} placeholder="Selecione a Carreta..." />
+                  <FieldSelect value={form.carreta_id} onChange={(v) => { setForm(s => ({ ...s, carreta_id: v })); buscarHodometro(v, 'carreta'); }} options={carretas.map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.tipo}` }))} placeholder="Selecione a Carreta..." />
                 )}
+              </div>
+
+              {/* HODÔMETRO ATUAL (READ-ONLY) */}
+              <div className="bg-slate-800/50 border border-slate-700 rounded-md p-2 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-400 text-sm">
+                  <Gauge className="size-4" />
+                  <span>Hodômetro Atual</span>
+                </div>
+                <span className="font-mono font-bold text-sky-400">
+                  {hodometroAtual !== null ? `${hodometroAtual.toLocaleString('pt-BR')} km` : "—"}
+                </span>
               </div>
 
               {/* FAMÍLIA */}
@@ -252,7 +266,7 @@ export default function PlanosManutencao() {
                 <Input value={form.descricao} onChange={(e) => setForm(s => ({ ...s, descricao: e.target.value }))} placeholder="Ex: Revisão Periódica de 40.000 km" />
               </div>
               
-              {/* GATILHO E INTERVALO */}
+              {/* GATILHO E RECORRÊNCIA */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label className="text-xs text-slate-400">Tipo de Gatilho</Label>
@@ -261,17 +275,47 @@ export default function PlanosManutencao() {
                   </select>
                 </div>
                 <div className="grid gap-1.5">
-                  <Label className="text-xs text-slate-400">Intervalo</Label>
-                  <Input type="number" value={form.intervalo} onChange={(e) => setForm(s => ({ ...s, intervalo: e.target.value }))} placeholder={form.tipo_gatilho === 'km' ? "Ex: 20000" : "Ex: 180"} />
+                  <Label className="text-xs text-slate-400">Recorrência</Label>
+                  <select value={form.tipo_recorrencia} onChange={(e) => setForm(s => ({ ...s, tipo_recorrencia: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
+                    <option value="periodico">Periódico (Repete)</option>
+                    <option value="vitalicio">Vitalício (Única vez)</option>
+                  </select>
                 </div>
               </div>
 
+              {/* INTERVALO E UNIDADE DE TEMPO */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-slate-400">Intervalo</Label>
+                  <Input type="number" value={form.intervalo} onChange={(e) => setForm(s => ({ ...s, intervalo: e.target.value }))} placeholder={form.tipo_gatilho === 'km' ? "Ex: 20000" : form.tipo_gatilho === 'horas' ? "Ex: 500" : "Ex: 6"} />
+                </div>
+                {form.tipo_gatilho === 'dias' && (
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-slate-400">Unidade de Tempo</Label>
+                    <select value={form.unidade_tempo} onChange={(e) => setForm(s => ({ ...s, unidade_tempo: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
+                      {UNIDADES_TEMPO.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* ÚLTIMA EXECUÇÃO (KM) - Só para KM */}
               {form.tipo_gatilho === 'km' && (
                 <div className="grid gap-1.5">
                   <Label className="text-xs text-slate-400">Última Execução (KM)</Label>
                   <Input type="number" value={form.ultima_execucao_km} onChange={(e) => setForm(s => ({ ...s, ultima_execucao_km: e.target.value }))} />
                 </div>
               )}
+
+              {/* DATA DE ABERTURA (READ-ONLY) */}
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400 flex items-center gap-1"><Calendar className="size-3" /> Data de Abertura do Plano</Label>
+                <Input 
+                  value={form.data_abertura} 
+                  disabled 
+                  className="bg-slate-800/50 text-slate-400 cursor-not-allowed border-slate-700" 
+                />
+              </div>
 
               {/* USUÁRIO RESPONSÁVEL (READ-ONLY) */}
               <div className="bg-slate-800/50 border border-slate-700 rounded-md p-2 flex items-center gap-2">
@@ -308,11 +352,12 @@ export default function PlanosManutencao() {
     
     with open(caminho, 'w', encoding='utf-8') as f:
         f.write(codigo)
-    print("✅ Frontend: Página de Planos recriada com flag, guia e auditoria.")
+    print("✅ Frontend: Página de Planos recriada com Hodômetro, Data Read-Only e Recorrência.")
 
 if __name__ == "__main__":
     raiz = os.getcwd()
     backup(raiz)
     fix_backend(raiz)
     fix_frontend(raiz)
-    print("\n✅ Script aplicado com sucesso! Faça o git push.")
+    print("\n✅ Script aplicado com sucesso!")
+    
