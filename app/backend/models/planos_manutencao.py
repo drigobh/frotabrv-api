@@ -3,7 +3,7 @@ from typing import Optional
 
 class PlanoManutencaoCreate(BaseModel):
     veiculo_id: str | None = None
-    carreta_id: str | None = None | None = None
+    carreta_id: str | None = None
     carreta_id: str | None = None
     familia: str  # Ex: Lubrificação, Transmissão, Segurança
     descricao: str
