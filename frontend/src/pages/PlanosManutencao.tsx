@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Wrench, Plus, Pencil, Trash2, Info, User, Gauge, Calendar } from "lucide-react";
+import { Wrench, Plus, Pencil, Trash2, Info, User, Gauge, Calendar, HelpCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -42,7 +42,7 @@ export default function PlanosManutencao() {
   
   const veiculos = useVeiculos();
   const { data: carretas = [] } = useQuery({ queryKey: ["carretas"], queryFn: () => apiGet<any[]>("/carretas") });
-  const { data: planos = [], refetch } = useQuery({ queryKey: ["planos-manutencao"], queryFn: () => apiGet<any[]>("/planos-manutencao") });
+  const { data: planos = [] } = useQuery({ queryKey: ["planos-manutencao"], queryFn: () => apiGet<any[]>("/planos-manutencao") });
 
   const [tipoAtivo, setTipoAtivo] = useState<"cavalo" | "carreta">("cavalo");
   const [hodometroAtual, setHodometroAtual] = useState<number | null>(null);
@@ -73,22 +73,14 @@ export default function PlanosManutencao() {
     onSuccess: () => { toast.success("Plano excluído."); setExcluirId(null); qc.invalidateQueries({ queryKey: ["planos-manutencao"] }); }
   });
 
-  const buscarHodometro = async (id: string, tipo: "cavalo" | "carreta") => {
+  const buscarHodometro = (id: string, tipo: "cavalo" | "carreta") => {
     if (!id) { setHodometroAtual(null); return; }
-    
-    try {
-      if (tipo === "cavalo") {
-        const v = veiculos.data?.find((x: any) => x.id === id);
-        setHodometroAtual(v?.hodometro_km || 0);
-      } else {
-        // Para carreta, precisamos pegar o cavalo acoplado. 
-        // Vamos simular pegando o hodometro da primeira carreta que tiver o id.
-        // O ideal seria uma rota que busca o cavalo acoplado à carreta.
-        const c = carretas.find((x: any) => x.id === id);
-        setHodometroAtual(c?.hodometro_km || 0); // Assumindo que a carreta tem hodometro (ou usar o cavalo acoplado)
-      }
-    } catch (e) {
-      setHodometroAtual(null);
+    if (tipo === "cavalo") {
+      const v = veiculos.data?.find((x: any) => x.id === id);
+      setHodometroAtual(v?.hodometro_km || 0);
+    } else {
+      const c = carretas.find((x: any) => x.id === id);
+      setHodometroAtual(c?.hodometro_km || 0);
     }
   };
 
@@ -107,6 +99,7 @@ export default function PlanosManutencao() {
   const abrirEdicao = (r: any) => {
     setEditingId(r.id);
     setTipoAtivo(r.carreta_id ? "carreta" : "cavalo");
+    setHodometroAtual(null);
     setForm({ ...r, intervalo: String(r.intervalo), ultima_execucao_km: String(r.ultima_execucao_km || "") });
     setOpen(true);
   };
@@ -156,134 +149,126 @@ export default function PlanosManutencao() {
         </Table>
       </div>
 
+      {/* MODAL EXPANDIDO */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
-            <h2 className="text-lg font-bold text-slate-100 mb-4">{editingId ? "Editar Plano" : "Novo Plano"}</h2>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh]">
             
-            <div className="space-y-4">
-              {/* FLAG CAVALO VS CARRETA */}
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-slate-400">Tipo de Ativo</Label>
-                <div className="flex bg-slate-950 p-1 rounded-md border border-slate-700">
-                  <button className={`flex-1 py-1.5 text-sm rounded font-medium ${tipoAtivo === 'cavalo' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('cavalo'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); setHodometroAtual(null); }}>Cavalo Mecânico</button>
-                  <button className={`flex-1 py-1.5 text-sm rounded font-medium ${tipoAtivo === 'carreta' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('carreta'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); setHodometroAtual(null); }}>Carreta / Semi</button>
-                </div>
-              </div>
-
-              {/* SELETOR DE VEÍCULO OU CARRETA */}
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-slate-400">{tipoAtivo === 'cavalo' ? 'Cavalo Mecânico' : 'Carreta'}</Label>
-                {tipoAtivo === 'cavalo' ? (
-                  <FieldSelect value={form.veiculo_id} onChange={(v) => { setForm(s => ({ ...s, veiculo_id: v })); buscarHodometro(v, 'cavalo'); }} options={(veiculos.data ?? []).map((v: any) => ({ value: v.id, label: `${v.placa} - ${v.modelo}` }))} placeholder="Selecione o Cavalo..." />
-                ) : (
-                  <FieldSelect value={form.carreta_id} onChange={(v) => { setForm(s => ({ ...s, carreta_id: v })); buscarHodometro(v, 'carreta'); }} options={carretas.map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.tipo}` }))} placeholder="Selecione a Carreta..." />
-                )}
-              </div>
-
-              {/* HODÔMETRO ATUAL (READ-ONLY) */}
-              <div className="bg-slate-800/50 border border-slate-700 rounded-md p-2 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-400 text-sm">
-                  <Gauge className="size-4" />
-                  <span>Hodômetro Atual</span>
-                </div>
-                <span className="font-mono font-bold text-sky-400">
-                  {hodometroAtual !== null ? `${hodometroAtual.toLocaleString('pt-BR')} km` : "—"}
-                </span>
-              </div>
-
-              {/* FAMÍLIA */}
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-slate-400">Família de Componentes</Label>
-                <select value={form.familia} onChange={(e) => setForm(s => ({ ...s, familia: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
-                  {FAMILIAS.map(f => <option key={f.nome} value={f.nome}>{f.nome}</option>)}
-                </select>
-              </div>
-
-              {/* GUIA DA FAMÍLIA */}
-              <div className="bg-sky-950/30 border border-sky-900/50 rounded-lg p-3">
-                <div className="flex items-start gap-2">
-                  <Info className="size-4 text-sky-400 mt-0.5 shrink-0" />
-                  <p className="text-xs text-sky-200/80 leading-relaxed">
-                    <strong className="text-sky-300 block mb-1">Itens cobertos:</strong>
-                    {familiaSelecionada?.itens}
-                  </p>
-                </div>
-              </div>
-
-              {/* DESCRIÇÃO */}
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-slate-400">Descrição do Serviço</Label>
-                <Input value={form.descricao} onChange={(e) => setForm(s => ({ ...s, descricao: e.target.value }))} placeholder="Ex: Revisão Periódica de 40.000 km" />
-              </div>
-              
-              {/* GATILHO E RECORRÊNCIA */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-1.5">
-                  <Label className="text-xs text-slate-400">Tipo de Gatilho</Label>
-                  <select value={form.tipo_gatilho} onChange={(e) => setForm(s => ({ ...s, tipo_gatilho: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
-                    {TIPOS_GATILHO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </div>
-                <div className="grid gap-1.5">
-                  <Label className="text-xs text-slate-400">Recorrência</Label>
-                  <select value={form.tipo_recorrencia} onChange={(e) => setForm(s => ({ ...s, tipo_recorrencia: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
-                    <option value="periodico">Periódico (Repete)</option>
-                    <option value="vitalicio">Vitalício (Única vez)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* INTERVALO E UNIDADE DE TEMPO */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-1.5">
-                  <Label className="text-xs text-slate-400">Intervalo</Label>
-                  <Input type="number" value={form.intervalo} onChange={(e) => setForm(s => ({ ...s, intervalo: e.target.value }))} placeholder={form.tipo_gatilho === 'km' ? "Ex: 20000" : form.tipo_gatilho === 'horas' ? "Ex: 500" : "Ex: 6"} />
-                </div>
-                {form.tipo_gatilho === 'dias' && (
-                  <div className="grid gap-1.5">
-                    <Label className="text-xs text-slate-400">Unidade de Tempo</Label>
-                    <select value={form.unidade_tempo} onChange={(e) => setForm(s => ({ ...s, unidade_tempo: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
-                      {UNIDADES_TEMPO.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {/* ÚLTIMA EXECUÇÃO (KM) - Só para KM */}
-              {form.tipo_gatilho === 'km' && (
-                <div className="grid gap-1.5">
-                  <Label className="text-xs text-slate-400">Última Execução (KM)</Label>
-                  <Input type="number" value={form.ultima_execucao_km} onChange={(e) => setForm(s => ({ ...s, ultima_execucao_km: e.target.value }))} />
-                </div>
-              )}
-
-              {/* DATA DE ABERTURA (READ-ONLY) */}
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-slate-400 flex items-center gap-1"><Calendar className="size-3" /> Data de Abertura do Plano</Label>
-                <Input 
-                  value={form.data_abertura} 
-                  disabled 
-                  className="bg-slate-800/50 text-slate-400 cursor-not-allowed border-slate-700" 
-                />
-              </div>
-
-              {/* USUÁRIO RESPONSÁVEL (READ-ONLY) */}
-              <div className="bg-slate-800/50 border border-slate-700 rounded-md p-2 flex items-center gap-2">
-                <User className="size-4 text-slate-500" />
-                <span className="text-xs text-slate-400">Registrado por: <strong className="text-slate-300">{me?.nome || "Usuário Logado"}</strong></span>
-              </div>
-
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900 rounded-t-2xl">
+              <h2 className="text-lg font-bold text-slate-100">{editingId ? "Editar Plano" : "Novo Plano"}</h2>
+              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white"><X className="size-5" /></button>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button onClick={() => salvar.mutate()} disabled={salvar.isPending}>{salvar.isPending ? "Salvando..." : "Salvar Plano"}</Button>
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex flex-col lg:flex-row gap-8">
+                
+                {/* COLUNA ESQUERDA */}
+                <div className="w-full lg:w-[300px] shrink-0 flex flex-col gap-4 border-r border-slate-800 pr-6">
+                  <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold uppercase mb-2"><Gauge className="size-4" /> Hodômetro Atual</div>
+                    <p className="text-3xl font-bold text-sky-400 font-mono">{hodometroAtual !== null ? `${hodometroAtual.toLocaleString('pt-BR')} km` : "—"}</p>
+                  </div>
+
+                  <div className="bg-sky-950/30 border border-sky-900/50 rounded-xl p-4">
+                    <div className="flex items-start gap-2">
+                      <Info className="size-4 text-sky-400 mt-0.5 shrink-0" />
+                      <div>
+                        <strong className="text-sky-300 text-xs uppercase block mb-1">Itens cobertos:</strong>
+                        <p className="text-xs text-sky-200/80 leading-relaxed">{familiaSelecionada?.itens}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 flex items-center gap-2 mt-auto">
+                    <User className="size-4 text-slate-500" />
+                    <span className="text-xs text-slate-400">Registrado por: <strong className="text-slate-300">{me?.nome || "Usuário"}</strong></span>
+                  </div>
+                </div>
+
+                {/* COLUNA DIREITA */}
+                <div className="flex-1 flex flex-col gap-4">
+                  <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-700">
+                    <button className={`flex-1 py-2 text-sm rounded-md font-medium ${tipoAtivo === 'cavalo' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('cavalo'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); setHodometroAtual(null); }}>Cavalo Mecânico</button>
+                    <button className={`flex-1 py-2 text-sm rounded-md font-medium ${tipoAtivo === 'carreta' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('carreta'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); setHodometroAtual(null); }}>Carreta / Semi</button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-slate-400">{tipoAtivo === 'cavalo' ? 'Cavalo Mecânico' : 'Carreta'}</Label>
+                      {tipoAtivo === 'cavalo' ? (
+                        <FieldSelect value={form.veiculo_id} onChange={(v) => { setForm(s => ({ ...s, veiculo_id: v })); buscarHodometro(v, 'cavalo'); }} options={(veiculos.data ?? []).map((v: any) => ({ value: v.id, label: `${v.placa} - ${v.modelo}` }))} placeholder="Selecione..." />
+                      ) : (
+                        <FieldSelect value={form.carreta_id} onChange={(v) => { setForm(s => ({ ...s, carreta_id: v })); buscarHodometro(v, 'carreta'); }} options={carretas.map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.tipo}` }))} placeholder="Selecione..." />
+                      )}
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-slate-400">Família de Componentes</Label>
+                      <select value={form.familia} onChange={(e) => setForm(s => ({ ...s, familia: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
+                        {FAMILIAS.map(f => <option key={f.nome} value={f.nome}>{f.nome}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-slate-400">Descrição do Serviço</Label>
+                    <Input value={form.descricao} onChange={(e) => setForm(s => ({ ...s, descricao: e.target.value }))} placeholder="Ex: Revisão Periódica de 40.000 km" className="h-9" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-slate-400 flex items-center gap-1">Tipo de Gatilho <HelpCircle className="size-3 text-slate-500" /></Label>
+                      <select value={form.tipo_gatilho} onChange={(e) => setForm(s => ({ ...s, tipo_gatilho: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
+                        {TIPOS_GATILHO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-slate-400 flex items-center gap-1">Recorrência <HelpCircle className="size-3 text-slate-500" /></Label>
+                      <select value={form.tipo_recorrencia} onChange={(e) => setForm(s => ({ ...s, tipo_recorrencia: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
+                        <option value="periodico">Periódico (Repete)</option>
+                        <option value="vitalicio">Vitalício (Única vez)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-slate-400 flex items-center gap-1">Intervalo <HelpCircle className="size-3 text-slate-500" /></Label>
+                      <Input type="number" value={form.intervalo} onChange={(e) => setForm(s => ({ ...s, intervalo: e.target.value }))} placeholder={form.tipo_gatilho === 'km' ? "Ex: 20000" : "Ex: 180"} className="h-9" />
+                    </div>
+                    {form.tipo_gatilho === 'dias' && (
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs text-slate-400 flex items-center gap-1">Unidade de Tempo <HelpCircle className="size-3 text-slate-500" /></Label>
+                        <select value={form.unidade_tempo} onChange={(e) => setForm(s => ({ ...s, unidade_tempo: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
+                          {UNIDADES_TEMPO.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {form.tipo_gatilho === 'km' && (
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-slate-400">Última Execução (KM)</Label>
+                      <Input type="number" value={form.ultima_execucao_km} onChange={(e) => setForm(s => ({ ...s, ultima_execucao_km: e.target.value }))} className="h-9" />
+                    </div>
+                  )}
+
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-slate-400 flex items-center gap-1"><Calendar className="size-3" /> Data de Abertura do Plano</Label>
+                    <Input value={form.data_abertura ? form.data_abertura.split("-").reverse().join("/") : ""} disabled className="bg-slate-800/50 text-slate-400 cursor-not-allowed border-slate-700 h-9" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end px-6 py-4 border-t border-slate-800 gap-3 bg-slate-900 rounded-b-2xl">
+              <Button variant="outline" onClick={() => setOpen(false)} className="h-9">Cancelar</Button>
+              <Button onClick={() => salvar.mutate()} disabled={salvar.isPending} className="h-9 bg-sky-600 hover:bg-sky-500">{salvar.isPending ? "Salvando..." : "Salvar Plano"}</Button>
             </div>
           </div>
         </div>
       )}
 
+      {/* MODAL DE EXCLUSÃO */}
       {excluirId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6">
