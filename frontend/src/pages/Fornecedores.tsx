@@ -150,19 +150,18 @@ const salvar = useMutation({
     setMapaAberto(true);
   };
 
-  const irParaGoogleMaps = () => {
+    const irParaGoogleMaps = () => {
     if (!estadoSelecionado) return toast.error("Selecione um estado.");
     
-    // Pega os fornecedores do estado selecionado
-    const fornecedoresEstado = fornecedores.filter(f => f.estado === estadoSelecionado && f.endereco && f.cidade);
-    
-    if (fornecedoresEstado.length === 0) {
-      return toast.error("Nenhum fornecedor com endereço completo neste estado.");
+    if (estadoSelecionado === "TODOS") {
+      window.open("https://www.google.com/maps/search/?api=1&query=Fornecedores+Brasil", "_blank");
+      setMapaAberto(false);
+      return;
     }
+    
+    const fornecedoresEstado = fornecedores.filter(f => f.estado === estadoSelecionado && f.endereco && f.cidade);
+    if (fornecedoresEstado.length === 0) return toast.error("Nenhum fornecedor com endereço completo neste estado.");
 
-    // Se tiver mais de um, abre o mapa com a busca do estado
-    // O Google Maps não aceita múltiplos marcadores via URL sem API Key, 
-    // então abrimos a busca do estado com os fornecedores no nome
     const query = encodeURIComponent(`Fornecedores em ${estadoSelecionado}`);
     window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank");
     setMapaAberto(false);
@@ -176,7 +175,7 @@ const salvar = useMutation({
         actions={<div className="flex gap-2">
           
           <Button variant="outline" onClick={abrirMapaCompleto} className="border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/10 h-9">
-          <MapPin className="size-4 mr-2" /> Mapa
+          <MapPin className="size-4 mr-2" /> Mapa dos Fornecedores
         </Button>
         
         <Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500 h-9"><Plus className="size-4 mr-2" /> Novo Fornecedor</Button>
@@ -226,7 +225,7 @@ const salvar = useMutation({
               <TableHead className="text-xs uppercase text-slate-500">Fornecedor</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Empresa / Unidade</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Tipo de Fornecedor</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500 text-center">Distância</TableHead>
+              <TableHead className="text-xs uppercase text-slate-500 text-center">Rota</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Localização</TableHead>
               <TableHead className="text-xs uppercase text-slate-500 text-center">Contato</TableHead>
               <TableHead className="text-xs uppercase text-slate-500 text-center">Avaliação</TableHead>
@@ -293,9 +292,7 @@ const salvar = useMutation({
                   <div className="flex flex-col gap-1">
                     <span className="flex items-center gap-1"><MapPin className="size-3" /> {r.cidade ? `${r.cidade}/${r.estado}` : "—"}</span>
                     {r.cidade && (
-                      <button onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${r.endereco || ""}, ${r.cidade}, ${r.estado}`)}`, "_blank")} className="text-sky-400 hover:underline text-[10px] flex items-center gap-1">
-                        <MapPin className="size-3" /> Abrir no Maps
-                      </button>
+                      
                     )}
                   </div>
                 </TableCell>
@@ -497,6 +494,7 @@ const salvar = useMutation({
                 className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-200 px-3 w-full"
               >
                 <option value="">Selecione...</option>
+                <option value="TODOS">Todos os Estados</option>
                 {[...new Set(fornecedores.map(f => f.estado))].filter(Boolean).sort().map(uf => (
                   <option key={uf} value={uf}>{uf} ({fornecedores.filter(f => f.estado === uf).length} fornecedores)</option>
                 ))}
