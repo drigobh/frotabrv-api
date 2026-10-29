@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link2, Plus, Pencil, Trash2, History, Clock, User } from "lucide-react";
+import { Link2, Plus, Pencil, Trash2, History, Clock, User, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -57,7 +57,16 @@ export default function Acoplamentos() {
           <TableBody>
             {rows.map((r: any) => (
               <TableRow key={r.id}>
-                <TableCell>{r.veiculo_label}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {r.manutencao && (
+                      <div title={`Em manutenção desde ${new Date(r.manutencao.data).toLocaleDateString("pt-BR")} por ${r.manutencao.usuario}`}>
+                        <Truck className="size-4 text-red-500 animate-pulse drop-shadow-[0_0_5px_rgba(239,68,68,0.8)]" />
+                      </div>
+                    )}
+                    <span>{r.veiculo_label}</span>
+                  </div>
+                </TableCell>
                 <TableCell>{r.carreta_label || "—"}</TableCell>
                 <TableCell>{r.motorista_label}</TableCell>
                 <TableCell>{r.data_inicio ? new Date(r.data_inicio).toLocaleDateString("pt-BR", {timeZone: "UTC"}) : "—"}</TableCell>

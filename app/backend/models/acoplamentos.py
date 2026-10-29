@@ -22,6 +22,7 @@ class AcoplamentoTroca(BaseModel):
 
 
 class Acoplamento(BaseModel):
+    manutencao: dict | None = None
     id: str
     veiculo_id: str
     data_inicio: str | None = None

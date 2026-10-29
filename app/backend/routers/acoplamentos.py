@@ -34,9 +34,23 @@ async def _get_labels(veiculo_id: str, carreta_id: str | None, motorista_id: str
 @router.get("", response_model=list[Acoplamento])
 async def listar(_u: dict = Depends(require("read"))):
     docs = await db.acoplamentos.find({"status": "ativo"}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    # Busca manutenções ativas (qualquer status que não seja finalizado/fechado/cancelado)
+    manutencoes = await db.manutencoes.find({"status": {"$nin": ["concluida", "fechada", "cancelada", "finalizada"]}}, {"_id": 0}).to_list(1000)
+    manut_map = {m["veiculo_id"]: m for m in manutencoes if "veiculo_id" in m}
+
     for d in docs:
         if not d.get("data_inicio"):
             d["data_inicio"] = d.get("created_at", "").split("T")[0]
+            
+        if d["veiculo_id"] in manut_map:
+            m = manut_map[d["veiculo_id"]]
+            d["manutencao"] = {
+                "id": m.get("id"),
+                "usuario": m.get("created_by") or m.get("usuario") or "Sistema",
+                "data": m.get("data_abertura") or m.get("created_at") or ""
+            }
+            
     return [Acoplamento(**d) for d in docs]
 
 @router.post("", response_model=Acoplamento, status_code=201)
