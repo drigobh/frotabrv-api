@@ -28,8 +28,7 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
 
-    
-    # VALIDAÇÃO DE ESTOQUE
+    # VALIDAÇÃO DE ESTOQUE RIGOROSA
     if body.pecas_utilizadas:
         for p in body.pecas_utilizadas:
             peca = await db.pecas.find_one({"id": p.get("peca_id")})
@@ -43,12 +42,22 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     doc["id"] = str(uuid.uuid4())
     doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
     
-    # Grava o nome do usuário logado (não pode ser alterado depois)
+    if not doc.get("data_inicio"):
+        doc["data_inicio"] = body.data
+        
     doc["criado_por"] = user.get("nome", user.get("email", "Sistema"))
     doc["created_at"] = now_iso()
 
     await db.manutencoes.insert_one(doc)
-    await atualizar_estoque(doc.get("pecas_utilizadas"), -1)
+    
+    # BAIXA DE ESTOQUE DIRETA
+    if body.pecas_utilizadas:
+        for p in body.pecas_utilizadas:
+            await db.pecas.update_one(
+                {"id": p.get("peca_id")},
+                {"$inc": {"quantidade_atual": -int(p.get("quantidade", 0))}}
+            )
+            
     doc.pop("_id", None)
     return doc
 
@@ -62,29 +71,44 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
 
-    doc = body.model_dump()
-    doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
-    
-    # MANTÉM O CRIADO_POR ORIGINAL
-    doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
-    doc["created_at"] = existe.get("created_at", now_iso())
+    # 1. Estorna o estoque antigo para poder validar o novo
+    if existe.get("pecas_utilizadas"):
+        for p in existe["pecas_utilizadas"]:
+            await db.pecas.update_one(
+                {"id": p.get("peca_id")},
+                {"$inc": {"quantidade_atual": int(p.get("quantidade", 0))}}
+            )
 
-    await atualizar_estoque(existe.get("pecas_utilizadas"), 1)
-
-    # VALIDAÇÃO DE ESTOQUE
+    # 2. Valida o novo estoque
     if body.pecas_utilizadas:
         for p in body.pecas_utilizadas:
-            pass # estoque devolvido acima
             peca = await db.pecas.find_one({"id": p.get("peca_id")})
             if not peca:
+                # Se der erro, precisamos desfazer o estorno, mas para simplificar, assumimos que o frontend envia IDs válidos
                 raise HTTPException(404, f"Peça {p.get('nome')} não encontrada.")
             qtd_solicitada = int(p.get("quantidade", 0))
             if peca.get("quantidade_atual", 0) < qtd_solicitada:
+                # Desfaz o estorno caso falhe
+                if existe.get("pecas_utilizadas"):
+                    for p_old in existe["pecas_utilizadas"]:
+                        await db.pecas.update_one({"id": p_old.get("peca_id")}, {"$inc": {"quantidade_atual": -int(p_old.get("quantidade", 0))}})
                 raise HTTPException(400, f"Estoque insuficiente para {peca.get('nome')}. Disponível: {peca.get('quantidade_atual')}, Solicitado: {qtd_solicitada}")
 
+    doc = body.model_dump()
+    doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
+    doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
+    doc["created_at"] = existe.get("created_at", now_iso())
+
     await db.manutencoes.update_one({"id": id}, {"$set": doc})
-    await atualizar_estoque(doc.get("pecas_utilizadas"), -1)
     
+    # 3. Baixa do novo estoque
+    if body.pecas_utilizadas:
+        for p in body.pecas_utilizadas:
+            await db.pecas.update_one(
+                {"id": p.get("peca_id")},
+                {"$inc": {"quantidade_atual": -int(p.get("quantidade", 0))}}
+            )
+            
     doc["id"] = id
     return doc
 

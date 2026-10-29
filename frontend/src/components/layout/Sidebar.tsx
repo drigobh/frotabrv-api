@@ -1,14 +1,14 @@
-import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { 
+import { CalendarClock, useState, useEffect } from "react";
+import { CalendarClock, Link, useLocation } from "react-router-dom";
+import { CalendarClock, 
   LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useMe } from "@/hooks/useSession";
-import { Button } from "@/components/ui/button";
+import { CalendarClock, cn } from "@/lib/utils";
+import { CalendarClock, useMe } from "@/hooks/useSession";
+import { CalendarClock, Button } from "@/components/ui/button";
 
 const MENUS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/", isDashboard: true, items: [] },
@@ -27,6 +27,7 @@ const MENUS = [
     items: [
       { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
       { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
+      { label: "Agendamento", icon: CalendarClock, path: "/agendamento" },
       { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
       { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
       { label: "Monitoramento", icon: Activity, path: "/operacao/monitoramento" },
