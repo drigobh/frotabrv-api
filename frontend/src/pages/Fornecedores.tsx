@@ -73,7 +73,7 @@ export default function Fornecedores() {
   const [filtroStatus, setFiltroStatus] = useState("__all__");
 
   const [form, setForm] = useState({
-    tipo_pessoa: "PJ", nome: "", documento: "", telefone: "", email: "", 
+    tipo_pessoa: "PJ", nome: "", tipo_fornecedor_id: "", documento: "", telefone: "", email: "", 
     endereco: "", bairro: "", cidade: "", estado: "", atividade: "", latitude: "", longitude: "", avaliacao: 0, ativo: true
   });
 
@@ -181,7 +181,7 @@ export default function Fornecedores() {
 
   const abrirNovo = () => { 
     setEditingId(null); setErroDoc(false);
-    setForm({ tipo_pessoa: "PJ", nome: "", documento: "", telefone: "", email: "", endereco: "", bairro: "", cidade: "", estado: "", atividade: "", latitude: "", longitude: "", avaliacao: 0, ativo: true }); 
+    setForm({ tipo_pessoa: "PJ", nome: "", tipo_fornecedor_id: "", documento: "", telefone: "", email: "", endereco: "", bairro: "", cidade: "", estado: "", atividade: "", latitude: "", longitude: "", avaliacao: 0, ativo: true }); 
     setOpen(true); 
   };
   

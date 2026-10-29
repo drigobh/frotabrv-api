@@ -1,16 +1,19 @@
 import os
 import requests
 
-# ATENÇÃO: Coloque aqui a URL do seu backend no Render ou localhost
-# Exemplo: http://localhost:8000 ou https://sua-api.onrender.com
-BASE_URL = "http://localhost:8000/api" 
+# URL do seu backend local (ajuste se estiver rodando em outra porta)
+# Substitua pela URL do seu backend no Render (sem a barra no final)
+BASE_URL = "https://frotabrv-api.onrender.com/api"
 
-# Você precisará de um token de admin. Se o seu sistema usa cookie/sessão, 
-# pode ser mais fácil fazer isso direto pelo frontend depois.
-# Se o sistema usa Bearer Token, cole ele aqui:
-TOKEN = "SEU_TOKEN_AQUI"
+# COLOQUE SEU TOKEN AQUI (caso o sistema use Bearer Token)
+# Se o sistema usa cookie/sessão, o script pode falhar no POST. Nesse caso, 
+# o cadastro manual ou via Frontend é necessário.
+TOKEN = "COLE_SEU_TOKEN_AQUI"
 
-HEADERS = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+HEADERS = {
+    "Authorization": f"Bearer {TOKEN}",
+    "Content-Type": "application/json"
+}
 
 dados = [
     {
@@ -72,21 +75,28 @@ dados = [
 ]
 
 def seed():
-    print("Iniciando cadastro das categorias...")
+    print("Iniciando cadastro das categorias no banco...")
     for cat in dados:
         # Cria a categoria pai
         res = requests.post(f"{BASE_URL}/tipos-fornecedores", json={"nome": cat["nome"]}, headers=HEADERS)
+        
         if res.status_code == 201:
             pai_id = res.json()["id"]
             print(f"✅ Categoria criada: {cat['nome']}")
             
             # Cria as subcategorias
             for sub in cat["sub"]:
-                res_sub = requests.post(f"{BASE_URL}/tipos-fornecedores", json={"nome": sub, "categoria_pai_id": pai_id}, headers=HEADERS)
+                res_sub = requests.post(
+                    f"{BASE_URL}/tipos-fornecedores", 
+                    json={"nome": sub, "categoria_pai_id": pai_id}, 
+                    headers=HEADERS
+                )
                 if res_sub.status_code == 201:
                     print(f"   └─ ✅ Subcategoria: {sub}")
                 else:
                     print(f"   └─ ❌ Erro ao criar {sub}: {res_sub.text}")
+        elif res.status_code == 409:
+            print(f"ℹ️ Categoria já existe: {cat['nome']}")
         else:
             print(f"❌ Erro ao criar categoria {cat['nome']}: {res.text}")
 

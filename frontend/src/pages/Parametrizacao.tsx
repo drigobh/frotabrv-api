@@ -18,11 +18,13 @@ export default function Parametrizacao() {
 
   const [ativo, setAtivo] = useState(false);
   const [valor, setValor] = useState("2,5");
+  const [mostrarSeed, setMostrarSeed] = useState(false);
 
   useEffect(() => {
     if (config) {
       setAtivo(config.meta_abastecimento_ativo);
       setValor(String(config.meta_abastecimento_valor).replace(".", ","));
+      setMostrarSeed(config.mostrar_seed_fornecedores || false);
     }
   }, [config]);
 
@@ -30,6 +32,7 @@ export default function Parametrizacao() {
     mutationFn: () => apiPut("/parametrizacao/meta", {
       meta_abastecimento_ativo: ativo,
       meta_abastecimento_valor: Number(String(valor).replace(",", ".")),
+      mostrar_seed_fornecedores: mostrarSeed,
     }),
     onSuccess: () => {
       toast.success("Parametrização salva com sucesso!");
@@ -97,7 +100,27 @@ export default function Parametrizacao() {
                 </Button>
               </TableCell>
             </TableRow>
-          </TableBody>
+          <TableRow className="border-slate-800">
+              <TableCell className="font-medium text-slate-200">
+                Exibir botão "Popular Lista Base" na tela de Tipos de Fornecedores
+              </TableCell>
+              <TableCell>
+                <button
+                  type="button"
+                  onClick={() => setMostrarSeed(!mostrarSeed)}
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    mostrarSeed
+                      ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                      : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                  }`}
+                >
+                  {mostrarSeed ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
+                  {mostrarSeed ? "Visível" : "Oculto"}
+                </button>
+              </TableCell>
+              <TableCell colSpan={2} className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
+            </TableRow>
+            </TableBody>
         </Table>
       </div>
     </div>

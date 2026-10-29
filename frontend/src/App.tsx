@@ -66,6 +66,7 @@ export default function App() {
               <Route path="/cadastros/motoristas" element={<Motoristas />} />
               <Route path="/cadastros/combustiveis" element={<Combustiveis />} />
               <Route path="/cadastros/fornecedores" element={<Fornecedores />} />
+              <Route path="/cadastros/tipos-fornecedores" element={<TiposFornecedores />} />
               <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
               <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
               <Route path="/admin/base" element={<Base />} />
