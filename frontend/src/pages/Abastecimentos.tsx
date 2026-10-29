@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, Truck, Crown, FileDown, FileSpreadsheet, Calendar, ChevronLeft, ChevronRight, Eraser, Eye, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info, Search, Loader2, Star, CheckCircle2 } from "lucide-react";
+import { Fuel, Plus, Truck, Crown, FileDown, FileSpreadsheet, Calendar, ChevronLeft, ChevronRight, Eraser, Eye, EyeOff, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info, Search, Loader2, Star, CheckCircle2 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
@@ -61,6 +61,9 @@ export default function Abastecimentos() {
   const [mes, setMes] = useState(new Date().toISOString().slice(0, 7));
   const [openMonthPicker, setOpenMonthPicker] = useState(false);
   const [openExportModal, setOpenExportModal] = useState(false);
+  const [showCards, setShowCards] = useState(true);
+  const [showTermometro, setShowTermometro] = useState(true);
+  const [showGrid, setShowGrid] = useState(true);
   const [anoPicker, setAnoPicker] = useState(new Date().getFullYear());
   const [filtroMotorista, setFiltroMotorista] = useState(TODOS);
   const [filtroPosto, setFiltroPosto] = useState("");
@@ -1084,6 +1087,13 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
         </div>
       }/>
 
+      <div className="flex items-center gap-2 mb-2">
+        <Button variant="ghost" size="icon" onClick={() => setShowCards(!showCards)} className="h-6 w-6 text-slate-400 hover:text-white">
+          {showCards ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+        </Button>
+        <span className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Cards</span>
+      </div>
+      {showCards && (
       <div className="mb-4 grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
         {cards.map((c) => (
           <div key={c.label} title={c.tip} className="glass lift relative overflow-hidden rounded-xl hover:scale-[1.02] cursor-help" style={{ padding: '6px 10px', height: '58px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -1100,7 +1110,15 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           </div>
         ))}
       </div>
+      )}
 
+      <div className="flex items-center gap-2 mb-2">
+        <Button variant="ghost" size="icon" onClick={() => setShowTermometro(!showTermometro)} className="h-6 w-6 text-slate-400 hover:text-white">
+          {showTermometro ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+        </Button>
+        <span className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Termômetro</span>
+      </div>
+      {showTermometro && (
       <div className="mb-4 glass rounded-xl p-3">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -1166,7 +1184,16 @@ Abastecimentos: ${r.count}`}>
           </div>
         )}
       </div>
+      )}
 
+      <div className="flex items-center gap-2 mb-2">
+        <Button variant="ghost" size="icon" onClick={() => setShowGrid(!showGrid)} className="h-6 w-6 text-slate-400 hover:text-white">
+          {showGrid ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+        </Button>
+        <span className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Filtros / Grid</span>
+      </div>
+      {showGrid && (
+      <>
       <div className="mb-4 flex flex-wrap gap-2 items-end">
         <div className="grid w-auto min-w-fit gap-1.5">
           <Label>Veículo</Label>
@@ -1377,6 +1404,8 @@ Abastecimentos: ${r.count}`}>
           </TableBody>
         </Table>
       </div>
+      </>
+      )}
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if(!o) setEditingId(null); }}>
         <DialogContent className="sm:max-w-lg max-h-[95vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
