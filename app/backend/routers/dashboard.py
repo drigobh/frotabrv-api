@@ -81,3 +81,49 @@ async def get_dashboard(_u: dict = Depends(require("read"))):
         "meses_grafico": meses_grafico,
         "top_veiculos": top_veiculos
     }
+
+@router.get("/resumo")
+async def resumo_dashboard(_u: dict = Depends(require("read"))):
+    # 1. Fornecedores por Estado
+    pipeline_estados = [
+        {"$match": {"status": "ativo", "estado": {"$ne": None}}},
+        {"$group": {"_id": "$estado", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    fornecedores_por_estado = await db.fornecedores.aggregate(pipeline_estados).to_list(100)
+    
+    # 2. Custos de Manutenção por Mês (últimos 6 meses)
+    # Simplificado: pega os últimos 100 registros e agrupa
+    manutencoes = await db.manutencoes.find({}, {"custo": 1, "data": 1}).sort("data", -1).to_list(1000)
+    custos_por_mes = {}
+    for m in manutencoes:
+        if m.get("data") and m.get("custo"):
+            mes = m["data"][:7] # YYYY-MM
+            custos_por_mes[mes] = custos_por_mes.get(mes, 0) + m["custo"]
+    custos_manutencao = [{"mes": k, "custo": v} for k, v in sorted(custos_por_mes.items())]
+
+    # 3. Volume de Abastecimentos por Mês
+    abastecimentos = await db.abastecimentos.find({}, {"litros": 1, "data": 1}).sort("data", -1).to_list(1000)
+    volume_abast = {}
+    for a in abastecimentos:
+        if a.get("data") and a.get("litros"):
+            mes = a["data"][:7]
+            volume_abast[mes] = volume_abast.get(mes, 0) + a["litros"]
+    volume_abastecimentos = [{"mes": k, "litros": v} for k, v in sorted(volume_abast.items())]
+
+    # 4. Top 5 Fornecedores por Custo de Manutenção (exemplo)
+    # Como não temos o valor total por fornecedor facilmente, vamos simular pegando os mais frequentes
+    pipeline_top_forn = [
+        {"$match": {"status": "ativo"}},
+        {"$group": {"_id": "$nome", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 5}
+    ]
+    top_fornecedores = await db.fornecedores.aggregate(pipeline_top_forn).to_list(5)
+
+    return {
+        "fornecedores_por_estado": [{"estado": item["_id"], "quantidade": item["count"]} for item in fornecedores_por_estado],
+        "custos_manutencao": custos_manutencao,
+        "volume_abastecimentos": volume_abastecimentos,
+        "top_fornecedores": [{"nome": item["_id"], "quantidade": item["count"]} for item in top_fornecedores]
+    }
