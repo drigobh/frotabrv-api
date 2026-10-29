@@ -18,6 +18,8 @@ async def criar(body: FornecedorCreate, _u: dict = Depends(require("write"))):
         raise HTTPException(409, "Fornecedor com este documento já cadastrado")
     doc = body.model_dump()
     doc["id"] = str(uuid.uuid4())
+    doc["contato"] = getattr(body, "contato", None)
+    doc["whatsapp"] = getattr(body, "whatsapp", None)
     doc["created_at"] = now_iso()
     await db.fornecedores.insert_one(doc)
     return doc
@@ -31,6 +33,8 @@ async def atualizar(id: str, body: FornecedorCreate, _u: dict = Depends(require(
         raise HTTPException(409, "Já existe outro fornecedor com este nome")
     
     doc = body.model_dump()
+    doc["contato"] = getattr(body, "contato", None)
+    doc["whatsapp"] = getattr(body, "whatsapp", None)
     await db.fornecedores.update_one({"id": id}, {"$set": doc})
     doc["id"] = id
     return doc

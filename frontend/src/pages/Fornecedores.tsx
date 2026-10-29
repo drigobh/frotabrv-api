@@ -146,9 +146,7 @@ const salvar = useMutation({
   const [mapaAberto, setMapaAberto] = useState(false);
   const [estadoSelecionado, setEstadoSelecionado] = useState("");
 
-  const abrirMapaCompleto = () => {
-    setMapaAberto(true);
-  };
+  
 
     const irParaGoogleMaps = () => {
     if (!estadoSelecionado) return toast.error("Selecione um estado.");
@@ -165,6 +163,53 @@ const salvar = useMutation({
     const query = encodeURIComponent(`Fornecedores em ${estadoSelecionado}`);
     window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank");
     setMapaAberto(false);
+  };
+
+  const [mapaAberto, setMapaAberto] = useState(false);
+  const [estadoSelecionado, setEstadoSelecionado] = useState("");
+  const [fornecedoresMapa, setFornecedoresMapa] = useState<any[]>([]);
+  const [selecionadosMapa, setSelecionadosMapa] = useState<string[]>([]);
+
+  const abrirMapaCompleto = () => {
+    setMapaAberto(true);
+    setEstadoSelecionado("");
+    setFornecedoresMapa([]);
+    setSelecionadosMapa([]);
+  };
+
+  const carregarFornecedoresEstado = (uf: string) => {
+    setEstadoSelecionado(uf);
+    if (uf === "TODOS") {
+      setFornecedoresMapa(fornecedores.filter(f => f.endereco && f.cidade));
+    } else {
+      setFornecedoresMapa(fornecedores.filter(f => f.estado === uf && f.endereco && f.cidade));
+    }
+    setSelecionadosMapa([]);
+  };
+
+  const toggleFornecedor = (id: string) => {
+    setSelecionadosMapa(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleTodos = () => {
+    if (selecionadosMapa.length === fornecedoresMapa.length) {
+      setSelecionadosMapa([]);
+    } else {
+      setSelecionadosMapa(fornecedoresMapa.map(f => f.id));
+    }
+  };
+
+  const abrirNoMapaReal = () => {
+    const lista = fornecedoresMapa.filter(f => selecionadosMapa.includes(f.id));
+    if (lista.length === 0) return toast.error("Selecione pelo menos um fornecedor.");
+    
+    // Gera a URL do OpenStreetMap com os marcadores exatos
+    let url = "https://www.openstreetmap.org/export/embed.html?bbox=";
+    // ... (Lógica simplificada para pegar o centro e zoom)
+    // Como o OSM não plota múltiplos marcadores via URL simples, 
+    // abrimos a busca do Google Maps com os endereços concatenados
+    const enderecos = lista.map(f => encodeURIComponent(`${f.endereco}, ${f.cidade}, ${f.estado}`)).join('|');
+    window.open(`https://www.google.com/maps/dir/?api=1&waypoints=${enderecos}`, "_blank");
   };
   return (
     <div>
@@ -289,12 +334,9 @@ const salvar = useMutation({
 
                 {/* 5. LOCALIZAÇÃO */}
                 <TableCell className="text-slate-400 text-xs">
-                  <div className="flex flex-col gap-1">
-                    <span className="flex items-center gap-1"><MapPin className="size-3" /> {r.cidade ? `${r.cidade}/${r.estado}` : "—"}</span>
-                    {r.cidade && (
-                      
-                    )}
-                  </div>
+                  <span className="flex items-center gap-1">
+                    <MapPin className="size-3" /> {r.cidade ? `${r.cidade}/${r.estado}` : "—"}
+                  </span>
                 </TableCell>
                 
                 {/* 6. CONTATO */}
@@ -481,16 +523,7 @@ const salvar = useMutation({
       <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir Fornecedor?" onConfirm={() => excluirId && excluir.mutate(excluirId)} confirmLabel="Excluir" destructive pending={excluir.isPending} />
 
       {/* Modal de Filtro do Mapa */}
-      {mapaAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-lg font-bold text-slate-100 mb-4">Selecione o Estado para o Mapa</h2>
-            
-            <div className="flex flex-col gap-3">
-              <Label className="text-xs text-slate-400">Estado (UF)</Label>
-              <select 
-                value={estadoSelecionado} 
-                onChange={(e) => setEstadoSelecionado(e.target.value)}
+      
                 className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-200 px-3 w-full"
               >
                 <option value="">Selecione...</option>
@@ -506,6 +539,63 @@ const salvar = useMutation({
               <Button onClick={irParaGoogleMaps} className="bg-sky-600 hover:bg-sky-500">
                 <MapPin className="size-4 mr-2" /> Abrir no Google Maps
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DO MAPA INTELIGENTE */}
+      {mapaAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+              <h2 className="text-lg font-bold text-slate-100">Mapa dos Fornecedores</h2>
+              <button onClick={() => setMapaAberto(false)} className="text-slate-400 hover:text-white">X</button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-4">
+              {!estadoSelecionado ? (
+                <div className="flex flex-col gap-3">
+                  <Label className="text-slate-400">Selecione o Estado</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button variant="outline" onClick={() => carregarFornecedoresEstado("TODOS")} className="h-10">Todos</Button>
+                    {[...new Set(fornecedores.map(f => f.estado))].filter(Boolean).sort().map(uf => (
+                      <Button key={uf} variant="outline" onClick={() => carregarFornecedoresEstado(uf)} className="h-10">{uf} ({fornecedores.filter(f => f.estado === uf).length})</Button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-slate-400">Fornecedores em {estadoSelecionado} ({fornecedoresMapa.length})</Label>
+                    <Button variant="ghost" size="sm" onClick={toggleTodos} className="text-sky-400">Marcar/Desmarcar Todos</Button>
+                  </div>
+                  
+                  <div className="border border-slate-800 rounded-lg max-h-[300px] overflow-y-auto">
+                    {fornecedoresMapa.map((f: any) => (
+                      <label key={f.id} className="flex items-center gap-3 p-3 border-b border-slate-800 last:border-0 hover:bg-slate-800/50 cursor-pointer">
+                        <input type="checkbox" checked={selecionadosMapa.includes(f.id)} onChange={() => toggleFornecedor(f.id)} className="size-4 accent-sky-500" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-200">{f.nome}</p>
+                          <p className="text-xs text-slate-500">{f.endereco}, {f.cidade} - {f.estado}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end px-6 py-4 border-t border-slate-800 gap-3 bg-slate-900/50">
+              {estadoSelecionado && (
+                <>
+                  <Button variant="outline" onClick={() => setEstadoSelecionado("")}>Voltar</Button>
+                  <Button onClick={abrirNoMapaReal} disabled={selecionadosMapa.length === 0} className="bg-emerald-600 hover:bg-emerald-500">
+                    Abrir no Mapa ({selecionadosMapa.length})
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
