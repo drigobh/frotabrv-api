@@ -28,6 +28,17 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
 
+    
+    # VALIDAÇÃO DE ESTOQUE
+    if body.pecas_utilizadas:
+        for p in body.pecas_utilizadas:
+            peca = await db.pecas.find_one({"id": p.get("peca_id")})
+            if not peca:
+                raise HTTPException(404, f"Peça {p.get('nome')} não encontrada.")
+            qtd_solicitada = int(p.get("quantidade", 0))
+            if peca.get("quantidade_atual", 0) < qtd_solicitada:
+                raise HTTPException(400, f"Estoque insuficiente para {peca.get('nome')}. Disponível: {peca.get('quantidade_atual')}, Solicitado: {qtd_solicitada}")
+
     doc = body.model_dump()
     doc["id"] = str(uuid.uuid4())
     doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
@@ -59,6 +70,18 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
     doc["created_at"] = existe.get("created_at", now_iso())
 
     await atualizar_estoque(existe.get("pecas_utilizadas"), 1)
+
+    # VALIDAÇÃO DE ESTOQUE
+    if body.pecas_utilizadas:
+        for p in body.pecas_utilizadas:
+            pass # estoque devolvido acima
+            peca = await db.pecas.find_one({"id": p.get("peca_id")})
+            if not peca:
+                raise HTTPException(404, f"Peça {p.get('nome')} não encontrada.")
+            qtd_solicitada = int(p.get("quantidade", 0))
+            if peca.get("quantidade_atual", 0) < qtd_solicitada:
+                raise HTTPException(400, f"Estoque insuficiente para {peca.get('nome')}. Disponível: {peca.get('quantidade_atual')}, Solicitado: {qtd_solicitada}")
+
     await db.manutencoes.update_one({"id": id}, {"$set": doc})
     await atualizar_estoque(doc.get("pecas_utilizadas"), -1)
     

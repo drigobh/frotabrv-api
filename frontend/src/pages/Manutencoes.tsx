@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Clock, Info, Pencil, Plus, Trash2, UserCircle, Wrench } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Info, Pencil, Plus, Trash2, UserCircle, Wrench, FileDown, FileText, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { brl, dataBR, errMsg } from "@/lib/format";
@@ -25,7 +25,7 @@ const vazio = (hoje: string) => ({
   tipo: "Preventiva",
   status: "Agendada",
   descricao: "",
-  data: hoje,
+  data: hoje, data_inicio: hoje, data_fim: "", previsao_dias: "", autorizado_por: "",
   custo: "",
   oficina: "",
   fornecedor_id: "",
@@ -42,6 +42,9 @@ export default function Manutencoes() {
   const veiculos = useVeiculos();
   const [filtroVeiculo, setFiltroVeiculo] = useState(TODOS);
   const [filtroStatus, setFiltroStatus] = useState(TODOS);
+  const [filtroData, setFiltroData] = useState("");
+  const [filtroFornecedor, setFiltroFornecedor] = useState(TODOS);
+  const [filtroPeca, setFiltroPeca] = useState(TODOS);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
@@ -69,8 +72,17 @@ export default function Manutencoes() {
     if (filtroStatus !== TODOS) {
       filtered = filtered.filter(r => r.status === filtroStatus);
     }
+    if (filtroData) {
+      filtered = filtered.filter(r => (r as any).data_inicio?.startsWith(filtroData) || r.data?.startsWith(filtroData));
+    }
+    if (filtroFornecedor !== TODOS) {
+      filtered = filtered.filter(r => (r as any).fornecedor_id === filtroFornecedor);
+    }
+    if (filtroPeca !== TODOS) {
+      filtered = filtered.filter(r => (r as any).pecas_utilizadas?.some((p: any) => p.peca_id === filtroPeca));
+    }
     return filtered;
-  }, [rows, filtroVeiculo, filtroStatus]);
+  }, [rows, filtroVeiculo, filtroStatus, filtroData, filtroFornecedor, filtroPeca]);
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["manutencoes"] });
@@ -81,6 +93,7 @@ export default function Manutencoes() {
     mutationFn: () => {
       const payload = {
         ...form,
+        data: form.data_inicio, // Compatibilidade com backend antigo
         pecas_utilizadas: pecasUsadas,
         ...form,
         custo: Number(form.custo.replace(",", ".")) || 0,
@@ -130,13 +143,37 @@ export default function Manutencoes() {
     setEditingId(r.id); 
     setForm({
       veiculo_id: r.veiculo_id, tipo: r.tipo, status: r.status, descricao: r.descricao,
-      data: r.data, custo: String(r.custo), oficina: r.oficina || "", fornecedor_id: (r as any).fornecedor_id || "",
+      data: r.data, data_inicio: (r as any).data_inicio || r.data, data_fim: (r as any).data_fim || "", previsao_dias: String((r as any).previsao_dias || ""), autorizado_por: (r as any).autorizado_por || "", custo: String(r.custo), oficina: r.oficina || "", fornecedor_id: (r as any).fornecedor_id || "",
       km_manutencao: r.km_manutencao ? String(r.km_manutencao) : "", proxima_revisao_km: r.proxima_revisao_km ? String(r.proxima_revisao_km) : "",
       pecas_substituidas: r.pecas_substituidas || ""
     });
     setPecasUsadas((r as any).pecas_utilizadas || []);
     setOpen(true); 
   };;
+
+  const exportarExcel = () => {
+    const cabecalho = ["Data Início", "Veículo", "Tipo", "Descrição", "Oficina", "Custo", "Status"];
+    const linhas = rowsFiltradas.map(r => [
+      r.data_inicio || r.data, 
+      r.veiculo_label, 
+      r.tipo, 
+      r.descricao, 
+      r.oficina || "", 
+      r.custo.toString().replace(".", ","), 
+      r.status
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [cabecalho.join(";"), ...linhas.map(e => e.join(";"))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `manutencoes_${new Date().getTime()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+  };
+
+  const exportarPDF = () => {
+    window.print();
+  };
 
   const statusColor = (status: string) => {
     if (status === "Concluída") return "bg-emerald-500/20 text-emerald-400";
@@ -282,16 +319,35 @@ export default function Manutencoes() {
               <Input value={form.descricao} onChange={(e) => set("descricao")(e.target.value)} placeholder="Ex: Troca de óleo" required />
             </div>
             <div className="grid gap-1.5">
-              <Label>Data *</Label>
-              <Input type="date" value={form.data} onChange={(e) => set("data")(e.target.value)} required />
+              <Label>Data Início *</Label>
+              <Input type="date" value={form.data_inicio} onChange={(e) => set("data_inicio")(e.target.value)} required />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Data Término</Label>
+              <Input type="date" value={form.data_fim} onChange={(e) => set("data_fim")(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Previsão (Dias)</Label>
+              <Input type="number" value={form.previsao_dias} onChange={(e) => set("previsao_dias")(e.target.value)} placeholder="Ex: 5" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Autorizado por</Label>
+              <Input value={form.autorizado_por || me?.nome || ""} disabled className="bg-slate-800/50" />
             </div>
             <div className="grid gap-1.5">
               <Label>Custo (R$)</Label>
               <Input inputMode="decimal" value={form.custo} onChange={(e) => set("custo")(e.target.value)} placeholder="0,00" />
             </div>
             <div className="grid gap-1.5">
-              <Label>Oficina / prestador</Label>
-              <Input value={form.oficina} onChange={(e) => set("oficina")(e.target.value)} />
+              <Label>Oficina / Prestador</Label>
+              <FieldSelect 
+                value={form.fornecedor_id} 
+                onChange={(v) => {
+                  setForm(s => ({ ...s, fornecedor_id: v, oficina: fornecedores.find((f:any)=>f.id===v)?.nome || "" }));
+                }} 
+                options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} 
+                placeholder="Selecione o fornecedor" 
+              />
             </div>
             <div className="grid gap-1.5">
               <Label>KM na manutenção</Label>

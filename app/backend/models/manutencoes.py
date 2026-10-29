@@ -7,6 +7,10 @@ class ManutencaoCreate(BaseModel):
     status: str
     descricao: str
     data: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    data_inicio: Optional[str] = None
+    data_fim: Optional[str] = None
+    previsao_dias: Optional[int] = None
+    autorizado_por: Optional[str] = None
     custo: float = 0.0
     oficina: Optional[str] = None
     fornecedor_id: Optional[str] = None
