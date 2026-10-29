@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, FileDown, FileSpreadsheet, Calendar, ChevronLeft, ChevronRight, Eraser, Eye, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info, Search, Loader2, Star, CheckCircle2 } from "lucide-react";
+import { Fuel, Plus, Truck, Crown, FileDown, FileSpreadsheet, Calendar, ChevronLeft, ChevronRight, Eraser, Eye, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info, Search, Loader2, Star, CheckCircle2 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
@@ -58,7 +58,7 @@ export default function Abastecimentos() {
   const veiculos = useVeiculos();
   const motoristas = useMotoristas();
   const [filtroVeiculo, setFiltroVeiculo] = useState(TODOS);
-  const [mes, setMes] = useState("");
+  const [mes, setMes] = useState(new Date().toISOString().slice(0, 7));
   const [openMonthPicker, setOpenMonthPicker] = useState(false);
   const [openExportModal, setOpenExportModal] = useState(false);
   const [anoPicker, setAnoPicker] = useState(new Date().getFullYear());
@@ -315,20 +315,29 @@ export default function Abastecimentos() {
   }, [rowsFiltradas]);
 
   const ranking = useMemo(() => {
-    const porVeiculo: Record<string, { label: string, soma: number, count: number }> = {};
+    const porVeiculo: Record<string, { label: string, litros: number, km: number, count: number, motoristas: Set<string> }> = {};
     for (const r of rowsFiltradas) {
-      // Ignora ARLA e registros sem média calculada
       if (r.produto?.toUpperCase().includes("ARLA")) continue;
       if (r.media_km_l == null || r.media_km_l <= 0) continue;
       
       if (!porVeiculo[r.veiculo_id]) {
-        porVeiculo[r.veiculo_id] = { label: r.veiculo_label?.split(" · ")[0] || "—", soma: 0, count: 0 };
+        porVeiculo[r.veiculo_id] = { label: r.veiculo_label?.split(" · ")[0] || "—", litros: 0, km: 0, count: 0, motoristas: new Set() };
       }
-      porVeiculo[r.veiculo_id].soma += Number(r.media_km_l);
+      porVeiculo[r.veiculo_id].litros += (Number(r.litros) || 0);
+      porVeiculo[r.veiculo_id].km += (Number(r.km_rodados) || 0);
       porVeiculo[r.veiculo_id].count += 1;
+      if (r.motorista_label) {
+        porVeiculo[r.veiculo_id].motoristas.add(r.motorista_label);
+      }
     }
     return Object.values(porVeiculo)
-      .map(v => ({ label: v.label, media: v.count > 0 ? v.soma / v.count : 0 }))
+      .map(v => ({ 
+        label: v.label, 
+        media: v.litros > 0 ? v.km / v.litros : 0,
+        km: v.km,
+        count: v.count,
+        motoristas: Array.from(v.motoristas).join(" / ") || "—"
+      }))
       .filter(v => v.media > 0)
       .sort((a, b) => b.media - a.media)
       .slice(0, 5);
@@ -1107,16 +1116,53 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           <p className="text-xs text-slate-500 py-2">Sem dados.</p>
         ) : (
           <div className="space-y-1">
-            {ranking.map((r: any, i: number) => (
-              <div key={i} className="flex items-center gap-3">
-                <span className="text-xs font-bold text-slate-500 w-4">{i + 1}º</span>
-                <span className="text-xs font-medium text-slate-200 w-24">{r.label}</span>
-                <div className="flex-1 bg-slate-800 rounded-full h-3 overflow-hidden">
-                  <div className={`h-full rounded-full ${r.media >= metaValor ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.min((r.media / 5) * 100, 100)}%` }}></div>
+            {ranking.map((r: any, i: number) => {
+              const maxDeviation = Math.max(...ranking.map((x: any) => Math.abs(x.media - metaValor)), 0.5);
+              const deviation = r.media - metaValor;
+              const isBom = deviation >= 0;
+              const percent = (Math.abs(deviation) / maxDeviation) * 50;
+
+              return (
+                <div key={i} className="flex items-center gap-3 group" title={`Motorista(s): ${r.motoristas}
+KM Rodados: ${num(r.km, 0)} km
+Abastecimentos: ${r.count}`}>
+                  <span className={`text-xs font-bold w-5 text-center flex items-center justify-center ${i === 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                    {i === 0 ? <Crown className="size-4 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" /> : `${i + 1}º`}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-300 w-24 truncate">{r.label}</span>
+                  
+                  <div className="flex-1 bg-slate-800 rounded-full h-4 border border-slate-700/50 shadow-inner relative flex items-center">
+                    {/* Linha Central (Meta) */}
+                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/70 z-20 shadow-[0_0_6px_rgba(255,255,255,0.5)]" title={`Meta: ${metaValor} km/L`}></div>
+
+                    {/* Barra de Desvio */}
+                    <div
+                      className={`absolute top-0 bottom-0 rounded-full transition-all duration-1000 ease-out z-10 ${
+                        isBom
+                          ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]'
+                          : 'bg-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.4)]'
+                      }`}
+                      style={isBom ? { left: '50%', width: `${percent}%` } : { right: '50%', width: `${percent}%` }}
+                    ></div>
+
+                    {/* Caminhãozinho animado */}
+                    <div 
+                      className="absolute top-1/2 -translate-y-1/2 z-30 transition-all duration-1000 ease-out"
+                      style={{ 
+                        left: isBom ? `calc(50% + ${percent}%)` : `calc(50% - ${percent}%)`,
+                        transform: 'translate(-50%, -50%)'
+                      }}
+                    >
+                      <Truck className={`size-4 drop-shadow-[0_0_4px_rgba(255,255,255,0.8)] animate-pulse ${isBom ? 'text-white' : 'text-rose-200'}`} />
+                    </div>
+                  </div>
+                  
+                  <span className={`text-xs font-bold w-10 text-right tabular-nums ${isBom ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {r.media.toFixed(2)}
+                  </span>
                 </div>
-                <span className="text-xs font-bold text-slate-300 w-10 text-right">{r.media.toFixed(2)}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -1127,9 +1173,52 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           <FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} placeholder="Veículo" testId="filtro-veiculo" />
         </div>
 
-        <div className="grid gap-1.5">
+        <div className="relative grid w-auto min-w-fit gap-1.5">
           <Label>Mês</Label>
-          <Input type="month" value={mes} onChange={e => setMes(e.target.value)} className="w-36 h-9" />
+          <button
+            type="button"
+            onClick={() => setOpenMonthPicker(!openMonthPicker)}
+            className="h-9 px-3 w-[140px] flex items-center justify-between rounded-md border border-slate-700 bg-slate-900 text-sm text-slate-300 hover:bg-slate-800 transition-colors focus:outline-none focus:ring-1 focus:ring-sky-500"
+          >
+            {mes ? `${["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][parseInt(mes.split("-")[1]) - 1]} / ${mes.split("-")[0]}` : "Selecionar mês"}
+            <Calendar className="size-4 text-slate-500" />
+          </button>
+
+          {openMonthPicker && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setOpenMonthPicker(false)} />
+              <div className="absolute top-[100%] left-0 mt-1 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 w-64">
+                <div className="flex justify-between items-center mb-3">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setAnoPicker(a => a - 1)}><ChevronLeft className="size-4" /></Button>
+                  <span className="font-bold text-sm text-slate-200">{anoPicker}</span>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setAnoPicker(a => a + 1)}><ChevronRight className="size-4" /></Button>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  {["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"].map((m, i) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        const mStr = String(i + 1).padStart(2, '0');
+                        setMes(`${anoPicker}-${mStr}`);
+                        setOpenMonthPicker(false);
+                      }}
+                      className={`py-1.5 rounded text-xs font-medium transition-colors ${
+                        mes === `${anoPicker}-${String(i+1).padStart(2, '0')}` 
+                          ? 'bg-sky-500 text-white' 
+                          : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-800 text-center">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => { setMes(""); setOpenMonthPicker(false); }} className="text-xs w-full text-slate-400 hover:text-red-400">Limpar Mês</Button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="grid w-48 gap-1.5">
