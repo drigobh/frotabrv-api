@@ -1,34 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
-import { Truck, Wrench, Fuel, DollarSign, Users, MapPin } from "lucide-react";
+import { Truck, Wrench, Fuel, Users, MapPin, DollarSign } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { brl } from "@/lib/format";
 
-const COLORS = ['#0284c7', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
-
 export default function Dashboard() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["dashboard-resumo"],
-    queryFn: () => apiGet<any>("/dashboard/resumo")
-  });
+  const { data: fornecedores = [] } = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
+  const { data: manutencoes = [] } = useQuery({ queryKey: ["manutencoes"], queryFn: () => apiGet<any[]>("/manutencoes") });
+  const { data: abastecimentos = [] } = useQuery({ queryKey: ["abastecimentos"], queryFn: () => apiGet<any[]>("/abastecimentos") });
 
-  if (isLoading) return <div className="p-8 text-center text-slate-400">Carregando dashboard...</div>;
-
-  const resumo = data || { fornecedores_por_estado: [], custos_manutencao: [], volume_abastecimentos: [], top_fornecedores: [] };
+  const totalFornecedores = fornecedores.length;
+  const custoManutencoes = manutencoes.reduce((acc: number, m: any) => acc + (m.custo || 0), 0);
+  const volumeAbastecido = abastecimentos.reduce((acc: number, a: any) => acc + (a.litros || 0), 0);
+  
+  const estados = [...new Set(fornecedores.map((f: any) => f.estado))].filter(Boolean);
 
   return (
     <div>
       <PageHeader eyebrow="Visão Geral" title="Dashboard" description="Indicadores consolidados da frota." />
 
-      {/* Cards de Resumo Rápidos */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="glass p-5 rounded-2xl flex justify-between items-center">
           <div>
             <p className="text-xs uppercase text-slate-400 mb-1">Total Fornecedores</p>
-            <p className="text-3xl font-bold text-slate-100">
-              {resumo.fornecedores_por_estado.reduce((acc: any, item: any) => acc + item.quantidade, 0)}
-            </p>
+            <p className="text-3xl font-bold text-slate-100">{totalFornecedores}</p>
           </div>
           <div className="p-3 bg-sky-500/10 rounded-xl"><Truck className="size-6 text-sky-400" /></div>
         </div>
@@ -36,9 +31,7 @@ export default function Dashboard() {
         <div className="glass p-5 rounded-2xl flex justify-between items-center">
           <div>
             <p className="text-xs uppercase text-slate-400 mb-1">Custo Manutenções</p>
-            <p className="text-3xl font-bold text-amber-400">
-              {brl(resumo.custos_manutencao.reduce((acc: any, item: any) => acc + item.custo, 0))}
-            </p>
+            <p className="text-3xl font-bold text-amber-400">{brl(custoManutencoes)}</p>
           </div>
           <div className="p-3 bg-amber-500/10 rounded-xl"><Wrench className="size-6 text-amber-400" /></div>
         </div>
@@ -46,9 +39,7 @@ export default function Dashboard() {
         <div className="glass p-5 rounded-2xl flex justify-between items-center">
           <div>
             <p className="text-xs uppercase text-slate-400 mb-1">Volume Abastecido</p>
-            <p className="text-3xl font-bold text-emerald-400">
-              {resumo.volume_abastecimentos.reduce((acc: any, item: any) => acc + item.litros, 0).toLocaleString('pt-BR')} L
-            </p>
+            <p className="text-3xl font-bold text-emerald-400">{volumeAbastecido.toLocaleString('pt-BR')} L</p>
           </div>
           <div className="p-3 bg-emerald-500/10 rounded-xl"><Fuel className="size-6 text-emerald-400" /></div>
         </div>
@@ -56,89 +47,44 @@ export default function Dashboard() {
         <div className="glass p-5 rounded-2xl flex justify-between items-center">
           <div>
             <p className="text-xs uppercase text-slate-400 mb-1">Estados Atendidos</p>
-            <p className="text-3xl font-bold text-indigo-400">{resumo.fornecedores_por_estado.length}</p>
+            <p className="text-3xl font-bold text-indigo-400">{estados.length}</p>
           </div>
           <div className="p-3 bg-indigo-500/10 rounded-xl"><MapPin className="size-6 text-indigo-400" /></div>
         </div>
       </div>
 
-      {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Gráfico 1: Fornecedores por Estado */}
         <div className="glass p-6 rounded-2xl">
-          <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><MapPin className="size-5 text-sky-400" /> Top Fornecedores por Estado</h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={resumo.fornecedores_por_estado.slice(0, 8)}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="estado" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
-                <Bar dataKey="quantidade" fill="#0284c7" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><Users className="size-5 text-sky-400" /> Últimas Manutenções</h3>
+          <div className="space-y-2">
+            {manutencoes.slice(0, 5).map((m: any) => (
+              <div key={m.id} className="flex justify-between items-center p-2 border-b border-slate-800">
+                <div>
+                  <p className="text-sm font-medium text-slate-200">{m.descricao}</p>
+                  <p className="text-xs text-slate-500">{m.veiculo_label}</p>
+                </div>
+                <span className="text-sm font-bold text-amber-400">{brl(m.custo)}</span>
+              </div>
+            ))}
+            {manutencoes.length === 0 && <p className="text-slate-500 text-sm">Nenhuma manutenção registrada.</p>}
           </div>
         </div>
 
-        {/* Gráfico 2: Custos de Manutenção por Mês */}
         <div className="glass p-6 rounded-2xl">
-          <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><DollarSign className="size-5 text-amber-400" /> Custos de Manutenção (Mensal)</h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={resumo.custos_manutencao}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="mes" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} formatter={(value: any) => brl(value)} />
-                <Line type="monotone" dataKey="custo" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
+          <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><Fuel className="size-5 text-emerald-400" /> Últimos Abastecimentos</h3>
+          <div className="space-y-2">
+            {abastecimentos.slice(0, 5).map((a: any) => (
+              <div key={a.id} className="flex justify-between items-center p-2 border-b border-slate-800">
+                <div>
+                  <p className="text-sm font-medium text-slate-200">{a.veiculo_label}</p>
+                  <p className="text-xs text-slate-500">{a.produto}</p>
+                </div>
+                <span className="text-sm font-bold text-emerald-400">{a.litros} L</span>
+              </div>
+            ))}
+            {abastecimentos.length === 0 && <p className="text-slate-500 text-sm">Nenhum abastecimento registrado.</p>}
           </div>
         </div>
-
-        {/* Gráfico 3: Volume de Abastecimento */}
-        <div className="glass p-6 rounded-2xl">
-          <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><Fuel className="size-5 text-emerald-400" /> Volume Abastecido (Litros)</h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={resumo.volume_abastecimentos}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="mes" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
-                <Bar dataKey="litros" fill="#10b981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Gráfico 4: Top 5 Fornecedores */}
-        <div className="glass p-6 rounded-2xl">
-          <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><Users className="size-5 text-purple-400" /> Top 5 Fornecedores</h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={resumo.top_fornecedores}
-                  dataKey="quantidade"
-                  nameKey="nome"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  fill="#8884d8"
-                  label
-                >
-                  {resumo.top_fornecedores.map((entry: any, index: number) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
       </div>
     </div>
   );
