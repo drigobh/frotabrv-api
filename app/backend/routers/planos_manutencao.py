@@ -13,37 +13,48 @@ async def listar(_u: dict = Depends(require("read"))):
     return [PlanoManutencao(**d) for d in docs]
 
 @router.post("", response_model=PlanoManutencao, status_code=201)
-async def criar(body: PlanoManutencaoCreate, _u: dict = Depends(require("write"))):
+async def criar(body: PlanoManutencaoCreate, user: dict = Depends(require("write"))):
+    # Verifica o veículo (cavalo ou carreta)
     veiculo = None
+    label = "—"
+    
     if body.veiculo_id:
         veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
+        if veiculo:
+            label = f"{veiculo.get('placa', '')} - {veiculo.get('modelo', '')}"
     elif body.carreta_id:
         veiculo = await db.carretas.find_one({"id": body.carreta_id}, {"_id": 0})
+        if veiculo:
+            label = f"{veiculo.get('codigo', '')} - {veiculo.get('tipo', '')}"
+
     if not veiculo:
-        raise HTTPException(404, "Veículo não encontrado")
-    
+        raise HTTPException(404, "Ativo não encontrado")
+
     doc = body.model_dump()
     doc["id"] = str(uuid.uuid4())
-    doc["veiculo_label"] = f"{veiculo.get('placa', veiculo.get('codigo', ''))} - {veiculo.get('modelo', '')}"
-    doc["created_at"] = now_iso()
-    doc["data_abertura"] = body.data_abertura
+    doc["veiculo_label"] = label
     doc["created_by"] = user["nome"]
+    doc["created_at"] = now_iso()
     
     await db.planos_manutencao.insert_one(dict(doc))
     return PlanoManutencao(**doc)
 
 @router.put("/{id}", response_model=PlanoManutencao)
-async def atualizar(id: str, body: PlanoManutencaoCreate, _u: dict = Depends(require("write"))):
+async def atualizar(id: str, body: PlanoManutencaoCreate, user: dict = Depends(require("write"))):
     veiculo = None
+    label = "—"
+    
     if body.veiculo_id:
         veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
+        if veiculo:
+            label = f"{veiculo.get('placa', '')} - {veiculo.get('modelo', '')}"
     elif body.carreta_id:
         veiculo = await db.carretas.find_one({"id": body.carreta_id}, {"_id": 0})
-    if not veiculo:
-        raise HTTPException(404, "Veículo não encontrado")
-        
+        if veiculo:
+            label = f"{veiculo.get('codigo', '')} - {veiculo.get('tipo', '')}"
+
     doc = body.model_dump()
-    doc["veiculo_label"] = f"{veiculo.get('placa', veiculo.get('codigo', ''))} - {veiculo.get('modelo', '')}"
+    doc["veiculo_label"] = label
     
     await db.planos_manutencao.update_one({"id": id}, {"$set": doc})
     doc = await db.planos_manutencao.find_one({"id": id}, {"_id": 0})
