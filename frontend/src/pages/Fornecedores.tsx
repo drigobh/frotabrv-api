@@ -55,21 +55,7 @@ export default function Fornecedores() {
     onError: (e: any) => toast.error(e.message || "Erro ao excluir"),
   });
 
-  const preencherTiposEmMassa = async () => {
-    if (!confirm("Isso vai preencher o tipo 'Combustíveis e lubrificantes' em TODOS os fornecedores sem tipo. Continuar?")) return;
-    const tipoAlvo = tipos.find((t: any) => t.nome.toLowerCase().includes("combustíveis e lubrificantes"));
-    if (!tipoAlvo) return toast.error("Tipo não encontrado.");
-    const semTipo = rowsFiltradas.filter(r => !r.tipo_fornecedor_id);
-    let count = 0;
-    for (const f of semTipo) {
-      try {
-        await apiPut(`/fornecedores/${f.id}`, { ...f, tipo_fornecedor_id: tipoAlvo.id });
-        count++;
-      } catch (e) {}
-    }
-    toast.success(`${count} fornecedores atualizados.`);
-    qc.invalidateQueries({ queryKey: ["fornecedores"] });
-  };
+  
 
   const abrirNovo = () => {
     setEditingId(null);
@@ -94,9 +80,7 @@ export default function Fornecedores() {
         title="Fornecedores"
         description="Gerencie oficinas, postos e prestadores de serviço."
         actions={<div className="flex gap-2">
-          <Button variant="outline" onClick={preencherTiposEmMassa} className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 h-9">
-            <Wrench className="size-4 mr-2" /> Preencher Tipos em Massa
-          </Button>
+          
           <Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500 h-9"><Plus className="size-4 mr-2" /> Novo Fornecedor</Button>
         </div>}
       />
@@ -132,7 +116,14 @@ export default function Fornecedores() {
                     {r.tipo_pessoa === 'PJ' ? <Building2 className="size-4 text-sky-400" /> : <User className="size-4 text-purple-400" />}
                     <div>
                       <div className="flex items-center gap-2">{r.nome}<span className="text-[9px] font-bold bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{r.tipo_pessoa}</span></div>
-                      <div className="text-slate-500 font-mono text-xs">{r.documento || "—"}</div>
+                      <div className="text-slate-500 font-mono text-xs flex flex-col">
+                        <span>{r.documento || "—"}</span>
+                        {(!r.documento || String(r.documento).trim() === "") && (
+                          <span className="text-red-500 animate-pulse font-bold text-[9px] flex items-center gap-1 mt-1">
+                            <AlertTriangle className="size-3" /> CNPJ Pendente
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </TableCell>
@@ -142,6 +133,11 @@ export default function Fornecedores() {
                 <TableCell className="text-slate-400 text-xs">
                   <div className="flex flex-col gap-1">
                     <span className="flex items-center gap-1"><MapPin className="size-3" /> {r.cidade ? `${r.cidade}/${r.estado}` : "—"}</span>
+                    {r.cidade && (
+                      <button onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${r.endereco || ""}, ${r.cidade}, ${r.estado}`)}`, "_blank")} className="text-sky-400 hover:underline text-[10px] flex items-center gap-1">
+                        <MapPin className="size-3" /> Abrir no Maps
+                      </button>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="text-center">
