@@ -101,6 +101,11 @@ export default function Abastecimentos() {
   const [fornecedorPendente, setFornecedorPendente] = useState<{nome: string, cnpj: string, cidade: string, estado: string, endereco?: string, bairro?: string, avaliacao?: number} | null>(null);
   
   const { data: fornecedores = [], refetch: refetchFornecedores } = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
+  const { data: metaConfig } = useQuery({
+    queryKey: ["parametrizacao-meta"],
+    queryFn: () => apiGet<{ meta_abastecimento_ativo: boolean; meta_abastecimento_valor: number }>("/parametrizacao/meta"),
+  });
+  const metaValor = metaConfig?.meta_abastecimento_ativo ? metaConfig.meta_abastecimento_valor : 2.5;
 
   const params = new URLSearchParams();
   if (filtroVeiculo !== TODOS) params.set("veiculo_id", filtroVeiculo);
@@ -1094,8 +1099,8 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
             <h3 className="text-sm font-bold text-slate-200">Termômetro (Top 5 KM/L)</h3>
           </div>
           <div className="flex gap-3 text-[10px] text-slate-400">
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-500" /> Bom (≥ 2.5)</span>
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-500" /> Ruim (&lt; 2.5)</span>
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-500" /> Bom (≥ {metaValor.toFixed(1)})</span>
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-500" /> Ruim (&lt; {metaValor.toFixed(1)})</span>
           </div>
         </div>
         {ranking.length === 0 ? (
@@ -1107,7 +1112,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                 <span className="text-xs font-bold text-slate-500 w-4">{i + 1}º</span>
                 <span className="text-xs font-medium text-slate-200 w-24">{r.label}</span>
                 <div className="flex-1 bg-slate-800 rounded-full h-3 overflow-hidden">
-                  <div className={`h-full rounded-full ${r.media >= 2.5 ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.min((r.media / 5) * 100, 100)}%` }}></div>
+                  <div className={`h-full rounded-full ${r.media >= metaValor ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.min((r.media / 5) * 100, 100)}%` }}></div>
                 </div>
                 <span className="text-xs font-bold text-slate-300 w-10 text-right">{r.media.toFixed(2)}</span>
               </div>

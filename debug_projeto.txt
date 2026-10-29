@@ -1,0 +1,34 @@
+=== BACKEND ===
+Routers existentes: ['abastecimentos.py', 'acoplamentos.py', 'admin.py', 'auth.py', 'carretas.py', 'combustiveis.py', 'dashboard.py', 'fornecedores.py', 'manutencoes.py', 'motoristas.py', 'movimentacoes.py', 'pecas.py', 'veiculos.py', '__init__.py']
+Models existentes: ['abastecimentos.py', 'acoplamentos.py', 'auditoria.py', 'auth.py', 'avisos.py', 'cadastros.py', 'combustiveis.py', 'dashboard.py', 'documentos.py', 'financeiro.py', 'fornecedores.py', 'manutencoes.py', 'movimentacoes.py', 'pecas.py', 'ranking.py', 'usuarios.py', '__init__.py']
+
+=== SIDEBAR ===
+Menu 'Administração' encontrado na posição 1964
+    { label: "Financeiro", icon: DollarSign, path: "/financeiro" },
+      { label: "Performance de Fornecedores", icon: BarChart3, path: "/relatorios/fornecedores" },
+      { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },
+    ]
+  },
+  {
+    id: "administracao", label: "Administração", icon: Shield,
+    items: [
+      { label: "Usuários", icon: UserCog, path: "/admin/usuarios" },
+      { label: "Auditoria", icon: FileBox, path: "/admin/auditoria" },
+      { label: "Avisos", icon: Bell, path: "/admin/avisos" },
+      { label: "Segurança", icon: Shield, path: "/admin/seguranca" },
+      { label: "Base (Limpeza)", icon: FileText, path: "/admin/base" },
+    ]
+  }
+];
+
+export function Sidebar() {
+  const { pathname } = useLocation();
+  const { data: me } = useMe();
+ 
+
+=== APP.TSX (Rotas) ===
+<Route path="/admin/base" element={<Base />
+<Route path="/admin/usuarios" element={<Usuarios />
+<Route path="/admin/auditoria" element={<Auditoria />
+<Route path="/admin/avisos" element={<Avisos />
+<Route path="/admin/seguranca" element={<Seguranca />

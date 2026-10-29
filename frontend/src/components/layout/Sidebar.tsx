@@ -48,6 +48,7 @@ const MENUS = [
       { label: "Auditoria", icon: FileBox, path: "/admin/auditoria" },
       { label: "Avisos", icon: Bell, path: "/admin/avisos" },
       { label: "Segurança", icon: Shield, path: "/admin/seguranca" },
+      { label: "Parametrização", icon: Settings, path: "/admin/parametrizacao" },
       { label: "Base (Limpeza)", icon: FileText, path: "/admin/base" },
     ]
   }

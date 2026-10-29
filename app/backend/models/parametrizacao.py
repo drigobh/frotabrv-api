@@ -1,0 +1,10 @@
+from pydantic import BaseModel
+from typing import Optional
+
+class ParametrizacaoBase(BaseModel):
+    meta_abastecimento_ativo: bool = False
+    meta_abastecimento_valor: float = 2.5
+
+class Parametrizacao(ParametrizacaoBase):
+    id: str
+    updated_at: str
