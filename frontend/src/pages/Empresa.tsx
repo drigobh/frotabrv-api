@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building, Upload, MapPin, Phone, Mail, Globe, FileText } from "lucide-react";
+import { Search, Building, Upload, MapPin, Phone, Mail, Globe, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -19,6 +19,7 @@ export default function Empresa() {
     }
   });
 
+  const [isSearching, setIsSearching] = useState(false);
   const [form, setForm] = useState<any>({
     razao_social: "", nome_fantasia: "", cnpj: "", ie: "", im: "",
     endereco: "", bairro: "", cidade: "", estado: "", cep: "",
@@ -29,6 +30,38 @@ export default function Empresa() {
     if (empresa) setForm((s: any) => ({ ...s, ...empresa }));
   }, [empresa]);
 
+
+  const buscarCNPJ = async () => {
+    const cnpjLimpo = form.cnpj.replace(/\D/g, '');
+    if (cnpjLimpo.length !== 14) {
+      return toast.error("Digite um CNPJ válido com 14 dígitos.");
+    }
+    
+    setIsSearching(true);
+    try {
+      const res = await fetch(`/api/empresa/cnpj/${cnpjLimpo}`);
+      if (!res.ok) throw new Error("CNPJ não encontrado na base da Receita.");
+      const data = await res.json();
+      
+      setForm((s: any) => ({
+        ...s,
+        razao_social: data.razao_social || s.razao_social,
+        nome_fantasia: data.nome_fantasia || s.nome_fantasia,
+        cep: data.cep || s.cep,
+        endereco: data.logradouro ? `${data.logradouro}, ${data.numero}` : s.endereco,
+        bairro: data.bairro || s.bairro,
+        cidade: data.municipio || s.cidade,
+        estado: data.uf || s.estado,
+        telefone: data.ddd_telefone_1 || s.telefone,
+        email: data.email || s.email
+      }));
+      toast.success("Dados preenchidos com sucesso!");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao buscar o CNPJ.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
   const salvar = useMutation({
     mutationFn: () => apiPut("/empresa", form),
     onSuccess: () => { toast.success("Dados da empresa salvos!"); qc.invalidateQueries({ queryKey: ["empresa"] }); },
@@ -75,7 +108,7 @@ export default function Empresa() {
 
           <div className="glass rounded-2xl p-4">
             <Label className="text-xs mb-2 block">Tipo de Unidade</Label>
-            <FieldSelect value={form.tipo_unidade} onChange={(v) => setForm((s: any) => ({ ...s, tipo_unidade: v }))} options={[{ value: "Matriz", label: "Matriz" }, { value: "Filial", label: "Filial" }]} />
+            <FieldSelect value={form.tipo_unidade} onChange={(v) => setForm((s: any) => ({ ...s, tipo_unidade: v }))} options={[{ value: "Matriz", label: "Matriz" }, { value: "Filial", label: "Filial" }, { value: "Ponto de Apoio", label: "Ponto de Apoio" }, { value: "Parceiro", label: "Parceiro" }]} />
           </div>
         </div>
 
@@ -86,7 +119,26 @@ export default function Empresa() {
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 grid gap-1.5"><Label className="text-xs">Razão Social *</Label><Input value={form.razao_social} onChange={e => setForm((s: any) => ({ ...s, razao_social: e.target.value }))} className="h-9" required /></div>
             <div className="col-span-2 grid gap-1.5"><Label className="text-xs">Nome Fantasia</Label><Input value={form.nome_fantasia} onChange={e => setForm((s: any) => ({ ...s, nome_fantasia: e.target.value }))} className="h-9" /></div>
-            <div className="grid gap-1.5"><Label className="text-xs">CNPJ *</Label><Input value={form.cnpj} onChange={e => setForm((s: any) => ({ ...s, cnpj: e.target.value }))} className="h-9" required /></div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">CNPJ *</Label>
+              <div className="flex gap-2">
+                <Input 
+                  value={form.cnpj} 
+                  onChange={e => setForm((s: any) => ({ ...s, cnpj: e.target.value }))} 
+                  placeholder="00.000.000/0000-00"
+                  className="h-9 flex-1" 
+                  required 
+                />
+                <Button 
+                  type="button" 
+                  onClick={buscarCNPJ} 
+                  disabled={isSearching} 
+                  className="h-9 px-3 bg-sky-600 hover:bg-sky-500"
+                >
+                  <Search className="size-4" />
+                </Button>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="grid gap-1.5"><Label className="text-xs">I.E.</Label><Input value={form.ie} onChange={e => setForm((s: any) => ({ ...s, ie: e.target.value }))} className="h-9" /></div>
               <div className="grid gap-1.5"><Label className="text-xs">I.M.</Label><Input value={form.im} onChange={e => setForm((s: any) => ({ ...s, im: e.target.value }))} className="h-9" /></div>
