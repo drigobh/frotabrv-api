@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { MapPin, X, Search, Building2, CheckCircle2, XCircle, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,8 @@ export function MapaFornecedores({ open, onOpenChange, fornecedores, tipos }: Ma
   const [filtroNome, setFiltroNome] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
   const [fornecedorFocado, setFornecedorFocado] = useState<any>(null);
+  const [coordsFocado, setCoordsFocado] = useState<[number, number] | null>(null);
+  const [ultimoAbastecimento, setUltimoAbastecimento] = useState<any>(null);
 
   // Cálculo dos Cards (Estatísticas)
   const stats = useMemo(() => {
@@ -84,16 +86,56 @@ export function MapaFornecedores({ open, onOpenChange, fornecedores, tipos }: Ma
     return filtered;
   }, [fornecedores, estadoSelecionado, filtroNome, filtroTipo]);
 
-  if (!open) return null;
+  
+  const focarFornecedor = async (f: any) => {
+    setFornecedorFocado(f);
+    setCoordsFocado(null);
+    setUltimoAbastecimento(null); // Limpa a coordenada anterior
+
+    if (f.latitude && f.longitude) {
+      setCoordsFocado([f.latitude, f.longitude]);
+    }
+
+    try {
+      const res = await fetch(`/api/empresa/geocode?endereco=${encodeURIComponent(`${f.endereco}, ${f.cidade}, ${f.estado}`)}`);
+      const data = await res.json();
+      
+      if (data.lat && data.lon) {
+        setCoordsFocado([data.lat, data.lon]);
+      } else {
+        const resCidade = await fetch(`/api/empresa/geocode?endereco=${encodeURIComponent(`${f.cidade}, ${f.estado}`)}`);
+        const dataCidade = await resCidade.json();
+        if (dataCidade.lat && dataCidade.lon) setCoordsFocado([dataCidade.lat, dataCidade.lon]);
+      }
+    } catch (e) {
+      console.error("Erro ao geocodificar:", e);
+    }
+  
+    // Busca o último abastecimento se for do tipo Combustíveis
+    try {
+      const tiposRes = await fetch(`/api/tipos-fornecedores`);
+      const tipos = await tiposRes.json();
+      const tipoCombustivel = tipos.find((t: any) => t.nome.toLowerCase().includes("combustíveis e lubrificantes"));
+      
+      if (tipoCombustivel && f.tipo_fornecedor_id === tipoCombustivel.id) {
+        const abastRes = await fetch(`/api/fornecedores/${f.id}/ultimo-abastecimento`);
+        const abastData = await abastRes.json();
+        setUltimoAbastecimento(abastData);
+      }
+    } catch (e) {
+      console.error("Erro ao buscar abastecimento:", e);
+    }
+  };
+if (!open) return null;
 
   const estados = [...new Set(fornecedores.map(f => f.estado))].filter(Boolean).sort();
 
   let center: [number, number] = [-15.7801, -47.9292];
   let zoom = 4;
 
-  if (fornecedorFocado && ESTADOS_COORDS[fornecedorFocado.estado]) {
-    center = ESTADOS_COORDS[fornecedorFocado.estado];
-    zoom = 10;
+  if (coordsFocado) {
+    center = coordsFocado;
+    zoom = 16; // Zoom alto no endereço exato
   } else if (estadoSelecionado && ESTADOS_COORDS[estadoSelecionado]) {
     center = ESTADOS_COORDS[estadoSelecionado];
     zoom = 6;
@@ -178,9 +220,9 @@ export function MapaFornecedores({ open, onOpenChange, fornecedores, tipos }: Ma
 
         {/* Barra de Filtros de Estado */}
         <div className="px-6 py-2 border-b border-slate-800 flex gap-2 overflow-x-auto">
-          <Button variant={estadoSelecionado === "" ? "default" : "outline"} onClick={() => setEstadoSelecionado("")} className="h-8">Todos</Button>
+          <Button variant={estadoSelecionado === "" ? "default" : "outline"} onClick={() => { setEstadoSelecionado(""); setCoordsFocado(null); setFornecedorFocado(null); }} className="h-8">Todos</Button>
           {estados.map(uf => (
-            <Button key={uf} variant={estadoSelecionado === uf ? "default" : "outline"} onClick={() => setEstadoSelecionado(uf)} className="h-8">
+            <Button key={uf} variant={estadoSelecionado === uf ? "default" : "outline"} onClick={() => { setEstadoSelecionado(uf); setCoordsFocado(null); setFornecedorFocado(null); }} className="h-8">
               {uf} ({fornecedores.filter(f => f.estado === uf).length})
             </Button>
           ))}
@@ -217,7 +259,7 @@ export function MapaFornecedores({ open, onOpenChange, fornecedores, tipos }: Ma
                 fornecedoresFiltrados.map(f => (
                   <button
                     key={f.id}
-                    onClick={() => setFornecedorFocado(f)}
+                    onClick={() => focarFornecedor(f)}
                     className={`w-full text-left p-3 rounded-lg transition-colors flex flex-col gap-1 ${
                       fornecedorFocado?.id === f.id ? "bg-sky-600/20 border border-sky-500/50" : "hover:bg-slate-800 border border-transparent"
                     }`}
@@ -245,9 +287,26 @@ export function MapaFornecedores({ open, onOpenChange, fornecedores, tipos }: Ma
                 return (
                   <Marker key={f.id} position={[coords[0] + offsetLat, coords[1] + offsetLon]}>
                     <Popup>
-                      <strong>{f.nome}</strong><br/>
-                      {f.endereco}<br/>
-                      {f.cidade} - {f.estado}
+                      <div className="text-sm space-y-1 min-w-[250px]">
+                        <p className="font-bold text-base border-b pb-1">{f.nome}</p>
+                        <p><strong>Endereço:</strong> {f.endereco}</p>
+                        <p><strong>Cidade:</strong> {f.cidade} - {f.estado}</p>
+                        <p><strong>Contato:</strong> {f.contato || "—"}</p>
+                        <p><strong>WhatsApp:</strong> {f.whatsapp || "—"}</p>
+                        
+                        {/* Se for combustível, mostra o último abastecimento */}
+                        {f.id === fornecedorFocado?.id && ultimoAbastecimento && !ultimoAbastecimento.mensagem && (
+                          <div className="mt-2 pt-2 border-t border-slate-300">
+                            <p className="font-bold text-xs text-sky-600">Último Abastecimento:</p>
+                            <p><strong>Data:</strong> {new Date(ultimoAbastecimento.data).toLocaleDateString('pt-BR')}</p>
+                            <p><strong>Combustível:</strong> {ultimoAbastecimento.produto}</p>
+                            <p><strong>Litros:</strong> {ultimoAbastecimento.litros} L</p>
+                            <p><strong>Motorista:</strong> {ultimoAbastecimento.motorista_label || "—"}</p>
+                            <p><strong>Cavalo:</strong> {ultimoAbastecimento.veiculo_label || "—"}</p>
+                            <p><strong>Carreta:</strong> {ultimoAbastecimento.carreta_label || "—"}</p>
+                          </div>
+                        )}
+                      </div>
                     </Popup>
                   </Marker>
                 );

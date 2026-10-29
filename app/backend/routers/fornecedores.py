@@ -119,3 +119,22 @@ async def consultar_cnpj_por_nome(nome: str, cidade: str = None, _u: dict = Depe
 async def limpar_fornecedores(_u: dict = Depends(require("delete"))):
     await db.fornecedores.delete_many({})
     return {"ok": True}
+
+@router.get("/{id}/ultimo-abastecimento")
+async def ultimo_abastecimento(id: str, _u: dict = Depends(require("read"))):
+    # Busca o fornecedor para pegar o nome
+    forn = await db.fornecedores.find_one({"id": id}, {"nome": 1})
+    if not forn:
+        raise HTTPException(404, "Fornecedor não encontrado")
+    
+    # Busca o último abastecimento com esse fornecedor
+    abast = await db.abastecimentos.find_one(
+        {"fornecedor": forn["nome"]},
+        {"_id": 0},
+        sort=[("data", -1)]
+    )
+    
+    if not abast:
+        return {"mensagem": "Nenhum abastecimento encontrado"}
+    
+    return abast
