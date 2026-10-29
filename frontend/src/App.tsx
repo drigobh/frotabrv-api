@@ -60,7 +60,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/abastecimentos" element={<Abastecimentos />} />
-              <Route path="/planos-manutencao" element={<PlanosManutencao />} />
+              <Route path="/cadastros/planos-manutencao" element={<PlanosManutencao />} />
               <Route path="/agendamento" element={<Agendamento />} />
               <Route path="/manutencoes" element={<Manutencoes />} />
               <Route path="/financeiro" element={<Financeiro />} />

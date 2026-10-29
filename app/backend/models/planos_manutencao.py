@@ -2,7 +2,9 @@ from pydantic import BaseModel
 from typing import Optional
 
 class PlanoManutencaoCreate(BaseModel):
-    veiculo_id: str
+    veiculo_id: str | None = None
+    carreta_id: str | None = None | None = None
+    carreta_id: str | None = None
     familia: str  # Ex: Lubrificação, Transmissão, Segurança
     descricao: str
     tipo_gatilho: str  # "km", "horas" ou "dias"
@@ -14,4 +16,5 @@ class PlanoManutencaoCreate(BaseModel):
 class PlanoManutencao(PlanoManutencaoCreate):
     id: str
     veiculo_label: str
+    created_by: str
     created_at: str
