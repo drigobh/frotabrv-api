@@ -499,7 +499,7 @@ const salvar = useMutation({
           </div>
         </div>
       )}
-      <MapaFornecedores open={mapaAberto} onOpenChange={setMapaAberto} fornecedores={fornecedores} />
+      <MapaFornecedores open={mapaAberto} onOpenChange={setMapaAberto} fornecedores={fornecedores} tipos={tipos} />
     </div>
   );
 }
