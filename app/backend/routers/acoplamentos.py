@@ -34,6 +34,9 @@ async def _get_labels(veiculo_id: str, carreta_id: str | None, motorista_id: str
 @router.get("", response_model=list[Acoplamento])
 async def listar(_u: dict = Depends(require("read"))):
     docs = await db.acoplamentos.find({"status": "ativo"}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    for d in docs:
+        if not d.get("data_inicio"):
+            d["data_inicio"] = d.get("created_at", "").split("T")[0]
     return [Acoplamento(**d) for d in docs]
 
 @router.post("", response_model=Acoplamento, status_code=201)
