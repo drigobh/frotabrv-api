@@ -25,13 +25,14 @@ export default function Fornecedores() {
   const [filtroTipoForn, setFiltroTipoForn] = useState("__all__");
 
   const [form, setForm] = useState({
-    nome: "", tipo_fornecedor_id: "", documento: "", tipo_pessoa: "PJ",
+    nome: "", tipo_fornecedor_id: "", empresa_id: "", documento: "", tipo_pessoa: "PJ",
     telefone: "", contato: "", whatsapp: "", email: "", endereco: "", bairro: "", cidade: "", estado: "",
     avaliacao: 0, ativo: true
   });
 
   const { data: fornecedores = [], refetch } = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
   const { data: tipos = [] } = useQuery({ queryKey: ["tipos-fornecedores"], queryFn: () => apiGet<any[]>("/tipos-fornecedores") });
+  const { data: empresas = [] } = useQuery({ queryKey: ["empresas"], queryFn: () => apiGet<any[]>("/empresa") });
 
   const rowsFiltradas = useMemo(() => {
     let filtered = fornecedores;
@@ -59,14 +60,14 @@ export default function Fornecedores() {
 
   const abrirNovo = () => {
     setEditingId(null);
-    setForm({ nome: "", tipo_fornecedor_id: "", documento: "", tipo_pessoa: "PJ", telefone: "", contato: "", whatsapp: "", email: "", endereco: "", bairro: "", cidade: "", estado: "", avaliacao: 0, ativo: true });
+    setForm({ nome: "", tipo_fornecedor_id: "", empresa_id: "", documento: "", tipo_pessoa: "PJ", telefone: "", contato: "", whatsapp: "", email: "", endereco: "", bairro: "", cidade: "", estado: "", avaliacao: 0, ativo: true });
     setOpen(true);
   };
 
   const abrirEdicao = (r: any) => {
     setEditingId(r.id);
     setForm({
-      nome: r.nome, tipo_fornecedor_id: r.tipo_fornecedor_id || "", documento: r.documento || "", tipo_pessoa: r.tipo_pessoa || "PJ",
+      nome: r.nome, tipo_fornecedor_id: r.tipo_fornecedor_id || "", empresa_id: r.empresa_id || "", documento: r.documento || "", tipo_pessoa: r.tipo_pessoa || "PJ",
       telefone: r.telefone || "", contato: r.contato || "", whatsapp: r.whatsapp || "", email: r.email || "", endereco: r.endereco || "", bairro: r.bairro || "", cidade: r.cidade || "", estado: r.estado || "",
       avaliacao: r.avaliacao || 0, ativo: r.ativo
     });
@@ -162,73 +163,135 @@ export default function Fornecedores() {
         </Table>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingId ? "Editar Fornecedor" : "Novo Fornecedor"}</DialogTitle></DialogHeader>
-          <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
-            <div className="col-span-2 grid gap-1">
-              <Label className="text-xs">Tipo de Fornecedor *</Label>
-              <FieldSelect value={form.tipo_fornecedor_id} onChange={(v) => setForm(s => ({ ...s, tipo_fornecedor_id: v }))} options={tipos.filter((t: any) => t.categoria_pai_id).map((t: any) => ({ value: t.id, label: t.nome }))} placeholder="Selecione o tipo..." />
-            </div>
-
-            <div className="col-span-2 grid gap-1">
-              <Label className="text-xs">Nome / Razão Social *</Label>
-              <Input value={form.nome} onChange={(e) => setForm(s => ({ ...s, nome: e.target.value }))} className="h-9" required />
-            </div>
-
-            <div className="grid gap-1">
-              <Label className="text-xs">Documento / CNPJ</Label>
-              <Input value={form.documento} onChange={(e) => setForm(s => ({ ...s, documento: e.target.value }))} className="h-9" />
-            </div>
-            <div className="grid gap-1">
-              <Label className="text-xs">Tipo Pessoa</Label>
-              <FieldSelect value={form.tipo_pessoa} onChange={(v) => setForm(s => ({ ...s, tipo_pessoa: v }))} options={[{ value: "PJ", label: "PJ" }, { value: "PF", label: "PF" }]} />
-            </div>
-
-            <div className="grid gap-1"><Label className="text-xs">Telefone</Label><Input value={form.telefone} onChange={(e) => setForm(s => ({ ...s, telefone: e.target.value }))} className="h-9" /></div>
-            <div className="grid gap-1"><Label className="text-xs">E-mail</Label><Input type="email" value={form.email} onChange={(e) => setForm(s => ({ ...s, email: e.target.value }))} className="h-9" /></div>
+      
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
             
-            <div className="grid gap-1">
-              <Label className="text-xs">Contato</Label>
-              <Input value={form.contato} onChange={(e) => setForm(s => ({ ...s, contato: e.target.value }))} placeholder="Nome do contato" className="h-9" />
-            </div>
-            <div className="grid gap-1">
-              <Label className="text-xs flex items-center gap-1">
-                <MessageCircle className="size-3 text-emerald-500" /> WhatsApp
-              </Label>
-              <Input value={form.whatsapp} onChange={(e) => setForm(s => ({ ...s, whatsapp: e.target.value }))} placeholder="(00) 00000-0000" className="h-9" />
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+              <h2 className="text-lg font-bold text-slate-100">{editingId ? "Editar Fornecedor" : "Novo Fornecedor"}</h2>
+              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
             </div>
 
-            <div className="col-span-2 grid gap-1"><Label className="text-xs">Endereço</Label><Input value={form.endereco} onChange={(e) => setForm(s => ({ ...s, endereco: e.target.value }))} className="h-9" /></div>
+            {/* Corpo com Scroll */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex flex-col lg:flex-row gap-6">
+                
+                {/* COLUNA ESQUERDA: Avaliação e Ativo */}
+                <div className="w-full lg:w-[180px] shrink-0 flex flex-col gap-6 border-r border-slate-800 pr-6">
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs text-slate-400 font-semibold uppercase">Avaliação</Label>
+                    <div className="flex gap-1 items-center">
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <button type="button" key={star} onClick={() => setForm(s => ({ ...s, avaliacao: star }))} className="focus:outline-none hover:scale-110 transition-transform">
+                          <Star className={`size-6 ${star <= form.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-slate-500">{form.avaliacao === 0 ? "Sem avaliação" : `${form.avaliacao} de 5`}</span>
+                  </div>
 
-            <div className="grid gap-1"><Label className="text-xs">Bairro</Label><Input value={form.bairro} onChange={(e) => setForm(s => ({ ...s, bairro: e.target.value }))} className="h-9" /></div>
-            <div className="grid grid-cols-3 gap-1">
-              <div className="col-span-2 grid gap-1"><Label className="text-xs">Cidade</Label><Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} className="h-9" /></div>
-              <div className="grid gap-1"><Label className="text-xs">UF</Label><Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} className="uppercase h-9" /></div>
-            </div>
+                  <div className="flex items-center gap-2 mt-auto pt-4 border-t border-slate-800">
+                    <input type="checkbox" checked={form.ativo} onChange={(e) => setForm(s => ({ ...s, ativo: e.target.checked }))} className="size-4 accent-sky-500" id="ativo-forn" />
+                    <Label htmlFor="ativo-forn" className="text-sm font-medium text-slate-200 cursor-pointer">Fornecedor Ativo</Label>
+                  </div>
+                </div>
 
-            <div className="col-span-2 grid gap-1">
-              <Label className="text-xs">Avaliação</Label>
-              <div className="flex gap-1 items-center">
-                {[1, 2, 3, 4, 5].map(star => (
-                  <button type="button" key={star} onClick={() => setForm(s => ({ ...s, avaliacao: star }))} className="focus:outline-none hover:scale-110">
-                    <Star className={`size-5 ${star <= form.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
-                  </button>
-                ))}
+                {/* COLUNA DIREITA: Formulário */}
+                <div className="flex-1 flex flex-col gap-4">
+                  
+                  {/* Linha 1: Tipo e Empresa */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">Tipo de Fornecedor *</Label>
+                      <FieldSelect value={form.tipo_fornecedor_id} onChange={(v) => setForm(s => ({ ...s, tipo_fornecedor_id: v }))} options={tipos.filter((t: any) => t.categoria_pai_id).map((t: any) => ({ value: t.id, label: t.nome }))} placeholder="Selecione o tipo..." />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">Empresa / Unidade</Label>
+                      <FieldSelect value={form.empresa_id} onChange={(v) => setForm(s => ({ ...s, empresa_id: v }))} options={empresas.map((e: any) => ({ value: e.id, label: e.nome_fantasia || e.razao_social }))} placeholder="Vincular a uma empresa..." />
+                    </div>
+                  </div>
+
+                  {/* Linha 2: Nome e Documento */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="col-span-2 flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">Nome / Razão Social *</Label>
+                      <Input value={form.nome} onChange={(e) => setForm(s => ({ ...s, nome: e.target.value }))} className="h-9 bg-slate-950 border-slate-700" required />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">Documento / CNPJ</Label>
+                      <Input value={form.documento} onChange={(e) => setForm(s => ({ ...s, documento: e.target.value }))} className="h-9 bg-slate-950 border-slate-700" />
+                    </div>
+                  </div>
+
+                  {/* Linha 3: Tipo Pessoa, Telefone, Email */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">Tipo Pessoa</Label>
+                      <FieldSelect value={form.tipo_pessoa} onChange={(v) => setForm(s => ({ ...s, tipo_pessoa: v }))} options={[{ value: "PJ", label: "PJ" }, { value: "PF", label: "PF" }]} />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">Telefone</Label>
+                      <Input value={form.telefone} onChange={(e) => setForm(s => ({ ...s, telefone: e.target.value }))} className="h-9 bg-slate-950 border-slate-700" />
+                    </div>
+                    <div className="col-span-2 flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">E-mail</Label>
+                      <Input type="email" value={form.email} onChange={(e) => setForm(s => ({ ...s, email: e.target.value }))} className="h-9 bg-slate-950 border-slate-700" />
+                    </div>
+                  </div>
+
+                  {/* Linha 4: Contato e WhatsApp */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">Contato</Label>
+                      <Input value={form.contato} onChange={(e) => setForm(s => ({ ...s, contato: e.target.value }))} placeholder="Nome do contato" className="h-9 bg-slate-950 border-slate-700" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400 flex items-center gap-1"><MessageCircle className="size-3 text-emerald-500" /> WhatsApp</Label>
+                      <Input value={form.whatsapp} onChange={(e) => setForm(s => ({ ...s, whatsapp: e.target.value }))} placeholder="(00) 00000-0000" className="h-9 bg-slate-950 border-slate-700" />
+                    </div>
+                  </div>
+
+                  {/* Linha 5: Endereço */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs text-slate-400">Endereço</Label>
+                    <Input value={form.endereco} onChange={(e) => setForm(s => ({ ...s, endereco: e.target.value }))} className="h-9 bg-slate-950 border-slate-700" />
+                  </div>
+
+                  {/* Linha 6: Bairro, Cidade, UF */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">Bairro</Label>
+                      <Input value={form.bairro} onChange={(e) => setForm(s => ({ ...s, bairro: e.target.value }))} className="h-9 bg-slate-950 border-slate-700" />
+                    </div>
+                    <div className="col-span-2 flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">Cidade</Label>
+                      <Input value={form.cidade} onChange={(e) => setForm(s => ({ ...s, cidade: e.target.value }))} className="h-9 bg-slate-950 border-slate-700" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-slate-400">UF</Label>
+                      <Input value={form.estado} onChange={(e) => setForm(s => ({ ...s, estado: e.target.value }))} maxLength={2} className="h-9 bg-slate-950 border-slate-700 uppercase" />
+                    </div>
+                  </div>
+
+                </div>
               </div>
             </div>
 
-            <div className="col-span-2 flex items-center gap-2 mt-1">
-              <input type="checkbox" checked={form.ativo} onChange={(e) => setForm(s => ({ ...s, ativo: e.target.checked }))} className="size-3.5" />
-              <Label className="text-xs">Ativo</Label>
+            {/* Rodapé */}
+            <div className="flex items-center justify-end px-6 py-4 border-t border-slate-800 gap-3 bg-slate-900/50">
+              <Button variant="outline" onClick={() => setOpen(false)} className="h-9">Cancelar</Button>
+              <Button onClick={() => salvar.mutate()} disabled={salvar.isPending || !form.nome || !form.tipo_fornecedor_id} className="h-9 bg-sky-600 hover:bg-sky-500 font-semibold">
+                {salvar.isPending ? "Salvando..." : (editingId ? "Salvar Alterações" : "Cadastrar Fornecedor")}
+              </Button>
             </div>
+          </div>
+        </div>
+      )}
 
-            <DialogFooter className="col-span-2 mt-2">
-              <Button type="submit" className="h-9" disabled={salvar.isPending || !form.nome || !form.tipo_fornecedor_id}>{editingId ? "Salvar" : "Cadastrar"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir Fornecedor?" onConfirm={() => excluirId && excluir.mutate(excluirId)} confirmLabel="Excluir" destructive pending={excluir.isPending} />
     </div>
