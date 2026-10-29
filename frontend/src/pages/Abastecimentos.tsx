@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fuel, Plus, Eye, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info, Search, Loader2, Star, CheckCircle2 } from "lucide-react";
+import { Fuel, Plus, FileDown, FileSpreadsheet, Calendar, ChevronLeft, ChevronRight, Eraser, Eye, Trash2, ArrowUpRight, ArrowDownRight, DollarSign, Droplets, Target, TrendingUp, List, Pencil, FileText, Upload, AlertTriangle, Info, Search, Loader2, Star, CheckCircle2 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as XLSX from "xlsx";
@@ -50,6 +50,8 @@ const vazio = (hoje: string) => ({
 });
 
 export default function Abastecimentos() {
+
+  
   const qc = useQueryClient();
   const hoje = useHoje();
   const { data: me } = useMe();
@@ -57,6 +59,9 @@ export default function Abastecimentos() {
   const motoristas = useMotoristas();
   const [filtroVeiculo, setFiltroVeiculo] = useState(TODOS);
   const [mes, setMes] = useState("");
+  const [openMonthPicker, setOpenMonthPicker] = useState(false);
+  const [openExportModal, setOpenExportModal] = useState(false);
+  const [anoPicker, setAnoPicker] = useState(new Date().getFullYear());
   const [filtroMotorista, setFiltroMotorista] = useState(TODOS);
   const [filtroPosto, setFiltroPosto] = useState("");
   const [filtroProduto, setFiltroProduto] = useState(TODOS);
@@ -105,19 +110,104 @@ export default function Abastecimentos() {
     queryFn: () => apiGet<Abastecimento[]>(`/abastecimentos?${params.toString()}`),
     staleTime: 0,
   });
-  const rows = q.isError ? [] : (q.data ?? []);  const rowsOrdenadas = useMemo(() => {
+  const rows = q.isError ? [] : (q.data ?? []);
+  const exportarExcel = () => {
+    const dados = rowsFiltradas.map(r => ({
+      "Data": dataBR(r.data),
+      "Origem": r.origem,
+      "NF": r.numero_nf || "",
+      "Veículo": r.veiculo_label,
+      "Motorista": r.motorista_label || "",
+      "Produto": r.produto,
+      "Litros": r.litros,
+      "Preço/L": r.preco_litro,
+      "Total": r.valor_total,
+      "Posto": r.fornecedor || r.posto,
+      "KM": r.km,
+      "Rodados": r.km_rodados || "",
+      "Média": r.media_km_l || ""
+    }));
+    const ws = XLSX.utils.json_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Abastecimentos");
+    XLSX.writeFile(wb, `Abastecimentos_${new Date().getTime()}.xlsx`);
+    toast.success("Excel exportado com sucesso!");
+    setOpenExportModal(false);
+  };
+
+  const exportarPDF = () => {
+    const win = window.open('', '_blank');
+    if (!win) return;
+    
+    let filtrosAplicados = [];
+    if (mes) filtrosAplicados.push(`Mês: ${mes}`);
+    if (filtroVeiculo !== TODOS) filtrosAplicados.push(`Veículo: ${filtroVeiculo}`);
+    if (filtroMotorista !== TODOS) filtrosAplicados.push(`Motorista: ${filtroMotorista}`);
+    if (filtroPosto) filtrosAplicados.push(`Posto: ${filtroPosto}`);
+    if (filtroProduto !== TODOS) filtrosAplicados.push(`Produto: ${filtroProduto}`);
+    
+    const filtrosTexto = filtrosAplicados.length > 0 ? filtrosAplicados.join(' | ') : 'Nenhum filtro aplicado';
+
+    const rowsHtml = rowsFiltradas.map((r: any) => `
+      <tr>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${dataBR(r.data)}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${r.veiculo_label?.split(' · ')[0] || '—'}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${r.motorista_label || '—'}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${r.produto || '—'}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${num(r.litros, 2)}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${brl(r.preco_litro)}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${brl(r.valor_total)}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${r.fornecedor || r.posto || '—'}</td>
+      </tr>
+    `).join('');
+
+    win.document.write(`
+      <html><head><title>Relatório de Abastecimentos</title>
+      <style>
+        body { font-family: sans-serif; margin: 30px; }
+        h2 { color: #0c4a6e; margin-bottom: 5px; }
+        p { font-size: 12px; color: #666; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f1f5f9; padding: 8px; border: 1px solid #ddd; text-align: center; font-size: 11px; }
+      </style>
+      </head><body>
+      <h2>Relatório de Abastecimentos</h2>
+      <p><strong>Filtros:</strong> ${filtrosTexto}</p>
+      <p><strong>Total de Registros:</strong> ${rowsFiltradas.length}</p>
+      <table>
+        <thead><tr><th>Data</th><th>Veículo</th><th>Motorista</th><th>Produto</th><th>Litros</th><th>Preço/L</th><th>Total</th><th>Posto</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <script>window.onload = () => { window.print(); window.close(); }</script>
+      </body></html>
+    `);
+    win.document.close();
+    setOpenExportModal(false);
+  };
+
+
+  const produtoOpts = useMemo(() => {
+    const unicos = Array.from(new Set(rows.map(r => r.produto).filter(Boolean)));
+    return [
+      { value: TODOS, label: "Todos" },
+      { value: "__TODOS_EXCETO_ARLA__", label: "Todos (Exceto Arla)" },
+      ...unicos.map(p => ({ value: p, label: p }))
+    ];
+  }, [rows]);
+
+  
+  const rowsOrdenadas = useMemo(() => {
     return [...rows].sort((a, b) => {
       const d1 = a.data.split("-").join("");
       const d2 = b.data.split("-").join("");
       if (d1 !== d2) return d2.localeCompare(d1);
-      return (b.created_at || "").localeCompare(a.created_at || "");
+      
+
+  return (b.created_at || "").localeCompare(a.created_at || "");
     });
   }, [rows]);
 
-  const produtoOpts = useMemo(() => {
-    const unicos = Array.from(new Set(rows.map(r => r.produto).filter(Boolean)));
-    return [{ value: TODOS, label: "Todos" }, ...unicos.map(p => ({ value: p, label: p }))];
-  }, [rows]);
+  
 
   const rowsFiltradas = useMemo(() => {
     return rowsOrdenadas.filter(r => {
@@ -128,7 +218,11 @@ export default function Abastecimentos() {
         if (filtroNF === "com" && !r.numero_nf) return false;
         if (filtroNF === "sem" && r.numero_nf) return false;
       }
-      if (filtroProduto !== TODOS && r.produto !== filtroProduto) return false;
+      if (filtroProduto !== TODOS) {
+        if (filtroProduto === "__TODOS_EXCETO_ARLA__") {
+          if (r.produto?.toUpperCase().includes("ARLA")) return false;
+        } else if (r.produto !== filtroProduto) return false;
+      }
       return true;
     });
   }, [rowsOrdenadas, filtroVeiculo, filtroMotorista, filtroPosto, filtroNF, filtroProduto]);
@@ -343,7 +437,7 @@ export default function Abastecimentos() {
 
   const total = (Number(String(form.litros || "").replace(",", ".")) || 0) * (Number(String(form.preco_litro || "").replace(",", ".")) || 0);
   const set = (k: keyof ReturnType<typeof vazio>) => (v: string) => setForm((s) => ({ ...s, [k]: v }));
-  const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
+  const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: v.placa }));
   const abrirNovo = () => { setEditingId(null); setForm({ ...vazio(hoje), origem: "manual" }); setOpen(true); };
   const abrirEdicao = (r: Abastecimento) => { 
     setEditingId(r.id); 
@@ -387,6 +481,10 @@ export default function Abastecimentos() {
 
 Placa: ${resumo.maior.veiculo_label.split(" · ")[0]}
 Data: ${dataBR(resumo.maior.data)}
+Motorista: ${resumo.maior.motorista_label || '—'}
+Produto: ${resumo.maior.produto || '—'}
+Motorista: ${resumo.maior.motorista_label || '—'}
+Produto: ${resumo.maior.produto || '—'}
 Litros: ${num(resumo.maior.litros, 2)} L
 Preço/L: ${brl(resumo.maior.preco_litro)}
 Total: ${brl(resumo.maior.valor_total)}
@@ -402,6 +500,10 @@ Posto: ${resumo.maior.posto || resumo.maior.fornecedor || "—"}` : "Nenhum regi
 
 Placa: ${resumo.menor.veiculo_label.split(" · ")[0]}
 Data: ${dataBR(resumo.menor.data)}
+Motorista: ${resumo.menor.motorista_label || '—'}
+Produto: ${resumo.menor.produto || '—'}
+Motorista: ${resumo.menor.motorista_label || '—'}
+Produto: ${resumo.menor.produto || '—'}
 Litros: ${num(resumo.menor.litros, 2)} L
 Preço/L: ${brl(resumo.menor.preco_litro)}
 Total: ${brl(resumo.menor.valor_total)}
@@ -958,22 +1060,13 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
       <PageHeader eyebrow="Operação" title="Abastecimentos" description="Registro detalhado." actions={
         <div className="flex gap-2">
           <input type="file" accept=".xls,.xlsx" ref={xlsInputRef} onChange={handleImportXLS} className="hidden" />
-          <Button variant="outline" disabled={importandoEdenred || openConfirmImport || openFornecedoresModal} onClick={() => xlsInputRef.current?.click()}><Upload className="size-4 mr-2" /> {importandoEdenred ? "Importando..." : "Importar BSOFT"}</Button>
-          
           <input type="file" accept=".xlsx" ref={edenredInputRef} onChange={handleImportEdenred} className="hidden" />
-          <Button 
-            variant="outline" 
-            
-            disabled={importandoEdenred || openEdenredConfirm} 
-            onClick={() => setOpenEdenredConfirm(true)}
-          >
-            <Upload className="size-4 mr-2" /> 
-            {importandoEdenred ? "Importando..." : "Importar Edenred"}
-          </Button>
-
-          <input type="file" accept=".pdf" multiple ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
-          <Button variant="outline" disabled={importandoPDF} onClick={() => fileInputRef.current?.click()}><FileText className="size-4 mr-2" /> {importandoPDF ? "Importando..." : "Importar NF"}</Button>
-          <Button onClick={abrirNovo}><Plus className="size-4" /> Novo</Button>
+          <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleImportPDF} className="hidden" />
+          
+          <Button variant="outline" onClick={() => xlsInputRef.current?.click()}><Upload className="size-4 mr-2" /> Importar BSOFT</Button>
+          <Button variant="outline" onClick={() => edenredInputRef.current?.click()}><Upload className="size-4 mr-2" /> Importar Edenred</Button>
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()}><FileText className="size-4 mr-2" /> Importar NF</Button>
+          <Button onClick={abrirNovo}><Plus className="size-4 mr-2" /> Novo</Button>
         </div>
       }/>
 
@@ -981,7 +1074,9 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
         {cards.map((c) => (
           <div key={c.label} title={c.tip} className="glass lift relative overflow-hidden rounded-xl hover:scale-[1.02] cursor-help" style={{ padding: '6px 10px', height: '58px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '4px', backgroundColor: `${c.color}20`, color: c.color }}><c.icon size={10} /></div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '4px', backgroundColor: `${c.color}20`, color: c.color }}>
+                <c.icon size={10} />
+              </div>
               <p style={{ fontSize: '9px', color: '#94a3b8', margin: 0, fontWeight: 500 }}>{c.label}</p>
             </div>
             <div>
@@ -992,39 +1087,84 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
         ))}
       </div>
 
-      <div className="mb-5 glass rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2"><TrendingUp className="size-4 text-emerald-400" /> Termômetro (Top 5 KM/L)</h3>
-          <div className="flex gap-3 text-xs">
-            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Bom (≥ 2.5)</span>
-            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div> Ruim (&lt; 2.5)</span>
+      <div className="mb-4 glass rounded-xl p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="size-4 text-emerald-400" />
+            <h3 className="text-sm font-bold text-slate-200">Termômetro (Top 5 KM/L)</h3>
+          </div>
+          <div className="flex gap-3 text-[10px] text-slate-400">
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-500" /> Bom (≥ 2.5)</span>
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-500" /> Ruim (&lt; 2.5)</span>
           </div>
         </div>
-        <div className="space-y-2 w-full">
-          {ranking.length === 0 ? <p className="text-sm text-slate-500">Sem dados.</p> : ranking.map((r, i) => {
-              const p = Math.min((r.media / 5) * 100, 100); const good = r.media >= 2.5;
-              return (
-                <div key={r.label} className="flex items-center gap-3 w-full">
-                  <span className="w-6 text-xs text-slate-500 font-mono">{i + 1}º</span>
-                  <span className="w-20 text-sm font-medium text-slate-300 font-mono">{r.label.split(" ")[0]}</span>
-                  <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden"><div className={`h-full ${good ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${p}%` }} /></div>
-                  <span className="w-12 text-right text-sm font-bold text-slate-200">{num(r.media, 2)}</span>
+        {ranking.length === 0 ? (
+          <p className="text-xs text-slate-500 py-2">Sem dados.</p>
+        ) : (
+          <div className="space-y-1">
+            {ranking.map((r: any, i: number) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-xs font-bold text-slate-500 w-4">{i + 1}º</span>
+                <span className="text-xs font-medium text-slate-200 w-24">{r.label}</span>
+                <div className="flex-1 bg-slate-800 rounded-full h-3 overflow-hidden">
+                  <div className={`h-full rounded-full ${r.media >= 2.5 ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.min((r.media / 5) * 100, 100)}%` }}></div>
                 </div>
-              );
-          })}
-        </div>
+                <span className="text-xs font-bold text-slate-300 w-10 text-right">{r.media.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="grid w-64 gap-1.5"><Label>Veículo</Label><FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} testId="filtro-veiculo" /></div>
-        <div className="grid gap-1.5"><Label>Mês</Label><Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-44" /></div>
-        <div className="grid w-48 gap-1.5"><Label>Motorista</Label><FieldSelect value={filtroMotorista} onChange={setFiltroMotorista} options={[{ value: TODOS, label: "Todos" }, ...(motoristas.data ?? []).map((m: any) => ({ value: m.id, label: m.nome }))]} /></div>
-        <div className="grid w-48 gap-1.5"><Label>Produto</Label><FieldSelect value={filtroProduto} onChange={setFiltroProduto} options={produtoOpts} placeholder="Todos" /></div>
-        <div className="grid w-48 gap-1.5"><Label>Posto</Label><Input value={filtroPosto} onChange={(e) => setFiltroPosto(e.target.value)} placeholder="Nome do posto..." className="h-9" /></div>
-        <div className="grid w-40 gap-1.5"><Label>Nota Fiscal</Label><FieldSelect value={filtroNF} onChange={setFiltroNF} options={[{ value: TODOS, label: "Todas" }, { value: "com", label: "Com NF" }, { value: "sem", label: "Sem NF" }]} /></div>
-        {(mes || filtroVeiculo !== TODOS || filtroMotorista !== TODOS || filtroPosto || filtroNF !== TODOS) && (
-          <Button variant="ghost" onClick={() => { setMes(""); setFiltroVeiculo(TODOS); setFiltroMotorista(TODOS); setFiltroPosto(""); setFiltroProduto(TODOS); setFiltroNF(TODOS); }} className="mb-[2px]">Limpar Filtros</Button>
-        )}
+      <div className="mb-4 flex flex-wrap gap-2 items-end">
+        <div className="grid w-auto min-w-fit gap-1.5">
+          <Label>Veículo</Label>
+          <FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} placeholder="Veículo" testId="filtro-veiculo" />
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label>Mês</Label>
+          <Input type="month" value={mes} onChange={e => setMes(e.target.value)} className="w-36 h-9" />
+        </div>
+
+        <div className="grid w-48 gap-1.5">
+          <Label>Motorista</Label>
+          <FieldSelect value={filtroMotorista} onChange={setFiltroMotorista} options={[{ value: TODOS, label: "Todos" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} placeholder="Todos" />
+        </div>
+
+        <div className="grid w-48 gap-1.5">
+          <Label>Produto</Label>
+          <FieldSelect value={filtroProduto} onChange={setFiltroProduto} options={produtoOpts} placeholder="Todos" />
+        </div>
+
+        <div className="grid w-40 gap-1.5">
+          <Label>Fornecedor</Label>
+          <Input placeholder="Nome..." value={filtroPosto} onChange={e => setFiltroPosto(e.target.value)} className="h-9" />
+        </div>
+
+        <div className="grid w-32 gap-1.5">
+          <Label>Nota Fiscal</Label>
+          <FieldSelect value={filtroNF} onChange={setFiltroNF} options={[{ value: TODOS, label: "Todas" }, { value: "com", label: "Com NF" }, { value: "sem", label: "Sem NF" }]} />
+        </div>
+
+        <div className="ml-auto flex gap-2 mb-[2px]">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => { setMes(""); setFiltroVeiculo(TODOS); setFiltroMotorista(TODOS); setFiltroPosto(""); setFiltroProduto(TODOS); setFiltroNF(TODOS); }} 
+            className="h-9 px-3 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/70 shadow-sm transition-all duration-200 group"
+          >
+            <Eraser className="size-4 mr-1.5 group-hover:rotate-12 transition-transform duration-200" /> Limpar
+          </Button>
+          
+          <Button 
+            size="sm"
+            onClick={() => setOpenExportModal(true)} 
+            className="h-9 px-4 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-lg shadow-sky-900/30 hover:shadow-sky-800/40 transition-all duration-200 border border-sky-500/20 font-medium"
+          >
+            <FileDown className="size-4 mr-1.5" /> Exportar
+          </Button>
+        </div>
       </div>
 
       <div className="glass overflow-hidden rounded-2xl">
@@ -1099,11 +1239,21 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                       const nomeLimpo = (r.fornecedor || r.posto || "").toUpperCase();
                       const forn = fornecedores?.find((f: any) => (f.documento && f.documento.replace(/\D/g, '') === docLimpo && docLimpo.length > 0) || (f.nome && f.nome.toUpperCase() === nomeLimpo));
                       if (!forn || !forn.avaliacao || forn.avaliacao === 0) return null;
-                      return (
+                      
+
+  
+
+  
+
+  return (
+    <>
+
                         <div className="flex gap-0.5 mt-1 justify-center">
                           {[1, 2, 3, 4, 5].map(star => <Star key={star} className={`size-2.5 ${star <= forn.avaliacao ? 'fill-amber-400 text-amber-400' : 'text-slate-700'}`} />)}
                         </div>
-                      );
+                      
+    </>
+  );
                     })()}
                   </div>
                 </TableCell>
@@ -1112,7 +1262,7 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
                 {/* Rodados */}
                 <TableCell className="tabular-nums px-2 text-center">{r.km_rodados != null ? num(r.km_rodados) : "—"}</TableCell>
                 {/* Média */}
-                <TableCell className="tabular-nums px-2 text-center">{r.media_km_l != null ? num(r.media_km_l) : "—"}</TableCell>
+                <TableCell className="tabular-nums px-2 text-center">{r.media_km_l != null ? num(r.media_km_l, 2) : "—"}</TableCell>
                 {/* Ações */}
                 <TableCell className="text-center px-2">
                   <div className="flex items-center justify-center gap-1">
@@ -1287,6 +1437,99 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           </DialogHeader>
           <div className="py-2">
             <Table>
+      <div className="mb-4 flex flex-wrap gap-2 items-center">
+        <div className="grid w-auto min-w-fit gap-1.5">
+          <Label>Veículo</Label>
+          <FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos" }, ...veicOpts]} placeholder="Veículo" />
+        </div>
+
+        <div className="relative grid w-auto min-w-fit gap-1.5">
+          <Label>Mês</Label>
+          <button
+            type="button"
+            onClick={() => setOpenMonthPicker(!openMonthPicker)}
+            className="h-9 px-3 w-[140px] flex items-center justify-between rounded-md border border-slate-700 bg-slate-900 text-sm text-slate-300 hover:bg-slate-800 transition-colors focus:outline-none focus:ring-1 focus:ring-sky-500"
+          >
+            {mes ? `${["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][parseInt(mes.split("-")[1]) - 1]} / ${mes.split("-")[0]}` : "Selecionar mês"}
+            <Calendar className="size-4 text-slate-500" />
+          </button>
+          {openMonthPicker && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setOpenMonthPicker(false)} />
+              <div className="absolute top-[100%] left-0 mt-1 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 w-64">
+                <div className="flex justify-between items-center mb-3">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setAnoPicker(a => a - 1)}><ChevronLeft className="size-4" /></Button>
+                  <span className="font-bold text-sm text-slate-200">{anoPicker}</span>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setAnoPicker(a => a + 1)}><ChevronRight className="size-4" /></Button>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  {["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"].map((m, i) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        const mStr = String(i + 1).padStart(2, '0');
+                        setMes(`${anoPicker}-${mStr}`);
+                        setOpenMonthPicker(false);
+                      }}
+                      className={`py-1.5 rounded text-xs font-medium transition-colors ${
+                        mes === `${anoPicker}-${String(i+1).padStart(2, '0')}` 
+                          ? 'bg-sky-500 text-white' 
+                          : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-800 text-center">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => { setMes(""); setOpenMonthPicker(false); }} className="text-xs w-full text-slate-400 hover:text-red-400">Limpar Mês</Button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="grid w-48 gap-1.5">
+          <Label>Motorista</Label>
+          <FieldSelect value={filtroMotorista} onChange={setFiltroMotorista} options={[{ value: TODOS, label: "Todos" }, ...(motoristas.data ?? []).filter((m: any) => m.ativo).map((m: any) => ({ value: m.id, label: m.nome }))]} placeholder="Todos" />
+        </div>
+        
+        <div className="grid w-48 gap-1.5">
+          <Label>Produto</Label>
+          <FieldSelect value={filtroProduto} onChange={setFiltroProduto} options={produtoOpts} placeholder="Todos" />
+        </div>
+        
+        <div className="grid w-40 gap-1.5">
+          <Label>Fornecedor</Label>
+          <Input placeholder="Nome..." value={filtroPosto} onChange={e => setFiltroPosto(e.target.value)} className="h-9" />
+        </div>
+        
+        <div className="grid w-32 gap-1.5">
+          <Label>Nota Fiscal</Label>
+          <FieldSelect value={filtroNF} onChange={setFiltroNF} options={[{ value: TODOS, label: "Todas" }, { value: "com", label: "Com NF" }, { value: "sem", label: "Sem NF" }]} />
+        </div>
+
+        <div className="ml-auto flex gap-2 mb-[2px]">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => { setMes(""); setFiltroVeiculo(TODOS); setFiltroMotorista(TODOS); setFiltroPosto(""); setFiltroProduto(TODOS); setFiltroNF(TODOS); }} 
+            className="h-9 px-3 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/70 shadow-sm transition-all duration-200 group"
+          >
+            <Eraser className="size-4 mr-1.5 group-hover:rotate-12 transition-transform duration-200" /> Limpar
+          </Button>
+          
+          <Button 
+            size="sm"
+            onClick={() => setOpenExportModal(true)} 
+            className="h-9 px-4 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-lg shadow-sky-900/30 hover:shadow-sky-800/40 transition-all duration-200 border border-sky-500/20 font-medium"
+          >
+            <FileDown className="size-4 mr-1.5" /> Exportar
+          </Button>
+        </div>
+      </div>
+    
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
@@ -1557,6 +1800,29 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
               Cadastrar com Avaliação e Importar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    
+      <Dialog open={openExportModal} onOpenChange={setOpenExportModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Exportar Relatório</DialogTitle>
+            <DialogDescription>
+              Você está exportando <strong>{rowsFiltradas.length} registros</strong> filtrados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <button onClick={exportarPDF} className="flex flex-col items-center justify-center p-6 border border-slate-700 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-sky-500 transition-all gap-3 group">
+              <FileDown className="size-10 text-slate-400 group-hover:text-sky-400 transition-colors" />
+              <span className="font-semibold text-slate-200">PDF</span>
+              <span className="text-xs text-slate-500 text-center">Ideal para impressão</span>
+            </button>
+            <button onClick={exportarExcel} className="flex flex-col items-center justify-center p-6 border border-slate-700 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-emerald-500 transition-all gap-3 group">
+              <FileSpreadsheet className="size-10 text-slate-400 group-hover:text-emerald-400 transition-colors" />
+              <span className="font-semibold text-slate-200">Excel</span>
+              <span className="text-xs text-slate-500 text-center">Ideal para análise</span>
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
