@@ -9,6 +9,7 @@ import Dashboard from "@/pages/Dashboard";
 import Abastecimentos from "@/pages/Abastecimentos";
 import Agendamento from "@/pages/Agendamento";
 import Manutencoes from "@/pages/Manutencoes";
+import TiposFornecedores from "@/pages/TiposFornecedores";
 import Fornecedores from "@/pages/Fornecedores";
 import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
 import Veiculos from "@/pages/Veiculos";

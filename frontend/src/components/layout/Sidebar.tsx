@@ -1,14 +1,14 @@
-import { CalendarClock, useState, useEffect } from "react";
-import { CalendarClock, Link, useLocation } from "react-router-dom";
-import { CalendarClock, 
-  LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
+import { Tag, useState, useEffect } from "react";
+import { Tag, Link, useLocation } from "react-router-dom";
+import {
+  CalendarClock, LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox
 } from "lucide-react";
-import { CalendarClock, cn } from "@/lib/utils";
-import { CalendarClock, useMe } from "@/hooks/useSession";
-import { CalendarClock, Button } from "@/components/ui/button";
+import { Tag, cn } from "@/lib/utils";
+import { Tag, useMe } from "@/hooks/useSession";
+import { Tag, Button } from "@/components/ui/button";
 
 const MENUS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/", isDashboard: true, items: [] },
@@ -27,7 +27,7 @@ const MENUS = [
     items: [
       { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
       { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
-      { label: "Agendamento", icon: CalendarClock, path: "/agendamento" },
+      { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
       { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
       { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
       { label: "Monitoramento", icon: Activity, path: "/operacao/monitoramento" },

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Clock, Info, Pencil, Plus, Trash2, UserCircle, Wrench, FileDown, FileText, Filter } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Info, Pencil, Plus, Trash2, UserCircle, Wrench, FileDown, FileText, Filter, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { brl, dataBR, errMsg } from "@/lib/format";
@@ -25,7 +25,11 @@ const vazio = (hoje: string) => ({
   tipo: "Preventiva",
   status: "Agendada",
   descricao: "",
-  data: hoje, data_inicio: hoje, data_fim: "", previsao_dias: "", autorizado_por: "",
+  data: hoje,
+  data_inicio: hoje,
+  data_fim: "",
+  previsao_dias: "",
+  autorizado_por: "",
   custo: "",
   oficina: "",
   fornecedor_id: "",
@@ -40,11 +44,13 @@ export default function Manutencoes() {
   const hoje = useHoje();
   const { data: me } = useMe();
   const veiculos = useVeiculos();
+  
   const [filtroVeiculo, setFiltroVeiculo] = useState(TODOS);
   const [filtroStatus, setFiltroStatus] = useState(TODOS);
   const [filtroData, setFiltroData] = useState("");
   const [filtroFornecedor, setFiltroFornecedor] = useState(TODOS);
   const [filtroPeca, setFiltroPeca] = useState(TODOS);
+  
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(() => vazio(""));
@@ -91,14 +97,21 @@ export default function Manutencoes() {
 
   const salvar = useMutation({
     mutationFn: () => {
+      // Validação de Estoque no Frontend
+      for (const pu of pecasUsadas) {
+        const p = listaPecas.find((x: any) => x.id === pu.peca_id);
+        if (p && Number(pu.quantidade) > (p.quantidade_atual || 0)) {
+          throw new Error(`Estoque insuficiente para ${p.nome}. Disponível: ${p.quantidade_atual || 0}, Solicitado: ${pu.quantidade}`);
+        }
+      }
       const payload = {
         ...form,
-        data: form.data_inicio, // Compatibilidade com backend antigo
+        data: form.data_inicio, // Compatibilidade
         pecas_utilizadas: pecasUsadas,
-        ...form,
-        custo: Number(form.custo.replace(",", ".")) || 0,
+        custo: Number(form.custo.replace(",",".")) || 0,
         km_manutencao: form.km_manutencao ? Number(form.km_manutencao) : null,
         proxima_revisao_km: form.proxima_revisao_km ? Number(form.proxima_revisao_km) : null,
+        previsao_dias: form.previsao_dias ? Number(form.previsao_dias) : null,
       };
       if (editingId) return apiPut<Manutencao>(`/manutencoes/${editingId}`, payload);
       return apiPost<Manutencao>("/manutencoes", payload);
@@ -109,7 +122,7 @@ export default function Manutencoes() {
       setEditingId(null);
       invalidate();
     },
-    onError: (e) => toast.error(errMsg(e)),
+    onError: (e: any) => toast.error(e.message || errMsg(e)),
   });
 
   const excluir = useMutation({
@@ -131,11 +144,13 @@ export default function Manutencoes() {
       setForm(s => ({ ...s, km_manutencao: String(v.hodometro_km || 0) }));
     }
   };
+  
   const veicOpts = (veiculos.data ?? []).filter(v => v.ativo).map((v) => ({ value: v.id, label: `${v.placa} · ${v.modelo}` }));
 
   const abrirNovo = () => {
     setEditingId(null);
     setForm(vazio(hoje));
+    setPecasUsadas([]);
     setOpen(true);
   };
 
@@ -143,36 +158,78 @@ export default function Manutencoes() {
     setEditingId(r.id); 
     setForm({
       veiculo_id: r.veiculo_id, tipo: r.tipo, status: r.status, descricao: r.descricao,
-      data: r.data, data_inicio: (r as any).data_inicio || r.data, data_fim: (r as any).data_fim || "", previsao_dias: String((r as any).previsao_dias || ""), autorizado_por: (r as any).autorizado_por || "", custo: String(r.custo), oficina: r.oficina || "", fornecedor_id: (r as any).fornecedor_id || "",
+      data: r.data, data_inicio: (r as any).data_inicio || r.data, data_fim: (r as any).data_fim || "", 
+      previsao_dias: String((r as any).previsao_dias || ""), autorizado_por: (r as any).autorizado_por || "",
+      custo: String(r.custo), oficina: r.oficina || "", fornecedor_id: (r as any).fornecedor_id || "",
       km_manutencao: r.km_manutencao ? String(r.km_manutencao) : "", proxima_revisao_km: r.proxima_revisao_km ? String(r.proxima_revisao_km) : "",
       pecas_substituidas: r.pecas_substituidas || ""
     });
     setPecasUsadas((r as any).pecas_utilizadas || []);
     setOpen(true); 
-  };;
+  };
 
   const exportarExcel = () => {
-    const cabecalho = ["Data Início", "Veículo", "Tipo", "Descrição", "Oficina", "Custo", "Status"];
-    const linhas = rowsFiltradas.map(r => [
-      r.data_inicio || r.data, 
-      r.veiculo_label, 
-      r.tipo, 
-      r.descricao, 
-      r.oficina || "", 
-      r.custo.toString().replace(".", ","), 
-      r.status
-    ]);
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [cabecalho.join(";"), ...linhas.map(e => e.join(";"))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    let filtrosStr = "";
+    if (filtroVeiculo !== TODOS) filtrosStr += `Veículo: ${veicOpts.find(v => v.value === filtroVeiculo)?.label} | `;
+    if (filtroStatus !== TODOS) filtrosStr += `Status: ${filtroStatus} | `;
+    if (filtroData) filtrosStr += `Mês/Data: ${filtroData} | `;
+    if (filtroFornecedor !== TODOS) filtrosStr += `Fornecedor: ${fornecedores.find((f:any) => f.id === filtroFornecedor)?.nome} | `;
+    if (filtroPeca !== TODOS) filtrosStr += `Peça: ${listaPecas.find((p:any) => p.id === filtroPeca)?.nome} | `;
+
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
+    html += `<head><meta charset="utf-8"><style>table { border-collapse: collapse; } th, td { border: 1px solid #ccc; padding: 5px; } th { background-color: #f2f2f2; font-weight: bold; }</style></head><body>`;
+    html += `<h3>Relatório de Manutenções</h3>`;
+    if (filtrosStr) html += `<p><b>Filtros Aplicados:</b> ${filtrosStr}</p>`;
+    html += `<table><tr><th>Data Início</th><th>Veículo</th><th>Tipo</th><th>Descrição</th><th>Oficina</th><th>Custo</th><th>Status</th></tr>`;
+    
+    rowsFiltradas.forEach(r => {
+      html += `<tr><td>${dataBR((r as any).data_inicio || r.data)}</td><td>${r.veiculo_label}</td><td>${r.tipo}</td><td>${r.descricao}</td><td>${r.oficina || ""}</td><td>${brl(r.custo)}</td><td>${r.status}</td></tr>`;
+    });
+    html += `</table></body></html>`;
+    
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `manutencoes_${new Date().getTime()}.csv`);
+    link.href = url;
+    link.download = `manutencoes_${new Date().getTime()}.xls`;
     document.body.appendChild(link);
     link.click();
   };
-
+  
   const exportarPDF = () => {
-    window.print();
+    let filtrosStr = "";
+    if (filtroVeiculo !== TODOS) filtrosStr += `<span><b>Veículo:</b> ${veicOpts.find(v => v.value === filtroVeiculo)?.label}</span>`;
+    if (filtroStatus !== TODOS) filtrosStr += `<span><b>Status:</b> ${filtroStatus}</span>`;
+    if (filtroData) filtrosStr += `<span><b>Mês/Data:</b> ${filtroData}</span>`;
+    if (filtroFornecedor !== TODOS) filtrosStr += `<span><b>Fornecedor:</b> ${fornecedores.find((f:any) => f.id === filtroFornecedor)?.nome}</span>`;
+    if (filtroPeca !== TODOS) filtrosStr += `<span><b>Peça:</b> ${listaPecas.find((p:any) => p.id === filtroPeca)?.nome}</span>`;
+
+    let html = `<html><head><title>Relatório de Manutenções</title><style>
+      body { font-family: Arial, sans-serif; color: #333; margin: 20px; }
+      h1 { color: #0284c7; font-size: 24px; border-bottom: 2px solid #0284c7; padding-bottom: 10px; }
+      .filters { background: #f8fafc; padding: 10px; border-radius: 5px; margin-bottom: 20px; font-size: 12px; display: flex; gap: 15px; flex-wrap: wrap; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th { background: #0284c7; color: white; padding: 8px; text-align: left; }
+      td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+      tr:nth-child(even) { background: #f8fafc; }
+      .footer { margin-top: 20px; font-size: 10px; color: #64748b; text-align: right; }
+    </style></head><body>`;
+    html += `<h1>Relatório de Manutenções</h1>`;
+    html += `<div class="filters">${filtrosStr || "Nenhum filtro aplicado (Todos os registros)"}</div>`;
+    html += `<table><thead><tr><th>Data</th><th>Veículo</th><th>Tipo</th><th>Descrição</th><th>Oficina</th><th>Custo</th><th>Status</th></tr></thead><tbody>`;
+    
+    rowsFiltradas.forEach(r => {
+      html += `<tr><td>${dataBR((r as any).data_inicio || r.data)}</td><td>${r.veiculo_label}</td><td>${r.tipo}</td><td>${r.descricao}</td><td>${r.oficina || "-"}</td><td>${brl(r.custo)}</td><td>${r.status}</td></tr>`;
+    });
+    html += `</tbody></table><div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')}</div></body></html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); win.close(); }, 500);
+    }
   };
 
   const statusColor = (status: string) => {
@@ -187,7 +244,7 @@ export default function Manutencoes() {
     return <AlertCircle className="size-3" />;
   };
 
-  const custoTotal = rowsFiltradas.reduce((s, r) => s + (r.custo || 0), 0);
+  const custoTotal = rowsFiltradas.reduce((s,r) => s + (r.custo || 0), 0);
 
   return (
     <div>
@@ -195,54 +252,112 @@ export default function Manutencoes() {
         eyebrow="Operação"
         title="Manutenções"
         description="Preventivas e corretivas, com custo, oficina e próxima revisão por KM."
-        actions={<Button onClick={abrirNovo}><Plus className="size-4" /> Nova manutenção</Button>}
+        actions={<div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={exportarPDF} className="h-9 border-slate-700 text-slate-300"><FileText className="size-4 mr-1.5" /> PDF</Button>
+          <Button variant="outline" size="sm" onClick={exportarExcel} className="h-9 border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/20"><FileDown className="size-4 mr-1.5" /> Excel</Button>
+          <Button size="sm" onClick={abrirNovo} className="h-9 bg-sky-600 hover:bg-sky-500 text-white"><Plus className="size-4 mr-1.5" /> Nova manutenção</Button>
+        </div>}
       />
 
       {/* Cards de Resumo */}
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
-        <div className="glass rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Total de Manutenções</p>
-            <p className="text-2xl font-bold text-slate-100 mt-1">{rowsFiltradas.length}</p>
-          </div>
-          <div className="size-10 rounded-lg bg-sky-500/10 flex items-center justify-center"><Wrench className="size-5 text-sky-400" /></div>
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="glass p-4 rounded-xl flex justify-between items-center">
+          <div><p className="text-xs text-slate-400">Total de Manutenções</p><p className="text-2xl font-bold text-slate-100">{rowsFiltradas.length}</p></div>
+          <div className="p-2 bg-sky-500/10 rounded-lg"><Wrench className="size-5 text-sky-400" /></div>
         </div>
-        <div className="glass rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Custo Total</p>
-            <p className="text-2xl font-bold text-amber-400 mt-1">{brl(custoTotal)}</p>
-          </div>
-          <div className="size-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 font-bold">R$</div>
+        <div className="glass p-4 rounded-xl flex justify-between items-center">
+          <div><p className="text-xs text-slate-400">Custo Total</p><p className="text-2xl font-bold text-amber-400">{brl(custoTotal)}</p></div>
+          <div className="p-2 bg-amber-500/10 rounded-lg"><span className="text-amber-400 font-bold">R$</span></div>
         </div>
-        <div className="glass rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Agendadas</p>
-            <p className="text-2xl font-bold text-sky-400 mt-1">{rowsFiltradas.filter(r => r.status === 'Agendada').length}</p>
-          </div>
-          <div className="size-10 rounded-lg bg-sky-500/10 flex items-center justify-center"><AlertCircle className="size-5 text-sky-400" /></div>
+        <div className="glass p-4 rounded-xl flex justify-between items-center">
+          <div><p className="text-xs text-slate-400">Agendadas</p><p className="text-2xl font-bold text-sky-400">{rowsFiltradas.filter(r => r.status === "Agendada").length}</p></div>
+          <div className="p-2 bg-sky-500/10 rounded-lg"><Clock className="size-5 text-sky-400" /></div>
         </div>
-        <div className="glass rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Concluídas</p>
-            <p className="text-2xl font-bold text-emerald-400 mt-1">{rowsFiltradas.filter(r => r.status === 'Concluída').length}</p>
-          </div>
-          <div className="size-10 rounded-lg bg-emerald-500/10 flex items-center justify-center"><CheckCircle2 className="size-5 text-emerald-400" /></div>
+        <div className="glass p-4 rounded-xl flex justify-between items-center">
+          <div><p className="text-xs text-slate-400">Concluídas</p><p className="text-2xl font-bold text-emerald-400">{rowsFiltradas.filter(r => r.status === "Concluída").length}</p></div>
+          <div className="p-2 bg-emerald-500/10 rounded-lg"><CheckCircle2 className="size-5 text-emerald-400" /></div>
+        </div>
+      </div>
+
+      
+      {/* Termômetro Top 5 Manutenções */}
+      <div className="mb-5 glass rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-2">
+          <Wrench className="size-4 text-amber-500" />
+          <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Top 5 Veículos com Maior Custo de Manutenção</h3>
+        </div>
+        <div className="space-y-4">
+          {Object.values(rowsFiltradas.reduce((acc: any, r: any) => {
+            if (!acc[r.veiculo_id]) acc[r.veiculo_id] = { label: r.veiculo_label?.split(" · ")[0] || "—", custo: 0 };
+            acc[r.veiculo_id].custo += Number(r.custo) || 0;
+            return acc;
+          }, {})).sort((a: any, b: any) => b.custo - a.custo).slice(0, 5).map((r: any, i: number) => {
+            const maxCusto = Math.max(...Object.values(rowsFiltradas.reduce((acc: any, x: any) => {
+              if (!acc[x.veiculo_id]) acc[x.veiculo_id] = { custo: 0 };
+              acc[x.veiculo_id].custo += Number(x.custo) || 0;
+              return acc;
+            }, {})).map((x: any) => x.custo), 1);
+            
+            const percent = (r.custo / maxCusto) * 100;
+
+            return (
+              <div key={i} className="flex items-center gap-3 group" title={`Custo total: ${brl(r.custo)}`}>
+                <span className={`text-xs font-bold w-5 text-center flex items-center justify-center ${i === 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                  {i === 0 ? <CheckCircle2 className="size-4 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" /> : `${i + 1}º`}
+                </span>
+                <span className="text-xs font-semibold text-slate-300 w-24 truncate">{r.label}</span>
+                
+                <div className="flex-1 bg-slate-900/60 rounded-full h-4 border border-slate-700/50 shadow-inner relative flex items-center">
+                  {/* Preenchimento */}
+                  <div
+                    className="h-full rounded-full transition-all duration-1000 ease-out relative z-10 bg-gradient-to-r from-rose-600 to-orange-400 shadow-[0_0_12px_rgba(225,29,72,0.4)]"
+                    style={{ width: `${percent}%` }}
+                  ></div>
+
+                  {/* Caminhãozinho animado correndo na ponta (Vermelho) */}
+                  <div 
+                    className="absolute z-30 transition-all duration-1000 ease-out flex items-center justify-center"
+                    style={{ left: `calc(${percent}% - 16px)` }}
+                  >
+                    <Truck className="size-4 text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.8)] animate-pulse" />
+                  </div>
+                </div>
+                
+                <span className="text-xs font-bold w-20 text-right tabular-nums text-amber-400">
+                  {brl(r.custo)}
+                </span>
+              </div>
+            );
+          })}
+          {rowsFiltradas.length === 0 && <p className="text-xs text-slate-500 text-center py-2">Sem dados para exibir.</p>}
         </div>
       </div>
 
       {/* Filtros */}
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="grid w-64 gap-1.5">
+      <div className="flex flex-wrap gap-3 mb-4 items-end">
+        <div className="grid w-48 gap-1.5">
           <Label>Veículo</Label>
-          <FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos os veículos" }, ...veicOpts]} testId="filtro-manutencao-veiculo" />
+          <FieldSelect value={filtroVeiculo} onChange={setFiltroVeiculo} options={[{ value: TODOS, label: "Todos os veículos" }, ...veicOpts]} />
+        </div>
+        <div className="grid w-40 gap-1.5">
+          <Label>Status</Label>
+          <FieldSelect value={filtroStatus} onChange={setFiltroStatus} options={[{ value: TODOS, label: "Todos os status" }, ...STATUS.map(s => ({ value: s, label: s }))]} />
+        </div>
+        <div className="grid w-36 gap-1.5">
+          <Label>Mês/Data</Label>
+          <Input type="month" value={filtroData} onChange={(e) => setFiltroData(e.target.value)} className="h-9" />
         </div>
         <div className="grid w-48 gap-1.5">
-          <Label>Status</Label>
-          <FieldSelect value={filtroStatus} onChange={setFiltroStatus} options={[{ value: TODOS, label: "Todos os status" }, ...STATUS.map(s => ({ value: s, label: s }))]} testId="filtro-manutencao-status" />
+          <Label>Fornecedor</Label>
+          <FieldSelect value={filtroFornecedor} onChange={setFiltroFornecedor} options={[{ value: TODOS, label: "Todos" }, ...fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))]} />
         </div>
-        {(filtroVeiculo !== TODOS || filtroStatus !== TODOS) && (
-          <Button variant="ghost" onClick={() => { setFiltroVeiculo(TODOS); setFiltroStatus(TODOS); }}>Limpar Filtros</Button>
-        )}
+        <div className="grid w-48 gap-1.5">
+          <Label>Peça</Label>
+          <FieldSelect value={filtroPeca} onChange={setFiltroPeca} options={[{ value: TODOS, label: "Todas" }, ...listaPecas.map((p: any) => ({ value: p.id, label: p.nome }))]} />
+        </div>
+        <div className="mb-1">
+          <Button variant="outline" size="sm" onClick={() => { setFiltroVeiculo(TODOS); setFiltroStatus(TODOS); setFiltroData(""); setFiltroFornecedor(TODOS); setFiltroPeca(TODOS); }} className="h-9 border-red-500/40 text-red-400 hover:bg-red-500/10"><Filter className="size-4 mr-1.5" /> Limpar</Button>
+        </div>
       </div>
 
       {/* Tabela */}
@@ -250,41 +365,33 @@ export default function Manutencoes() {
         <Table>
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
-              {["Data", "Veículo", "Tipo", "Descrição", "Oficina", "Custo", "Próx. KM", "Status", "Ações"].map((h) => (
+              {["Data Início", "Veículo", "Tipo", "Descrição", "Oficina", "Custo", "Próx. KM", "Previsão", "Status", "Ações"].map((h) => (
                 <TableHead key={h} className="text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap px-3">{h}</TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
             {rowsFiltradas.length === 0 && (
-              <TableRow><TableCell colSpan={9} className="py-10 text-center text-slate-500">{q.isPending ? "Carregando…" : "Nenhuma manutenção encontrada."}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="py-10 text-center text-slate-500">{q.isPending ? "Carregando…" : "Nenhuma manutenção encontrada."}</TableCell></TableRow>
             )}
             {rowsFiltradas.map((r) => (
               <TableRow key={r.id} className="border-slate-800/70">
-                <TableCell className="font-mono text-xs whitespace-nowrap px-3">{dataBR(r.data)}</TableCell>
+                <TableCell className="font-mono text-xs whitespace-nowrap px-3">{dataBR((r as any).data_inicio || r.data)}</TableCell>
                 <TableCell className="font-mono text-xs whitespace-nowrap px-3">{r.veiculo_label?.split(" · ")[0]}</TableCell>
                 <TableCell className="text-xs whitespace-nowrap px-3">{r.tipo}</TableCell>
                 <TableCell className="text-xs whitespace-nowrap px-3 max-w-[200px] truncate" title={r.descricao}>{r.descricao}</TableCell>
                 <TableCell className="text-xs text-slate-400 px-3 truncate max-w-[120px]">{r.oficina || "—"}</TableCell>
                 <TableCell className="tabular-nums text-xs font-medium px-3 text-amber-300">{brl(r.custo)}</TableCell>
                 <TableCell className="tabular-nums text-xs px-3 text-sky-300">{r.proxima_revisao_km ? r.proxima_revisao_km.toLocaleString('pt-BR') : "—"}</TableCell>
+                <TableCell className="text-xs px-3">{(r as any).previsao_dias ? `${(r as any).previsao_dias} dias` : "—"}</TableCell>
                 <TableCell className="px-3">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${statusColor(r.status)}`}>
                     {statusIcon(r.status)} {r.status}
                   </span>
                 </TableCell>
                 <TableCell className="text-center px-3">
-                  <div className="flex gap-1 justify-center">
-                    <Button size="icon-sm" variant="ghost" className="cursor-help" title={`Criado por: ${r.criado_por || 'Sistema'}`}>
-                      <Info className="size-4 text-slate-400" />
-                    </Button>
-                    <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)} aria-label="Editar">
-                      <Pencil className="size-4 text-sky-400" />
-                    </Button>
-                    <Button size="icon-sm" variant="ghost" className="text-red-300" onClick={() => setExcluirId(r.id)} aria-label="Excluir">
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
+                  <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
+                  <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4 text-red-300" /></Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -292,27 +399,27 @@ export default function Manutencoes() {
         </Table>
       </div>
 
-      {/* Dialog de Cadastro/Edição */}
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingId(null); }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      {/* Modal */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-2"><Wrench className="size-5 text-sky-400" /> {editingId ? "Editar" : "Nova"} manutenção</DialogTitle>
-              <span className="text-xs text-slate-500 flex items-center gap-1"><UserCircle className="size-3"/> {me?.nome || "Usuário"}</span>
-            </div>
+            <DialogTitle className="flex items-center gap-2">
+              <Wrench className="size-5 text-sky-400" /> 
+              {editingId ? "Editar manutenção" : "Nova manutenção"}
+            </DialogTitle>
           </DialogHeader>
           <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }}>
             <div className="col-span-2 grid gap-1.5">
               <Label>Veículo *</Label>
-              <FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione o veículo" testId="manutencao-form-veiculo" />
+              <FieldSelect value={form.veiculo_id} onChange={handleVeiculoChange} options={veicOpts} placeholder="Selecione o veículo" />
             </div>
             <div className="grid gap-1.5">
               <Label>Tipo *</Label>
-              <FieldSelect value={form.tipo} onChange={set("tipo")} options={TIPOS.map(t => ({ value: t, label: t }))} testId="manutencao-form-tipo" />
+              <FieldSelect value={form.tipo} onChange={set("tipo")} options={TIPOS.map(t =>({ value: t, label: t }))} />
             </div>
             <div className="grid gap-1.5">
               <Label>Status *</Label>
-              <FieldSelect value={form.status} onChange={set("status")} options={STATUS.map(s => ({ value: s, label: s }))} testId="manutencao-form-status" />
+              <FieldSelect value={form.status} onChange={set("status")} options={STATUS.map(s => ({ value: s, label: s }))} />
             </div>
             <div className="col-span-2 grid gap-1.5">
               <Label>Descrição *</Label>
@@ -339,15 +446,20 @@ export default function Manutencoes() {
               <Input inputMode="decimal" value={form.custo} onChange={(e) => set("custo")(e.target.value)} placeholder="0,00" />
             </div>
             <div className="grid gap-1.5">
-              <Label>Oficina / Prestador</Label>
-              <FieldSelect 
-                value={form.fornecedor_id} 
-                onChange={(v) => {
-                  setForm(s => ({ ...s, fornecedor_id: v, oficina: fornecedores.find((f:any)=>f.id===v)?.nome || "" }));
-                }} 
-                options={fornecedores.map((f: any) => ({ value: f.id, label: f.nome }))} 
-                placeholder="Selecione o fornecedor" 
+              <Label>Oficina / Prestador (Digite)</Label>
+              <Input
+                list="fornecedores-list"
+                value={form.oficina}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const f = fornecedores.find((x: any) => x.nome === val);
+                  setForm(s => ({ ...s, oficina: val, fornecedor_id: f ? f.id : "" }));
+                }}
+                placeholder="Ex: Tonho"
               />
+              <datalist id="fornecedores-list">
+                {fornecedores.map((f: any) => <option key={f.id} value={f.nome} />)}
+              </datalist>
             </div>
             <div className="grid gap-1.5">
               <Label>KM na manutenção</Label>
@@ -368,62 +480,62 @@ export default function Manutencoes() {
                 <p className="text-xs text-slate-500 italic">Nenhuma peça vinculada a esta manutenção.</p>
               ) : (
                 <div className="space-y-2">
-                  {pecasUsadas.map((pu, idx) => (
-                    <div key={idx} className="flex gap-2 items-center">
+                  {pecasUsadas.map((p, i) => (
+                    <div key={i} className="flex gap-2 items-center">
                       <FieldSelect 
-                        value={pu.peca_id} 
+                        value={p.peca_id} 
                         onChange={(v) => {
-                          const nova = [...pecasUsadas];
-                          nova[idx].peca_id = v;
-                          const p = listaPecas.find(x => x.id === v);
-                          nova[idx].nome = p ? p.nome : "";
-                          setPecasUsadas(nova);
+                          const pObj = listaPecas.find((x:any) => x.id === v);
+                          const arr = [...pecasUsadas];
+                          arr[i] = { ...arr[i], peca_id: v, nome: pObj ? pObj.nome : "" };
+                          setPecasUsadas(arr);
                         }} 
-                        options={listaPecas.map(p => ({ value: p.id, label: `${p.nome} (Estoque: ${p.quantidade_estoque})` }))} 
+                        options={listaPecas.map((x: any) => ({ value: x.id, label: `${x.nome} (Estoque: ${x.quantidade_atual || 0})` }))} 
                         placeholder="Selecione a peça" 
                       />
                       <Input 
                         type="number" 
-                        min="1"
-                        value={pu.quantidade} 
-                        onChange={(e) => {
-                          const nova = [...pecasUsadas];
-                          nova[idx].quantidade = e.target.value;
-                          setPecasUsadas(nova);
-                        }} 
                         className="w-20" 
+                        value={p.quantidade} 
+                        onChange={(e) => {
+                          const arr = [...pecasUsadas];
+                          arr[i].quantidade = e.target.value;
+                          setPecasUsadas(arr);
+                        }} 
                       />
-                      <Button type="button" variant="ghost" size="icon" className="text-red-400" onClick={() => setPecasUsadas(pecasUsadas.filter((_, i) => i !== idx))}>
-                        <Trash2 className="size-4" />
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setPecasUsadas(pecasUsadas.filter((_, idx) => idx !== i))}>
+                        <Trash2 className="size-4 text-red-400" />
                       </Button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-
-            <div className="col-span-2 grid gap-1.5">
+            <div className="col-span-2 grid gap-1.5 mt-2">
               <Label>Peças substituídas (Descrição livre)</Label>
-              <textarea value={form.pecas_substituidas} onChange={(e) => set("pecas_substituidas")(e.target.value)} className="flex min-h-[60px] w-full rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100" placeholder="Liste as peças..." />
+              <textarea 
+                value={form.pecas_substituidas} 
+                onChange={(e) => set("pecas_substituidas")(e.target.value)} 
+                className="flex min-h-[80px] w-full rounded-md border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-500"
+                placeholder="Liste as peças..." 
+              />
             </div>
-            <DialogFooter className="col-span-2">
-              <Button type="submit" disabled={salvar.isPending || !form.veiculo_id || !form.descricao}>{editingId ? "Salvar Alterações" : "Registrar"}</Button>
+            <DialogFooter className="col-span-2 mt-4 gap-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={salvar.isPending}>{salvar.isPending ? "Salvando..." : "Salvar"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* ConfirmDialog para Exclusão */}
-      <ConfirmDialog
-        open={excluirId !== null}
-        onOpenChange={(o) => !o && setExcluirId(null)}
-        title="Excluir manutenção?"
-        description="Esta ação não pode ser desfeita."
-        confirmLabel="Excluir"
-        destructive
-        pending={excluir.isPending}
-        onConfirm={() => excluirId && excluir.mutate(excluirId)}
-        testId="manutencao-excluir"
+      <ConfirmDialog 
+        open={excluirId !== null} 
+        onOpenChange={(o) => !o && setExcluirId(null)} 
+        title="Remover?" 
+        onConfirm={() => excluirId && excluir.mutate(excluirId)} 
+        confirmLabel="Remover" 
+        destructive 
+        pending={excluir.isPending} 
       />
     </div>
   );

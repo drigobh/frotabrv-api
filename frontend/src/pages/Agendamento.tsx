@@ -22,7 +22,7 @@ export default function Agendamento() {
 
   return (
     <div>
-      <PageHeader eyebrow="Operação" title="Agendamento de Manutenções" description="Controle de revisões preventivas por KM." />
+      <PageHeader eyebrow="Operação" title="Plano de Manutenção" description="Controle de próximas revisões preventivas baseadas no Hodômetro." />
       
       <div className="glass rounded-2xl overflow-hidden mt-4">
         <Table>
