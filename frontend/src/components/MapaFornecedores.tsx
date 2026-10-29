@@ -106,9 +106,46 @@ export function MapaFornecedores({ open, onOpenChange, fornecedores, tipos }: Ma
         {/* Cabeçalho */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900 rounded-t-2xl">
           <h2 className="text-lg font-bold text-slate-100">Mapa dos Fornecedores</h2>
-          <button onClick={() => onOpenChange(false)} className="text-slate-400 hover:text-white">
-            <X className="size-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => {
+                const win = window.open('', '_blank');
+                if (win) {
+                  const html = `
+                    <html><head><title>Fornecedores</title>
+                    <style>body { font-family: sans-serif; padding: 20px; } table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #ccc; padding: 8px; text-align: left; } th { background: #0284c7; color: white; }</style>
+                    </head><body>
+                    <h1>Relatório de Fornecedores</h1>
+                    <table>
+                      <thead><tr><th>Nome</th><th>Cidade</th><th>UF</th><th>Tipo</th><th>Contato</th><th>WhatsApp</th></tr></thead>
+                      <tbody>
+                        ${fornecedoresFiltrados.map((f: any) => `
+                          <tr>
+                            <td>${f.nome}</td>
+                            <td>${f.cidade || '-'}</td>
+                            <td>${f.estado || '-'}</td>
+                            <td>${tipos.find((t: any) => t.id === f.tipo_fornecedor_id)?.nome || '-'}</td>
+                            <td>${f.contato || '-'}</td>
+                            <td>${f.whatsapp || '-'}</td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                    </body></html>
+                  `;
+                  win.document.write(html);
+                  win.document.close();
+                  win.print();
+                }
+              }} 
+              className="bg-sky-600 hover:bg-sky-500 h-9"
+            >
+              Exportar PDF
+            </Button>
+            <button onClick={() => onOpenChange(false)} className="text-slate-400 hover:text-white">
+              <X className="size-5" />
+            </button>
+          </div>
         </div>
 
         {/* Cards de Resumo */}

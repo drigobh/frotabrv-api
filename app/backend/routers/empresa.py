@@ -18,7 +18,11 @@ async def criar(body: EmpresaBase, user: dict = Depends(require("write"))):
     doc = body.model_dump()
     doc["id"] = str(uuid.uuid4())
     doc["created_at"] = now_iso()
+    doc["latitude"] = getattr(body, "latitude", None)
+    doc["longitude"] = getattr(body, "longitude", None)
     doc["updated_at"] = now_iso()
+    doc["latitude"] = getattr(body, "latitude", None)
+    doc["longitude"] = getattr(body, "longitude", None)
     await db.empresa.insert_one(dict(doc))
     return Empresa(**doc)
 
@@ -26,6 +30,8 @@ async def criar(body: EmpresaBase, user: dict = Depends(require("write"))):
 async def atualizar(id: str, body: EmpresaBase, user: dict = Depends(require("write"))):
     doc = body.model_dump()
     doc["updated_at"] = now_iso()
+    doc["latitude"] = getattr(body, "latitude", None)
+    doc["longitude"] = getattr(body, "longitude", None)
     
     existente = await db.empresa.find_one({"id": id})
     if not existente:

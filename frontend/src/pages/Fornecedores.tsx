@@ -68,7 +68,9 @@ export default function Fornecedores() {
         endereco: data.logradouro ? `${data.logradouro}, ${data.numero}` : s.endereco,
         bairro: data.bairro || s.bairro,
         cidade: data.municipio || s.cidade,
-        estado: data.uf || s.estado
+        estado: data.uf || s.estado,
+        latitude: data.latitude || s.latitude,
+        longitude: data.longitude || s.longitude
       }));
       toast.success("Dados preenchidos com sucesso!");
     } catch (err: any) {
@@ -271,14 +273,25 @@ const salvar = useMutation({
                 
                 <TableCell className="text-xs text-slate-400 text-center">
                   {(() => {
-                    if (!r.endereco || !r.cidade) return "—";
+                    if (!r.latitude || !r.longitude) return <span className="text-slate-600">—</span>;
                     const emp = empresas.find((e: any) => e.id === r.empresa_id);
-                    if (!emp || !emp.endereco) return "—";
-                    const origem = encodeURIComponent(`${emp.endereco}, ${emp.cidade}, ${emp.estado}`);
-                    const destino = encodeURIComponent(`${r.endereco}, ${r.cidade}, ${r.estado}`);
+                    if (!emp || !emp.latitude || !emp.longitude) return <span className="text-slate-600">—</span>;
+                    
+                    const R = 6371; // Raio da Terra em km
+                    const dLat = (r.latitude - emp.latitude) * Math.PI / 180;
+                    const dLon = (r.longitude - emp.longitude) * Math.PI / 180;
+                    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(emp.latitude * Math.PI / 180) * Math.cos(r.latitude * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+                    const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                    
                     return (
-                      <a href={`https://www.google.com/maps/dir/?api=1&origin=${origem}&destination=${destino}`} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline flex items-center justify-center gap-1">
-                        <MapPin className="size-3" /> Ver Rota
+                      <a 
+                        href={`https://www.google.com/maps/dir/?api=1&origin=${emp.latitude},${emp.longitude}&destination=${r.latitude},${r.longitude}`} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="text-sky-400 hover:underline flex items-center justify-center gap-1"
+                        title="Abrir rota no Google Maps"
+                      >
+                        <MapPin className="size-3" /> {dist.toFixed(0)} km
                       </a>
                     );
                   })()}

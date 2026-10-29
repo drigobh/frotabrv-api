@@ -15,7 +15,9 @@ class EmpresaBase(BaseModel):
     telefone: Optional[str] = None
     email: Optional[str] = None
     site: Optional[str] = None
-    tipo_unidade: str = "Matriz"  # Matriz ou Filial
+    tipo_unidade: str = "Matriz"
+    latitude: float | None = None
+    longitude: float | None = None  # Matriz ou Filial
     logo_base64: Optional[str] = None
 
 class Empresa(EmpresaBase):
