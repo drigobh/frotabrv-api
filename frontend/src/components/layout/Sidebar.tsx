@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  CalendarClock, LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
+  FileBarChart, CalendarClock, LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox
@@ -30,7 +30,7 @@ const MENUS = [
       { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
       { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
       { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
-      { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
+            { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
       { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
       { label: "Monitoramento", icon: Activity, path: "/operacao/monitoramento" },
       { label: "Estoque", icon: Package, path: "/operacao/estoque" },
@@ -39,6 +39,7 @@ const MENUS = [
   {
     id: "gestao", label: "Gestão", icon: BarChart3,
     items: [
+        { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
       { label: "Financeiro", icon: DollarSign, path: "/financeiro" },
       { label: "Performance de Fornecedores", icon: BarChart3, path: "/relatorios/fornecedores" },
       { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },

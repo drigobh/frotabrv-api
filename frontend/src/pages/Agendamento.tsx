@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, Wrench, AlertTriangle, CheckCircle2, Search, Download, Info, Gauge } from "lucide-react";
+import { CalendarClock, Wrench, AlertTriangle, CheckCircle2, Search, X, Gauge, Info, User } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,11 +14,11 @@ export default function PlanoManutencao() {
 
   const [filtroNome, setFiltroNome] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("__all__");
+  const [veiculoFocado, setVeiculoFocado] = useState<any>(null);
 
   // 1. Calcular o status de cada plano com base nos gatilhos
   const planosCalculados = useMemo(() => {
     return planos.map((p: any) => {
-      // Encontra o ativo (cavalo ou carreta)
       let ativo = null;
       if (p.veiculo_id) {
         ativo = veiculos.find((v: any) => v.id === p.veiculo_id);
@@ -26,14 +26,12 @@ export default function PlanoManutencao() {
         ativo = carretas.find((c: any) => c.id === p.carreta_id);
       }
 
-      // Se não encontrou o ativo, pula (dados inconsistentes)
       if (!ativo) return null;
 
       const kmAtual = ativo.hodometro_km || 0;
       const ultimaExecucaoKm = p.ultima_execucao_km || 0;
       const intervalo = p.intervalo || 1;
 
-      // Cálculo do próximo gatilho (apenas para KM por enquanto)
       let proximoGatilhoKm = 0;
       let faltaKm = 0;
       
@@ -42,15 +40,10 @@ export default function PlanoManutencao() {
         faltaKm = proximoGatilhoKm - kmAtual;
       }
 
-      // Define o status
       let status = "OK";
       if (p.tipo_gatilho === "km") {
         if (faltaKm < 0) status = "Vencido";
         else if (faltaKm <= 5000) status = "Atenção";
-      } else {
-        // Para Horas ou Dias, o cálculo seria diferente. 
-        // Vamos manter como "OK" (ou implementar depois).
-        status = "OK";
       }
 
       return {
@@ -63,7 +56,7 @@ export default function PlanoManutencao() {
         faltaKm,
         status
       };
-    }).filter(Boolean); // Remove os nulos
+    }).filter(Boolean);
   }, [planos, veiculos, carretas]);
 
   // 2. KPIs
@@ -84,7 +77,7 @@ export default function PlanoManutencao() {
     if (filtroStatus !== "__all__") {
       filtered = filtered.filter((p: any) => p.status === filtroStatus);
     }
-    return filtered.sort((a: any, b: any) => a.faltaKm - b.faltaKm); // Mais urgentes primeiro
+    return filtered.sort((a: any, b: any) => a.faltaKm - b.faltaKm);
   }, [planosCalculados, filtroNome, filtroStatus]);
 
   const statusColor = (status: string) => {
@@ -107,7 +100,7 @@ export default function PlanoManutencao() {
         description="Controle preditivo baseado nos planos cadastrados por família."
       />
 
-      {/* Cards de KPI Executivos */}
+      {/* Cards de KPI */}
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="glass p-4 rounded-xl flex justify-between items-center">
           <div><p className="text-xs uppercase text-slate-400">Planos Ativos</p><p className="text-2xl font-bold text-slate-100">{kpis.total}</p></div>
@@ -141,7 +134,7 @@ export default function PlanoManutencao() {
         </select>
       </div>
 
-      {/* Tabela de Planos */}
+      {/* Tabela */}
       <div className="glass overflow-hidden rounded-2xl">
         <Table>
           <TableHeader>

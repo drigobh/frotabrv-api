@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Wrench, Plus, Pencil, Trash2, Info, User, Gauge, Calendar, HelpCircle, X } from "lucide-react";
+import { Wrench, Plus, Pencil, Trash2, Info, User, Gauge, Calendar, HelpCircle, X, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -39,6 +39,7 @@ export default function PlanosManutencao() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [excluirId, setExcluirId] = useState<string | null>(null);
+  const [visualizarPlano, setVisualizarPlano] = useState<any>(null);
   
   const veiculos = useVeiculos();
   const { data: carretas = [] } = useQuery({ queryKey: ["carretas"], queryFn: () => apiGet<any[]>("/carretas") });
@@ -140,6 +141,7 @@ export default function PlanosManutencao() {
                   {p.tipo_recorrencia === 'vitalicio' ? 'Vitalício' : 'Periódico'}
                 </TableCell>
                 <TableCell className="text-center">
+                  <Button size="icon-sm" variant="ghost" onClick={() => setVisualizarPlano(p)} title="Ver Detalhes"><Eye className="size-4 text-emerald-400" /></Button>
                   <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(p)}><Pencil className="size-4 text-sky-400" /></Button>
                   <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(p.id)}><Trash2 className="size-4 text-red-300" /></Button>
                 </TableCell>
@@ -277,6 +279,71 @@ export default function PlanosManutencao() {
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setExcluirId(null)}>Cancelar</Button>
               <Button variant="destructive" onClick={() => excluirId && excluir.mutate(excluirId)}>Excluir</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DRAWER DE DETALHES */}
+      {visualizarPlano && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Info className="size-5 text-sky-400" /> Detalhes do Plano
+              </h2>
+              <button onClick={() => setVisualizarPlano(null)} className="text-slate-400 hover:text-white">
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-xl font-bold text-slate-100">{visualizarPlano.veiculo_label}</h3>
+                <p className="text-sm text-slate-400">{visualizarPlano.familia}</p>
+              </div>
+
+              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold uppercase">
+                  <Gauge className="size-4" /> Hodômetro Atual
+                </div>
+                <p className="text-xl font-bold font-mono text-sky-400">
+                  {(veiculos.data?.find((v: any) => v.id === visualizarPlano.veiculo_id)?.hodometro_km || 0).toLocaleString('pt-BR')} km
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] uppercase text-slate-500">Descrição</p>
+                  <p className="text-sm text-slate-300">{visualizarPlano.descricao}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-slate-500">Tipo de Gatilho</p>
+                  <p className="text-sm text-slate-300">{visualizarPlano.tipo_gatilho === 'km' ? 'Quilometragem' : visualizarPlano.tipo_gatilho === 'horas' ? 'Horímetro' : 'Tempo'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-slate-500">Intervalo</p>
+                  <p className="text-sm text-slate-300">A cada {visualizarPlano.intervalo} {visualizarPlano.tipo_gatilho === 'km' ? 'km' : visualizarPlano.tipo_gatilho === 'horas' ? 'horas' : visualizarPlano.unidade_tempo}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-slate-500">Recorrência</p>
+                  <p className="text-sm text-slate-300">{visualizarPlano.tipo_recorrencia === 'vitalicio' ? 'Vitalício' : 'Periódico'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-slate-500">Data de Abertura</p>
+                  <p className="text-sm text-slate-300">{visualizarPlano.data_abertura ? visualizarPlano.data_abertura.split("-").reverse().join("/") : "—"}</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-800/30 border border-slate-800 rounded-lg p-3 flex items-center gap-2">
+                <User className="size-4 text-slate-500" />
+                <span className="text-xs text-slate-400">Registrado por: <strong className="text-slate-300">{visualizarPlano.created_by || "—"}</strong></span>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <Button variant="outline" onClick={() => setVisualizarPlano(null)}>Fechar</Button>
             </div>
           </div>
         </div>
