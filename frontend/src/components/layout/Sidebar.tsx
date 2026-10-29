@@ -29,6 +29,7 @@ const MENUS = [
       { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
       { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
       { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
+      { label: "Cadastro de Planos", icon: Wrench, path: "/planos-manutencao" },
       { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
       { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
       { label: "Monitoramento", icon: Activity, path: "/operacao/monitoramento" },

@@ -7,6 +7,7 @@ import Login from "@/pages/Login";
 
 import Dashboard from "@/pages/Dashboard";
 import Abastecimentos from "@/pages/Abastecimentos";
+import PlanosManutencao from "@/pages/PlanosManutencao";
 import Agendamento from "@/pages/Agendamento";
 import Manutencoes from "@/pages/Manutencoes";
 import TiposFornecedores from "@/pages/TiposFornecedores";
@@ -59,6 +60,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/abastecimentos" element={<Abastecimentos />} />
+              <Route path="/planos-manutencao" element={<PlanosManutencao />} />
               <Route path="/agendamento" element={<Agendamento />} />
               <Route path="/manutencoes" element={<Manutencoes />} />
               <Route path="/financeiro" element={<Financeiro />} />
