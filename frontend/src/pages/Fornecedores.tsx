@@ -240,7 +240,6 @@ const salvar = useMutation({
             {rowsFiltradas.map((r) => (
               <TableRow key={r.id} className="border-slate-800/70">
                 
-                {/* 1. FORNECEDOR */}
                 <TableCell className="font-medium text-slate-200">
                   <div className="flex items-center gap-2">
                     {r.tipo_pessoa === 'PJ' ? <Building2 className="size-4 text-sky-400" /> : <User className="size-4 text-purple-400" />}
@@ -261,43 +260,35 @@ const salvar = useMutation({
                   </div>
                 </TableCell>
                 
-                {/* 2. EMPRESA / UNIDADE */}
                 <TableCell className="text-xs text-slate-400">
                   {empresas.find((e: any) => e.id === r.empresa_id)?.nome_fantasia || "—"}
                 </TableCell>
                 
-                {/* 3. TIPO DE FORNECEDOR */}
                 <TableCell className="text-xs text-slate-400">
                   {tipos.find((t: any) => t.id === r.tipo_fornecedor_id)?.nome || "—"}
                 </TableCell>
                 
-                {/* 4. DISTÂNCIA */}
                 <TableCell className="text-xs text-slate-400 text-center">
                   {(() => {
                     if (!r.endereco || !r.cidade) return "—";
                     const emp = empresas.find((e: any) => e.id === r.empresa_id);
                     if (!emp || !emp.endereco) return "—";
-                    
-                    // Retorna apenas o link, o cálculo real será feito via API e salvo no banco
+                    const origem = encodeURIComponent(`${emp.endereco}, ${emp.cidade}, ${emp.estado}`);
+                    const destino = encodeURIComponent(`${r.endereco}, ${r.cidade}, ${r.estado}`);
                     return (
-                      <a href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${emp.endereco}, ${emp.cidade}, ${emp.estado}`)}&destination=${encodeURIComponent(`${r.endereco}, ${r.cidade}, ${r.estado}`)}`} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline flex items-center justify-center gap-1">
+                      <a href={`https://www.google.com/maps/dir/?api=1&origin=${origem}&destination=${destino}`} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline flex items-center justify-center gap-1">
                         <MapPin className="size-3" /> Ver Rota
                       </a>
                     );
                   })()}
                 </TableCell>
-
-                {/* 5. LOCALIZAÇÃO */}
+                
                 <TableCell className="text-slate-400 text-xs">
-                  <div className="flex flex-col gap-1">
-                    <span className="flex items-center gap-1"><MapPin className="size-3" /> {r.cidade ? `${r.cidade}/${r.estado}` : "—"}</span>
-                    {r.cidade && (
-                      
-                    )}
-                  </div>
+                  <span className="flex items-center gap-1">
+                    <MapPin className="size-3" /> {r.cidade ? `${r.cidade}/${r.estado}` : "—"}
+                  </span>
                 </TableCell>
                 
-                {/* 6. CONTATO */}
                 <TableCell className="text-xs text-slate-400 text-center">
                   <div className="flex flex-col items-center justify-center">
                     <span className="font-medium text-slate-300">{r.contato || "—"}</span>
@@ -310,7 +301,6 @@ const salvar = useMutation({
                   </div>
                 </TableCell>
                 
-                {/* 7. AVALIAÇÃO */}
                 <TableCell className="text-center">
                   <div className="flex justify-center gap-0.5">
                     {[1, 2, 3, 4, 5].map(star => (
@@ -319,14 +309,12 @@ const salvar = useMutation({
                   </div>
                 </TableCell>
                 
-                {/* 8. STATUS */}
                 <TableCell className="text-center">
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.ativo ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
                     {r.ativo ? "Ativo" : "Inativo"}
                   </span>
                 </TableCell>
                 
-                {/* 9. AÇÕES */}
                 <TableCell className="text-center">
                   <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(r)}><Pencil className="size-4 text-sky-400" /></Button>
                   <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(r.id)}><Trash2 className="size-4 text-red-300" /></Button>
