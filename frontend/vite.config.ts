@@ -18,11 +18,14 @@ export default defineConfig({
       'react-dom/client',
       'react-router-dom',
       'recharts',
-      // A CORREÇÃO: Força o Vite a converter essa biblioteca problemática
       'use-sync-external-store/shim/with-selector',
       'use-sync-external-store/shim',
+      // CORREÇÃO: Inclui o Leaflet para ser otimizado corretamente
+      'leaflet',
+      'react-leaflet',
     ],
     noDiscovery: true,
+    // REMOVIDO: O exclude do Leaflet (não é mais necessário)
   },
   server: {
     host: true,

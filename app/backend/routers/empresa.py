@@ -56,3 +56,22 @@ async def buscar_cnpj(cnpj: str, _u: dict = Depends(require("read"))):
             return res.json()
         except httpx.HTTPError as e:
             raise HTTPException(500, f"Erro ao consultar CNPJ: {str(e)}")
+
+import httpx
+
+@router.get("/geocode")
+async def geocode(endereco: str, _u: dict = Depends(require("read"))):
+    async with httpx.AsyncClient() as client:
+        try:
+            res = await client.get(
+                f"https://nominatim.openstreetmap.org/search?format=json&q={endereco}",
+                headers={"User-Agent": "FrotaBrv/1.0 (contato@frotabrv.com)"},
+                timeout=10
+            )
+            res.raise_for_status()
+            data = res.json()
+            if data and len(data) > 0:
+                return {"lat": float(data[0]["lat"]), "lon": float(data[0]["lon"])}
+            return {"error": "Endereço não encontrado"}
+        except Exception as e:
+            raise HTTPException(500, f"Erro ao geocodificar: {str(e)}")

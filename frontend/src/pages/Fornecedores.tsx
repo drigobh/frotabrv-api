@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { FieldSelect } from "@/components/common/FieldSelect";
+import { MapaFornecedores } from "@/components/MapaFornecedores";
 
 export default function Fornecedores() {
   const qc = useQueryClient();
@@ -498,6 +499,7 @@ const salvar = useMutation({
           </div>
         </div>
       )}
+      <MapaFornecedores open={mapaAberto} onOpenChange={setMapaAberto} fornecedores={fornecedores} />
     </div>
   );
 }
