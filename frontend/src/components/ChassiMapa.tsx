@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Disc, AlertTriangle } from "lucide-react";
+import { Disc, AlertTriangle, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,11 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
   });
 
   // Buscar motivos de descarte
+  const { data: pneusEstoque = [] } = useQuery({ 
+    queryKey: ["pneus-estoque"], 
+    queryFn: () => apiGet<any[]>("/pneus") 
+  });
+
   const { data: motivosDescarte = [] } = useQuery({
     queryKey: ["motivos-descarte"],
     queryFn: () => apiGet<any[]>("/pneu-movimentacoes/motivos-descarte"),
@@ -44,6 +49,8 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
 
   // Estados do modal
   const [movimentacaoOpen, setMovimentacaoOpen] = useState(false);
+  const [posicaoVazia, setPosicaoVazia] = useState<string | null>(null);
+  const [pneuEstoqueSelecionado, setPneuEstoqueSelecionado] = useState<string>("");
   const [pneuSelecionado, setPneuSelecionado] = useState<Pneu | null>(null);
   const [tipoMovimentacao, setTipoMovimentacao] = useState("RODIZIO");
   const [posicaoDestino, setPosicaoDestino] = useState("");
@@ -74,6 +81,23 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
     setObservacoes("");
     setMovimentacaoOpen(true);
   };
+
+  const aplicarPneu = useMutation({
+    mutationFn: () => apiPost("/pneu-movimentacoes", {
+      pneu_id: pneuEstoqueSelecionado,
+      tipo: "APLICACAO",
+      veiculo_id: tipo === "cavalo" ? veiculoId : null,
+      carreta_id: tipo === "carreta" ? veiculoId : null,
+      posicao_destino: posicaoVazia,
+    }),
+    onSuccess: () => {
+      toast.success("Pneu aplicado com sucesso!");
+      setPosicaoVazia(null);
+      setPneuEstoqueSelecionado("");
+      qc.invalidateQueries({ queryKey: ["pneus"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao aplicar pneu.")
+  });
 
   const movimentar = useMutation({
     mutationFn: () => {
@@ -110,9 +134,12 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
     
     if (!pneu) {
       return (
-        <div className="flex flex-col items-center gap-1">
-          <div className="size-12 rounded-lg border-2 border-dashed border-slate-700 flex items-center justify-center text-slate-600">
-            <Disc className="size-5" />
+        <div className="flex flex-col items-center gap-1 group relative">
+          <div 
+            className="size-12 rounded-lg border-2 border-dashed border-slate-700 flex items-center justify-center text-slate-600 cursor-pointer hover:border-sky-500 hover:text-sky-400 transition-colors"
+            onClick={() => setPosicaoVazia(posicao)}
+          >
+            <Plus className="size-5" />
           </div>
           <span className="text-[9px] text-slate-600">{label}</span>
         </div>
@@ -208,6 +235,39 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
           </div>
         )}
       </div>
+
+      
+      {/* Modal de Aplicação de Pneu */}
+      {posicaoVazia && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-slate-100 mb-4">Aplicar Pneu na Posição {posicaoVazia}</h2>
+            
+            <div className="grid gap-4">
+              <div className="grid gap-1.5">
+                <label className="text-xs text-slate-400">Selecione um pneu do Estoque</label>
+                <select 
+                  value={pneuEstoqueSelecionado} 
+                  onChange={(e) => setPneuEstoqueSelecionado(e.target.value)} 
+                  className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2"
+                >
+                  <option value="">Selecione...</option>
+                  {pneusEstoque.filter((p: any) => p.status === "Estoque" || p.status === "Conserto").map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.numero_fogo} - {p.marca} ({p.medida})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={() => setPosicaoVazia(null)}>Cancelar</Button>
+              <Button onClick={() => aplicarPneu.mutate()} disabled={aplicarPneu.isPending || !pneuEstoqueSelecionado}>
+                {aplicarPneu.isPending ? "Aplicando..." : "Confirmar Aplicação"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Movimentação */}
       {movimentacaoOpen && pneuSelecionado && (

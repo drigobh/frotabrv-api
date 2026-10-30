@@ -11,14 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FieldSelect } from "@/components/common/FieldSelect";
 import { ChassiMapa } from "@/components/ChassiMapa";
 import { brl } from "@/lib/format";
-import { useVeiculos } from "@/hooks/useCadastros";
 
 const STATUS_PNEU = ["Estoque", "Aplicado", "Recapagem", "Conserto", "Sucateado"];
 const TIPOS_PNEU = ["Direcional", "Tração", "Misto"];
 
 export default function Pneus() {
   const qc = useQueryClient();
-  const veiculos = useVeiculos();
   const [abaAtiva, setAbaAtiva] = useState("cadastrados");
   
   const [open, setOpen] = useState(false);
@@ -32,8 +30,8 @@ export default function Pneus() {
   const [buscaPlaca, setBuscaPlaca] = useState("");
 
   const { data: pneus = [] } = useQuery({ queryKey: ["pneus"], queryFn: () => apiGet<any[]>("/pneus") });
-  const { data: veiculosApi = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
   const { data: carretas = [] } = useQuery({ queryKey: ["carretas"], queryFn: () => apiGet<any[]>("/carretas") });
+  const { data: veiculosApi = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
 
   const [form, setForm] = useState({
     numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: ""
@@ -44,7 +42,7 @@ export default function Pneus() {
     const total = pneus.length;
     const sucateados = pneus.filter((p: any) => p.status === "Sucateado").length;
     const emManutencao = pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).length;
-    const emEstoque = pneus.filter((p: any) => p.status === "Estoque");
+    const emEstoque = pneus.filter((p: any) => p.status === "Estoque" || p.status === "Conserto");
     
     const marcasCount: Record<string, number> = {};
     pneus.forEach((p: any) => {
@@ -58,23 +56,18 @@ export default function Pneus() {
   // Filtro de veículos para o mapa
   const veiculosFiltrados = useMemo(() => {
     const lista = tipoAtivo === "cavalo" 
-      ? (veiculos.data ?? []).map((v: any) => ({ id: v.id, label: `${v.placa} - ${v.modelo}`, template_chassi_id: v.template_chassi_id }))
+      ? (veiculosApi ?? []).map((v: any) => ({ id: v.id, label: `${v.placa} - ${v.modelo}`, template_chassi_id: v.template_chassi_id }))
       : carretas.map((c: any) => ({ id: c.id, label: `${c.codigo} - ${c.tipo}`, template_chassi_id: c.template_chassi_id }));
 
     if (!buscaPlaca) return lista;
     return lista.filter((v: any) => v.label.toLowerCase().includes(buscaPlaca.toLowerCase()));
-  }, [veiculos.data, carretas, tipoAtivo, buscaPlaca]);
+  }, [veiculosApi, carretas, tipoAtivo, buscaPlaca]);
 
   // Veículo selecionado (busca na lista completa)
   const veiculoSelecionado = 
     tipoAtivo === "cavalo" 
       ? veiculosApi.find((v: any) => v.id === veiculoMapa)
       : carretas.find((c: any) => c.id === veiculoMapa);
-  
-  // Debug: mostrar no console o que está vindo
-  if (veiculoMapa) {
-    console.log("Veículo selecionado:", veiculoSelecionado);
-  }
 
   // Mutations
   const salvar = useMutation({
