@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Tag, RefreshCw } from "lucide-react";
+import { Plus, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -13,9 +13,19 @@ export default function ModelosPneus() {
   const qc = useQueryClient();
   const [novoModelo, setNovoModelo] = useState("");
 
-  const { data: config } = useQuery({ queryKey: ["parametrizacao-meta"], queryFn: () => apiGet<any>("/parametrizacao/meta") });
-  const { data: modelos = [] } = useQuery({ queryKey: ["modelos-pneus"], queryFn: () => apiGet<any[]>("/pneus/modelos") });
+  // Busca a configuração de parametrização para saber se o botão deve aparecer
+  const { data: config } = useQuery({ 
+    queryKey: ["parametrizacao-meta"], 
+    queryFn: () => apiGet<any>("/parametrizacao/meta") 
+  });
 
+  // Busca os modelos cadastrados
+  const { data: modelos = [] } = useQuery({ 
+    queryKey: ["modelos-pneus"], 
+    queryFn: () => apiGet<any[]>("/pneus/modelos") 
+  });
+
+  // Mutation para criar um modelo individual
   const criar = useMutation({
     mutationFn: () => apiPost("/pneus/modelos", { nome: novoModelo }),
     onSuccess: () => {
@@ -26,6 +36,7 @@ export default function ModelosPneus() {
     onError: (e: any) => toast.error(e.message || "Erro ao cadastrar.")
   });
 
+  // Mutation para excluir um modelo
   const excluir = useMutation({
     mutationFn: (id: string) => apiDelete(`/pneus/modelos/${id}`),
     onSuccess: () => {
@@ -34,6 +45,7 @@ export default function ModelosPneus() {
     }
   });
 
+  // Mutation para popular os dados iniciais
   const popular = useMutation({
     mutationFn: () => apiPost("/pneus/seed", {}),
     onSuccess: () => {
@@ -50,7 +62,12 @@ export default function ModelosPneus() {
         description="Gerencie os modelos de pneus disponíveis no sistema." 
         actions={
           config?.mostrar_seed_modelos && (
-            <Button onClick={() => popular.mutate()} disabled={popular.isPending} variant="outline" className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10 h-9">
+            <Button 
+              onClick={() => popular.mutate()} 
+              disabled={popular.isPending} 
+              variant="outline" 
+              className="border-amber-500/40 text-amber-500 hover:bg-amber-500/10 h-9"
+            >
               <RefreshCw className={`size-4 mr-2 ${popular.isPending ? 'animate-spin' : ''}`} /> 
               Popular Modelos
             </Button>
@@ -61,9 +78,18 @@ export default function ModelosPneus() {
       <div className="glass p-4 rounded-xl mb-4 flex items-end gap-3">
         <div className="grid gap-1.5 flex-1 max-w-sm">
           <Label className="text-xs text-slate-400">Novo Modelo</Label>
-          <Input value={novoModelo} onChange={(e) => setNovoModelo(e.target.value)} placeholder="Ex: X Multi Z" onKeyDown={(e) => e.key === 'Enter' && novoModelo && criar.mutate()} />
+          <Input 
+            value={novoModelo} 
+            onChange={(e) => setNovoModelo(e.target.value)} 
+            placeholder="Ex: X Multi Z" 
+            onKeyDown={(e) => e.key === 'Enter' && novoModelo && criar.mutate()} 
+          />
         </div>
-        <Button onClick={() => criar.mutate()} disabled={!novoModelo || criar.isPending} className="bg-sky-600 hover:bg-sky-500 h-9">
+        <Button 
+          onClick={() => criar.mutate()} 
+          disabled={!novoModelo || criar.isPending} 
+          className="bg-sky-600 hover:bg-sky-500 h-9"
+        >
           <Plus className="size-4 mr-2" /> Adicionar
         </Button>
       </div>
@@ -78,7 +104,11 @@ export default function ModelosPneus() {
           </TableHeader>
           <TableBody>
             {modelos.length === 0 ? (
-              <TableRow><TableCell colSpan={2} className="text-center py-6 text-slate-500">Nenhum modelo encontrado.</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={2} className="text-center py-6 text-slate-500">
+                  Nenhum modelo encontrado.
+                </TableCell>
+              </TableRow>
             ) : (
               modelos.map((item: any) => (
                 <TableRow key={item.id} className="border-slate-800 hover:bg-slate-800/30">
