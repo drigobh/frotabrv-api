@@ -13,20 +13,22 @@ export default function Parametrizacao() {
   const qc = useQueryClient();
   const { data: config, isLoading } = useQuery({
     queryKey: ["parametrizacao-meta"],
-    queryFn: () => apiGet<{ meta_abastecimento_ativo: boolean; meta_abastecimento_valor: number }>("/parametrizacao/meta"),
+    queryFn: () => apiGet<any>("/parametrizacao/meta"),
   });
 
   const [ativo, setAtivo] = useState(false);
   const [valor, setValor] = useState("2,5");
-  const [mostrarSeed, setMostrarSeed] = useState(false);
+  const [mostrarSeedFornecedores, setMostrarSeedFornecedores] = useState(false);
   const [mostrarSeedMedidas, setMostrarSeedMedidas] = useState(false);
+  const [mostrarSeedMarcas, setMostrarSeedMarcas] = useState(false);
 
   useEffect(() => {
     if (config) {
       setAtivo(config.meta_abastecimento_ativo);
       setValor(String(config.meta_abastecimento_valor).replace(".", ","));
-      setMostrarSeed(config.mostrar_seed_fornecedores || false);
+      setMostrarSeedFornecedores(config.mostrar_seed_fornecedores || false);
       setMostrarSeedMedidas(config.mostrar_seed_medidas || false);
+      setMostrarSeedMarcas(config.mostrar_seed_marcas || false);
     }
   }, [config]);
 
@@ -34,8 +36,9 @@ export default function Parametrizacao() {
     mutationFn: () => apiPut("/parametrizacao/meta", {
       meta_abastecimento_ativo: ativo,
       meta_abastecimento_valor: Number(String(valor).replace(",", ".")),
-      mostrar_seed_fornecedores: mostrarSeed,
+      mostrar_seed_fornecedores: mostrarSeedFornecedores,
       mostrar_seed_medidas: mostrarSeedMedidas,
+      mostrar_seed_marcas: mostrarSeedMarcas,
     }),
     onSuccess: () => {
       toast.success("Parametrização salva com sucesso!");
@@ -55,8 +58,8 @@ export default function Parametrizacao() {
             <Target className="size-5 text-sky-400" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-100">Meta de Abastecimento</h3>
-            <p className="text-sm text-slate-400">Define o valor mínimo de KM/L para o termômetro de abastecimento.</p>
+            <h3 className="text-lg font-bold text-slate-100">Configurações Globais</h3>
+            <p className="text-sm text-slate-400">Metas e visibilidade de botões de setup.</p>
           </div>
         </div>
 
@@ -65,23 +68,19 @@ export default function Parametrizacao() {
             <TableRow className="border-slate-800 hover:bg-transparent">
               <TableHead className="text-xs uppercase text-slate-500">Parâmetro</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Status</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Meta (KM/L)</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500 text-right">Ações</TableHead>
+              <TableHead className="text-xs uppercase text-slate-500">Ação</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
+            {/* Meta de Abastecimento */}
             <TableRow className="border-slate-800">
-              <TableCell className="font-medium text-slate-200">
-                Parametrização de Meta de Abastecimento
-              </TableCell>
+              <TableCell className="font-medium text-slate-200">Parametrização de Meta de Abastecimento</TableCell>
               <TableCell>
                 <button
                   type="button"
                   onClick={() => setAtivo(!ativo)}
                   className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    ativo
-                      ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
-                      : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                    ativo ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
                   }`}
                 >
                   {ativo ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
@@ -97,54 +96,69 @@ export default function Parametrizacao() {
                   className="w-24 h-8 text-center disabled:opacity-50"
                 />
               </TableCell>
-              <TableCell className="text-right">
-                <Button onClick={() => salvar.mutate()} disabled={salvar.isPending}>
-                  {salvar.isPending ? "Salvando..." : "Salvar"}
-                </Button>
-              </TableCell>
             </TableRow>
-          <TableRow className="border-slate-800">
-              <TableCell className="font-medium text-slate-200">
-                Exibir botão "Popular Lista Base" na tela de Tipos de Fornecedores
-              </TableCell>
+
+            {/* Botão Popular Lista Base (Fornecedores) */}
+            <TableRow className="border-slate-800">
+              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Lista Base" na tela de Tipos de Fornecedores</TableCell>
               <TableCell>
                 <button
                   type="button"
-                  onClick={() => setMostrarSeed(!mostrarSeed)}
+                  onClick={() => setMostrarSeedFornecedores(!mostrarSeedFornecedores)}
                   className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    mostrarSeed
-                      ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
-                      : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                    mostrarSeedFornecedores ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
                   }`}
                 >
-                  {mostrarSeed ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
-                  {mostrarSeed ? "Visível" : "Oculto"}
+                  {mostrarSeedFornecedores ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
+                  {mostrarSeedFornecedores ? "Visível" : "Oculto"}
                 </button>
               </TableCell>
-              <TableCell colSpan={2} className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
+              <TableCell className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
             </TableRow>
+
+            {/* Botão Popular Medidas */}
             <TableRow className="border-slate-800">
-              <TableCell className="font-medium text-slate-200">
-                Exibir botão "Popular Medidas" na tela de Medidas de Pneus
-              </TableCell>
+              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Medidas" na tela de Medidas de Pneus</TableCell>
               <TableCell>
                 <button
                   type="button"
                   onClick={() => setMostrarSeedMedidas(!mostrarSeedMedidas)}
                   className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    mostrarSeedMedidas
-                      ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
-                      : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                    mostrarSeedMedidas ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
                   }`}
                 >
                   {mostrarSeedMedidas ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
                   {mostrarSeedMedidas ? "Visível" : "Oculto"}
                 </button>
               </TableCell>
-              <TableCell colSpan={2} className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
+              <TableCell className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
             </TableRow>
-            </TableBody>
+
+            {/* Botão Popular Marcas */}
+            <TableRow className="border-slate-800">
+              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Marcas" na tela de Marcas de Pneus</TableCell>
+              <TableCell>
+                <button
+                  type="button"
+                  onClick={() => setMostrarSeedMarcas(!mostrarSeedMarcas)}
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    mostrarSeedMarcas ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                  }`}
+                >
+                  {mostrarSeedMarcas ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
+                  {mostrarSeedMarcas ? "Visível" : "Oculto"}
+                </button>
+              </TableCell>
+              <TableCell className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
+            </TableRow>
+          </TableBody>
         </Table>
+
+        <div className="flex justify-end mt-6">
+          <Button onClick={() => salvar.mutate()} disabled={salvar.isPending} className="bg-sky-600 hover:bg-sky-500">
+            {salvar.isPending ? "Salvando..." : "Salvar Parametrizações"}
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -66,7 +66,7 @@ export default function PneuMarcas() {
         description="Catálogo de fabricantes e sistemas de reforma." 
         actions={
           <div className="flex gap-2">
-            {config?.mostrar_seed_medidas && (
+            {config?.mostrar_seed_marcas && (
               <Button variant="outline" onClick={popularMarcas} disabled={seed.isPending} className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 h-9">
                 {seed.isPending ? "Populando..." : "Popular Marcas"}
               </Button>
