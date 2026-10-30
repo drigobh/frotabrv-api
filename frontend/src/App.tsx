@@ -1,3 +1,4 @@
+import PneuMedidas from "@/pages/PneuMedidas";
 import Frota from "@/pages/Frota";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -61,6 +62,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/cadastros/pneu-medidas" element={<PneuMedidas />} />
               <Route path="/frota" element={<Frota />} />
               <Route path="/financeiro" element={<Financeiro />} />
               <Route path="/frota" element={<Frota />} />

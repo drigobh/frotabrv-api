@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FieldSelect } from "@/components/common/FieldSelect";
-import { useQuery } from "@tanstack/react-query";
 import { ChassiMapa } from "@/components/ChassiMapa";
 import { brl } from "@/lib/format";
 
@@ -24,6 +23,7 @@ export default function Pneus() {
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState("");
   const [tipoAtivo, setTipoAtivo] = useState<"cavalo" | "carreta">("cavalo");
+  const [veiculoMapa, setVeiculoMapa] = useState<string>("");
 
   const { data: pneus = [] } = useQuery({ queryKey: ["pneus"], queryFn: () => apiGet<any[]>("/pneus") });
   const veiculos = useVeiculos();
@@ -245,20 +245,47 @@ export default function Pneus() {
     
       {/* Mapa de Chassi */}
       <div className="mt-8">
-        <h3 className="text-lg font-bold text-slate-100 mb-4">Chassi do Veículo</h3>
+        <div className="flex items-center gap-4 mb-4">
+          <h3 className="text-lg font-bold text-slate-100">Chassi do Veículo</h3>
+          <select 
+            value={veiculoMapa} 
+            onChange={(e) => setVeiculoMapa(e.target.value)}
+            className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3 ml-auto"
+          >
+            <option value="">Selecione o Veículo para o Mapa</option>
+            <optgroup label="Cavalos Mecânicos">
+              {(veiculos.data ?? []).map((v: any) => (
+                <option key={v.id} value={v.id}>{v.placa} - {v.modelo}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Carretas">
+              {carretas.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.codigo} - {c.tipo}</option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
         <div className="grid grid-cols-1 gap-4">
-          <ChassiMapa 
-            pneus={pneus} 
-            veiculoId="00000000-0000-0000-0000-000000000000" 
-            configuracao="6x2" 
-            tipo="cavalo" 
-          />
-          <ChassiMapa 
-            pneus={pneus} 
-            veiculoId="00000000-0000-0000-0000-000000000000" 
-            configuracao="3 eixos" 
-            tipo="carreta" 
-          />
+          {veiculoMapa ? (
+            <>
+              <ChassiMapa 
+                pneus={pneus} 
+                veiculoId={veiculoMapa} 
+                configuracao="6x2" 
+                tipo="cavalo" 
+              />
+              <ChassiMapa 
+                pneus={pneus} 
+                veiculoId={veiculoMapa} 
+                configuracao="3 eixos" 
+                tipo="carreta" 
+              />
+            </>
+          ) : (
+            <div className="glass p-6 rounded-2xl text-center text-slate-500">
+              <p className="text-sm">Selecione um veículo acima para visualizar o chassi.</p>
+            </div>
+          )}
         </div>
       </div>
 </div>
