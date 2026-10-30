@@ -37,5 +37,3 @@ async def atualizar_meta(body: ParametrizacaoBase, _u: dict = Depends(require("w
         upsert=True
     )
     return body
-
-

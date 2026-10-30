@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings, Target, CheckCircle2, XCircle } from "lucide-react";
+import { Target, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function Parametrizacao() {
@@ -18,19 +17,19 @@ export default function Parametrizacao() {
 
   const [ativo, setAtivo] = useState(false);
   const [valor, setValor] = useState("2,5");
-  const [mostrarSeedFornecedores, setMostrarSeedFornecedores] = useState(false);
-  const [mostrarSeedMedidas, setMostrarSeedMedidas] = useState(false);
-  const [mostrarSeedMarcas, setMostrarSeedMarcas] = useState(false);
-  const [mostrarSeedTemplates, setMostrarSeedTemplates] = useState(false);
+  const [seedForn, setSeedForn] = useState(false);
+  const [seedMed, setSeedMed] = useState(false);
+  const [seedMarc, setSeedMarc] = useState(false);
+  const [seedTemp, setSeedTemp] = useState(false);
 
   useEffect(() => {
     if (config) {
       setAtivo(config.meta_abastecimento_ativo);
       setValor(String(config.meta_abastecimento_valor).replace(".", ","));
-      setMostrarSeedFornecedores(config.mostrar_seed_fornecedores || false);
-      setMostrarSeedMedidas(config.mostrar_seed_medidas || false);
-      setMostrarSeedMarcas(config.mostrar_seed_marcas || false);
-      setMostrarSeedTemplates(config.mostrar_seed_templates || false);
+      setSeedForn(config.mostrar_seed_fornecedores || false);
+      setSeedMed(config.mostrar_seed_medidas || false);
+      setSeedMarc(config.mostrar_seed_marcas || false);
+      setSeedTemp(config.mostrar_seed_templates || false);
     }
   }, [config]);
 
@@ -38,18 +37,30 @@ export default function Parametrizacao() {
     mutationFn: () => apiPut("/parametrizacao/meta", {
       meta_abastecimento_ativo: ativo,
       meta_abastecimento_valor: Number(String(valor).replace(",", ".")),
-      mostrar_seed_fornecedores: mostrarSeedFornecedores,
-      mostrar_seed_medidas: mostrarSeedMedidas,
-      mostrar_seed_marcas: mostrarSeedMarcas,
-      mostrar_seed_templates: mostrarSeedTemplates,
+      mostrar_seed_fornecedores: seedForn,
+      mostrar_seed_medidas: seedMed,
+      mostrar_seed_marcas: seedMarc,
+      mostrar_seed_templates: seedTemp,
     }),
     onSuccess: () => {
       toast.success("Parametrização salva com sucesso!");
       qc.invalidateQueries({ queryKey: ["parametrizacao-meta"] });
-      qc.invalidateQueries({ queryKey: ["abastecimentos"] });
     },
     onError: () => toast.error("Erro ao salvar parametrização."),
   });
+
+  const BotaoStatus = ({ ativo, onClick, textoAtivo, textoInativo }: any) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+        ativo ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+      }`}
+    >
+      {ativo ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
+      {ativo ? textoAtivo : textoInativo}
+    </button>
+  );
 
   return (
     <div>
@@ -75,91 +86,51 @@ export default function Parametrizacao() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {/* Meta de Abastecimento */}
             <TableRow className="border-slate-800">
               <TableCell className="font-medium text-slate-200">Parametrização de Meta de Abastecimento</TableCell>
               <TableCell>
-                <button
-                  type="button"
-                  onClick={() => setAtivo(!ativo)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    ativo ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
-                  }`}
-                >
-                  {ativo ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
-                  {ativo ? "Habilitado" : "Desabilitado"}
-                </button>
+                <BotaoStatus ativo={ativo} onClick={() => setAtivo(!ativo)} textoAtivo="Habilitado" textoInativo="Desabilitado" />
               </TableCell>
               <TableCell>
-                <Input
-                  value={valor}
-                  onChange={(e) => setValor(e.target.value)}
-                  disabled={!ativo}
-                  placeholder="Ex: 2,5"
-                  className="w-24 h-8 text-center disabled:opacity-50"
-                />
+                <Input value={valor} onChange={(e) => setValor(e.target.value)} disabled={!ativo} placeholder="Ex: 2,5" className="w-24 h-8 text-center disabled:opacity-50" />
               </TableCell>
             </TableRow>
 
-            {/* Botão Popular Lista Base (Fornecedores) */}
             <TableRow className="border-slate-800">
-              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Lista Base" na tela de Tipos de Fornecedores</TableCell>
+              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Lista Base" (Tipos de Fornecedores)</TableCell>
               <TableCell>
-                <button
-                  type="button"
-                  onClick={() => setMostrarSeedFornecedores(!mostrarSeedFornecedores)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    mostrarSeedFornecedores ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
-                  }`}
-                >
-                  {mostrarSeedFornecedores ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
-                  {mostrarSeedFornecedores ? "Visível" : "Oculto"}
-                </button>
+                <BotaoStatus ativo={seedForn} onClick={() => setSeedForn(!seedForn)} textoAtivo="Visível" textoInativo="Oculto" />
               </TableCell>
-              <TableCell className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
+              <TableCell className="text-xs text-slate-500 italic">Setup inicial.</TableCell>
             </TableRow>
 
-            {/* Botão Popular Medidas */}
             <TableRow className="border-slate-800">
-              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Medidas" na tela de Medidas de Pneus</TableCell>
+              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Medidas" (Medidas de Pneus)</TableCell>
               <TableCell>
-                <button
-                  type="button"
-                  onClick={() => setMostrarSeedMedidas(!mostrarSeedMedidas)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    mostrarSeedMedidas ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
-                  }`}
-                >
-                  {mostrarSeedMedidas ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
-                  {mostrarSeedMedidas ? "Visível" : "Oculto"}
-                </button>
+                <BotaoStatus ativo={seedMed} onClick={() => setSeedMed(!seedMed)} textoAtivo="Visível" textoInativo="Oculto" />
               </TableCell>
-              <TableCell className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
+              <TableCell className="text-xs text-slate-500 italic">Setup inicial.</TableCell>
             </TableRow>
 
-            {/* Botão Popular Marcas */}
             <TableRow className="border-slate-800">
-              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Marcas" na tela de Marcas de Pneus</TableCell>
+              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Marcas" (Marcas de Pneus)</TableCell>
               <TableCell>
-                <button
-                  type="button"
-                  onClick={() => setMostrarSeedMarcas(!mostrarSeedMarcas)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    mostrarSeedMarcas ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
-                  }`}
-                >
-                  {mostrarSeedMarcas ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
-                  {mostrarSeedMarcas ? "Visível" : "Oculto"}
-                </button>
+                <BotaoStatus ativo={seedMarc} onClick={() => setSeedMarc(!seedMarc)} textoAtivo="Visível" textoInativo="Oculto" />
               </TableCell>
-              <TableCell className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
+              <TableCell className="text-xs text-slate-500 italic">Setup inicial.</TableCell>
+            </TableRow>
+
+            <TableRow className="border-slate-800">
+              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Templates" (Templates de Chassi)</TableCell>
+              <TableCell>
+                <BotaoStatus ativo={seedTemp} onClick={() => setSeedTemp(!seedTemp)} textoAtivo="Visível" textoInativo="Oculto" />
+              </TableCell>
+              <TableCell className="text-xs text-slate-500 italic">Setup inicial.</TableCell>
             </TableRow>
           </TableBody>
         </Table>
 
         <div className="flex justify-end mt-6">
-          <div className="flex justify-end mt-6">
-          </div>
           <Button onClick={() => salvar.mutate()} disabled={salvar.isPending} className="bg-sky-600 hover:bg-sky-500">
             {salvar.isPending ? "Salvando..." : "Salvar Parametrizações"}
           </Button>
