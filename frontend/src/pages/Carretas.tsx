@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { apiGet } from "@/lib/api";
 import { CadastroTable } from "@/components/cadastros/CadastroTable";
 import type { Carreta } from "@/types/cadastros";
 
@@ -12,10 +14,29 @@ const columns = [
   { key: "ano", label: "Ano", type: "number", placeholder: "2024" },
   { key: "hodometro_km", label: "KM", type: "number", placeholder: "0" },
   { key: "tipo", label: "Tipo", required: true, options: TIPOS_CARRETA },
+  { key: "template_chassi_id", label: "Template de Chassi", type: "text", fetchOptions: { endpoint: "/chassi-templates", labelKey: "nome", filterKey: "categoria", filterValue: "CARRETA" } },
   { key: "observacoes", label: "Observações", placeholder: "Opcional" },
 ];
 
 export default function Carretas() {
+  const { data: templates = [] } = useQuery({
+    queryKey: ["chassi-templates"],
+    queryFn: () => apiGet<any[]>("/chassi-templates"),
+  });
+
+  const colunasComTemplate = columns.map(col => {
+    if (col.key === "template_chassi_id") {
+      return {
+        ...col,
+        format: (r: Carreta) => {
+          const template = templates.find((t: any) => t.id === r.template_chassi_id);
+          return template ? template.nome : "—";
+        }
+      };
+    }
+    return col;
+  });
+
   return (
     <CadastroTable<Carreta>
       title="Carretas"
@@ -24,8 +45,8 @@ export default function Carretas() {
       queryKey="carretas"
       entityLabel="carreta"
       testPrefix="carreta"
-      columns={columns}
-      searchKeys={["codigo", "tipo", "placa", "modelo"]}
+      columns={colunasComTemplate}
+      searchKeys={["codigo", "placa", "tipo"]}
     />
   );
 }

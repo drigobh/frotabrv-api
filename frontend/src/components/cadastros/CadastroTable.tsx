@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Pencil, Plus, Power, RotateCcw, Search, X } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ export interface ColumnDef<T> {
   required?: boolean;
   placeholder?: string;
   options?: string[];
+  fetchOptions?: { endpoint: string; labelKey: string; filterKey?: string; filterValue?: string; valueKey?: string };
   defaultValue?: string;
   format?: (row: T) => ReactNode;
 }
@@ -70,6 +71,41 @@ function missingRequired<T>(v: FormValues, cols: ColumnDef<T>[]): string | null 
 }
 
 function FieldInput<T>({ col, value, onChange, testId }: { col: ColumnDef<T>; value: string; onChange: (v: string) => void; testId: string }) {
+  const [dynamicOptions, setDynamicOptions] = useState<{ value: string; label: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (col.fetchOptions) {
+      setLoading(true);
+      apiGet<any[]>(col.fetchOptions.endpoint)
+        .then((data) => {
+          let filtered = data;
+          if (col.fetchOptions?.filterKey && col.fetchOptions?.filterValue) {
+            filtered = data.filter((item: any) => item[col.fetchOptions!.filterKey!] === col.fetchOptions!.filterValue);
+          }
+          const opts = filtered.map((item: any) => ({
+            value: item[col.fetchOptions!.valueKey || "id"],
+            label: item[col.fetchOptions!.labelKey] || item[col.fetchOptions!.valueKey || "id"]
+          }));
+          setDynamicOptions(opts);
+        })
+        .catch(() => setDynamicOptions([]))
+        .finally(() => setLoading(false));
+    }
+  }, [col.fetchOptions]);
+
+  if (col.fetchOptions) {
+    return (
+      <FieldSelect 
+        value={value} 
+        onChange={onChange} 
+        options={loading ? [{ value: "", label: "Carregando..." }] : dynamicOptions} 
+        placeholder={col.placeholder}
+        testId={testId} 
+      />
+    );
+  }
+
   if (col.options) {
     return (
       <FieldSelect value={value} onChange={onChange} options={col.options.map((o) => ({ value: o, label: o }))} testId={testId} />
