@@ -2,19 +2,19 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  LineChart, Line, PieChart, Pie, Cell 
+  PieChart, Pie, Cell 
 } from "recharts";
 import { 
   Wrench, Clock, DollarSign, TrendingUp, CheckCircle2, Truck, 
   ShieldAlert, Users, Target, RotateCcw, AlertTriangle, Boxes, 
   Activity, Layers, MapPin, GitCompare
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { brl } from "@/lib/format";
 
 const COLORS = ["#10b981", "#f59e0b", "#ef4444", "#0284c7", "#8b5cf6", "#06b6d4", "#ec4899", "#f97316"];
@@ -25,6 +25,7 @@ export default function RelatorioManutencao() {
   const { data: abastecimentos = [] } = useQuery({ queryKey: ["abastecimentos"], queryFn: () => apiGet<any[]>("/abastecimentos") });
   const { data: planos = [] } = useQuery({ queryKey: ["planos-manutencao"], queryFn: () => apiGet<any[]>("/planos-manutencao") });
   const { data: empresas = [] } = useQuery({ queryKey: ["empresas"], queryFn: () => apiGet<any[]>("/empresa") });
+  const { data: relatorios = {} } = useQuery({ queryKey: ["relatorios-manutencao"], queryFn: () => apiGet<any>("/dashboard/relatorios-manutencao") });
 
   const [abaAtiva, setAbaAtiva] = useState("cpk");
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
@@ -46,6 +47,12 @@ export default function RelatorioManutencao() {
     {
       titulo: "Eficiência Operacional",
       itens: [
+        { id: "relatorio-ratio", label: "Ratio Preve. x Corret.", icon: TrendingUp },
+        { id: "relatorio-faixa-km", label: "Faixa de Hodômetro", icon: Activity },
+        { id: "relatorio-desvio-consumo", label: "Desvio de Consumo", icon: GitCompare },
+        { id: "relatorio-previsao", label: "Previsão Orçamentária", icon: DollarSign },
+        { id: "relatorio-oficina-tempo", label: "Tempo vs. Custo", icon: Clock },
+        { id: "relatorio-oleo-atraso", label: "Óleo em Atraso", icon: RotateCcw },
         { id: "mtbf", label: "MTBF (Entre Falhas)", icon: ShieldAlert },
         { id: "mttr", label: "MTTR (Tempo Reparo)", icon: Clock },
         { id: "ociosidade", label: "Ociosidade (Downtime)", icon: AlertTriangle },
@@ -72,38 +79,24 @@ export default function RelatorioManutencao() {
     },
   ];
 
-  // 1. CPK
   // FILTRAGEM GLOBAL
   const manutencoesFiltradas = useMemo(() => {
     let filtered = manutencoes;
-    
-    if (filtroDataInicio) {
-      filtered = filtered.filter((m: any) => m.data >= filtroDataInicio);
-    }
-    if (filtroDataFim) {
-      filtered = filtered.filter((m: any) => m.data <= filtroDataFim);
-    }
-    if (filtroTipo !== "__all__") {
-      filtered = filtered.filter((m: any) => m.tipo === filtroTipo);
-    }
-    if (filtroVeiculo !== "__all__") {
-      filtered = filtered.filter((m: any) => m.veiculo_id === filtroVeiculo);
-    }
-    if (filtroOficina !== "__all__") {
-      filtered = filtered.filter((m: any) => m.oficina === filtroOficina);
-    }
-    // Filtro por empresa: busca os veículos daquela empresa
+    if (filtroDataInicio) filtered = filtered.filter((m: any) => m.data >= filtroDataInicio);
+    if (filtroDataFim) filtered = filtered.filter((m: any) => m.data <= filtroDataFim);
+    if (filtroTipo !== "__all__") filtered = filtered.filter((m: any) => m.tipo === filtroTipo);
+    if (filtroVeiculo !== "__all__") filtered = filtered.filter((m: any) => m.veiculo_id === filtroVeiculo);
+    if (filtroOficina !== "__all__") filtered = filtered.filter((m: any) => m.oficina === filtroOficina);
     if (filtroEmpresa !== "__all__") {
       const veiculosEmpresa = veiculos.filter((v: any) => v.empresa_id === filtroEmpresa).map((v: any) => v.id);
       filtered = filtered.filter((m: any) => veiculosEmpresa.includes(m.veiculo_id));
     }
-
     return filtered;
   }, [manutencoes, filtroDataInicio, filtroDataFim, filtroTipo, filtroVeiculo, filtroEmpresa, filtroOficina, veiculos]);
 
-  // Dados para os selects
   const listaOficinas = [...new Set(manutencoes.map((m: any) => m.oficina).filter(Boolean))].sort();
 
+  // 1. CPK
   const cpkData = useMemo(() => {
     const custos: Record<string, { label: string, custo: number, km: number }> = {};
     manutencoesFiltradas.forEach((m: any) => {
@@ -116,16 +109,13 @@ export default function RelatorioManutencao() {
     return Object.values(custos).map(item => ({ ...item, cpk: item.custo / item.km })).sort((a, b) => b.cpk - a.cpk);
   }, [manutencoesFiltradas, veiculos]);
 
-  // 2. MTBF (Corretivas)
+  // 2. MTBF
   const mtbfData = useMemo(() => {
     const falhas: Record<string, number> = {};
     manutencoesFiltradas.filter((m: any) => m.tipo === "Corretiva").forEach((m: any) => {
       falhas[m.veiculo_id] = (falhas[m.veiculo_id] || 0) + 1;
     });
-    return Object.entries(falhas).map(([id, count]) => ({
-      label: veiculos.find((v: any) => v.id === id)?.placa || id,
-      falhas: count
-    })).sort((a, b) => b.falhas - a.falhas);
+    return Object.entries(falhas).map(([id, count]) => ({ label: veiculos.find((v: any) => v.id === id)?.placa || id, falhas: count })).sort((a, b) => b.falhas - a.falhas);
   }, [manutencoesFiltradas, veiculos]);
 
   // 3. MTTR
@@ -136,15 +126,15 @@ export default function RelatorioManutencao() {
     return { media: reparos.length > 0 ? soma / reparos.length : 0, total: reparos.length };
   }, [manutencoesFiltradas]);
 
-  // 4. Peças (Curva ABC)
+  // 4. Peças
   const pecasData = useMemo(() => {
     const pecas: Record<string, { qtd: number, custo: number }> = {};
     manutencoesFiltradas.forEach((m: any) => {
       if (m.pecas_substituidas) {
-        const peca = m.pecas_substituidas.split(',')[0].trim(); // Pega a primeira peça
+        const peca = m.pecas_substituidas.split(',')[0].trim();
         if (!pecas[peca]) pecas[peca] = { qtd: 0, custo: 0 };
         pecas[peca].qtd += 1;
-        pecas[peca].custo += (m.custo || 0) / 2; // Estima 50% do custo como peça
+        pecas[peca].custo += (m.custo || 0) / 2;
       }
     });
     const arr = Object.entries(pecas).map(([nome, dados]) => ({ nome, ...dados })).sort((a, b) => b.custo - a.custo);
@@ -187,7 +177,7 @@ export default function RelatorioManutencao() {
     });
   }, [manutencoesFiltradas, veiculos]);
 
-  // 7. Custo por Motorista (proxy pelo veículo)
+  // 7. Custo por Motorista
   const custoMotoristaData = useMemo(() => {
     const custos: Record<string, number> = {};
     manutencoesFiltradas.forEach((m: any) => {
@@ -203,14 +193,12 @@ export default function RelatorioManutencao() {
   const fornecedorData = useMemo(() => {
     const custos: Record<string, number> = {};
     manutencoesFiltradas.forEach((m: any) => {
-      if (m.oficina && m.custo) {
-        custos[m.oficina] = (custos[m.oficina] || 0) + m.custo;
-      }
+      if (m.oficina && m.custo) custos[m.oficina] = (custos[m.oficina] || 0) + m.custo;
     });
     return Object.entries(custos).map(([nome, custo]) => ({ nome, custo })).sort((a, b) => b.custo - a.custo).slice(0, 5);
   }, [manutencoesFiltradas]);
 
-  // 9. Ociosidade (Downtime) - Manutenções em execução há mais de X dias
+  // 9. Ociosidade
   const ociosidadeData = useMemo(() => {
     const emExecucao = manutencoesFiltradas.filter((m: any) => m.status === "Em execução");
     return emExecucao.map((m: any) => {
@@ -219,7 +207,7 @@ export default function RelatorioManutencao() {
     }).sort((a, b) => b.dias - a.dias);
   }, [manutencoesFiltradas]);
 
-  // 10. Custo por Tipo de Veículo
+  // 10. Custo por Tipo
   const custoVeiculoTipoData = useMemo(() => {
     const custos: Record<string, { label: string, custo: number, count: number }> = {};
     manutencoesFiltradas.forEach((m: any) => {
@@ -233,7 +221,7 @@ export default function RelatorioManutencao() {
     return Object.values(custos).map(i => ({ ...i, media: i.custo / i.count }));
   }, [manutencoesFiltradas, veiculos]);
 
-  // 11. Centro de Custo (por Empresa)
+  // 11. Centro de Custo
   const centroCustoData = useMemo(() => {
     const custos: Record<string, number> = {};
     manutencoesFiltradas.forEach((m: any) => {
@@ -246,22 +234,19 @@ export default function RelatorioManutencao() {
     return Object.entries(custos).map(([nome, custo]) => ({ nome, custo })).sort((a, b) => b.custo - a.custo);
   }, [manutencoesFiltradas, veiculos, empresas]);
 
-  // 12. Corretivas Emergenciais
+  // 12. Corretivas
   const corretivasData = useMemo(() => {
     return manutencoesFiltradas.filter((m: any) => m.tipo === "Corretiva").map((m: any) => ({
-      veiculo: m.veiculo_label,
-      descricao: m.descricao,
-      data: m.data,
-      custo: m.custo
+      veiculo: m.veiculo_label, descricao: m.descricao, data: m.data, custo: m.custo
     })).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).slice(0, 20);
   }, [manutencoesFiltradas]);
 
-  // 13. Vida Útil de Componentes (baseado em descrições)
+  // 13. Vida Útil
   const vidaUtilData = useMemo(() => {
     const componentes: Record<string, number> = {};
     manutencoesFiltradas.forEach((m: any) => {
       if (m.descricao) {
-        const comp = m.descricao.split(" ")[0]; // Pega a primeira palavra
+        const comp = m.descricao.split(" ")[0];
         componentes[comp] = (componentes[comp] || 0) + 1;
       }
     });
@@ -276,15 +261,11 @@ export default function RelatorioManutencao() {
       const totalLitros = abastecimentosVeic.reduce((acc: any, a: any) => acc + (a.litros || 0), 0);
       const totalKm = abastecimentosVeic.reduce((acc: any, a: any) => acc + (a.km_rodados || 0), 0);
       const consumoMedio = totalLitros > 0 ? totalKm / totalLitros : 0;
-      return {
-        placa: v.placa,
-        consumoMedio: consumoMedio,
-        custoManut: manuts.reduce((acc: any, m: any) => acc + (m.custo || 0), 0)
-      };
+      return { placa: v.placa, consumoMedio, custoManut: manuts.reduce((acc: any, m: any) => acc + (m.custo || 0), 0) };
     }).filter(v => v.consumoMedio > 0 && v.custoManut > 0).sort((a, b) => b.custoManut - a.custo).slice(0, 10);
   }, [veiculos, manutencoesFiltradas, abastecimentos]);
 
-  // 15. Benchmarking (preços por descrição)
+  // 15. Benchmarking
   const benchmarkingData = useMemo(() => {
     const descs: Record<string, { min: number, max: number, media: number, count: number }> = {};
     manutencoesFiltradas.forEach((m: any) => {
@@ -301,13 +282,6 @@ export default function RelatorioManutencao() {
 
   const renderAba = () => {
     switch (abaAtiva) {
-
-      case "relatorio-ratio": return <RelatorioRatio />;
-      case "relatorio-faixa-km": return <RelatorioFaixaKm />;
-      case "relatorio-desvio-consumo": return <RelatorioDesvioConsumo />;
-      case "relatorio-previsao": return <RelatorioPrevisao />;
-      case "relatorio-oficina-tempo": return <RelatorioOficinaTempo />;
-      case "relatorio-oleo-atraso": return <RelatorioOleoAtraso />;
       case "cpk": return <AbaComGrafico titulo="Top 10 CPK (Custo por KM)" data={cpkData.slice(0, 10)} dataKey="cpk" xKey="label" cor="#0284c7" formatter={(v: any) => `R$ ${v.toFixed(3)}/km`} colunas={["Veículo", "KM", "Custo", "CPK"]} dados={cpkData.map(i => [i.label, `${i.km.toLocaleString('pt-BR')} km`, brl(i.custo), `R$ ${i.cpk.toFixed(3)}`])} />;
       case "mtbf": return <AbaComGrafico titulo="Veículos com Mais Falhas (MTBF)" data={mtbfData} dataKey="falhas" xKey="label" cor="#ef4444" colunas={["Veículo", "Qtd. Falhas"]} dados={mtbfData.map(i => [i.label, i.falhas])} />;
       case "mttr": return <AbaMTTR data={mttrData} />;
@@ -323,14 +297,21 @@ export default function RelatorioManutencao() {
       case "vidaUtil": return <AbaComGrafico titulo="Componentes com Mais Trocas (Vida Útil)" data={vidaUtilData} dataKey="qtd" xKey="nome" cor="#ec4899" colunas={["Componente", "Qtd. Trocas"]} dados={vidaUtilData.map(i => [i.nome, i.qtd])} />;
       case "combustivelManut": return <AbaComGrafico titulo="Consumo (km/l) vs Custo Manutenção" data={consumoManutData} dataKey="custoManut" xKey="placa" cor="#f97316" formatter={(v: any) => brl(v)} colunas={["Veículo", "Consumo (km/l)", "Custo Manut."]} dados={consumoManutData.map(i => [i.placa, i.consumoMedio.toFixed(2), brl(i.custoManut)])} />;
       case "benchmarking": return <AbaTabela titulo="Comparativo de Preços (Benchmarking)" colunas={["Serviço", "Mín.", "Máx.", "Média"]} dados={benchmarkingData.map(i => [i.nome, brl(i.min), brl(i.max), brl(i.media)])} />;
+      
+      // NOVOS RELATÓRIOS
+      case "relatorio-ratio": return <RelatorioRatio />;
+      case "relatorio-faixa-km": return <RelatorioFaixaKm />;
+      case "relatorio-desvio-consumo": return <RelatorioDesvioConsumo />;
+      case "relatorio-previsao": return <RelatorioPrevisao />;
+      case "relatorio-oficina-tempo": return <RelatorioOficinaTempo />;
+      case "relatorio-oleo-atraso": return <RelatorioOleoAtraso />;
       default: return null;
     }
   };
 
   return (
     <div>
-      <PageHeader eyebrow="Gestão" title="Relatórios de Manutenção" description="Painel completo com 16 indicadores estratégicos." />
-
+      <PageHeader eyebrow="Gestão" title="Relatórios de Manutenção" description="Painel completo com 22 indicadores estratégicos." />
 
       {/* Barra de Filtros */}
       <div className="glass p-4 rounded-xl mb-6 flex flex-wrap gap-3 items-end">
@@ -372,9 +353,10 @@ export default function RelatorioManutencao() {
           </select>
         </div>
         <Button variant="ghost" size="sm" onClick={() => { setFiltroDataInicio(""); setFiltroDataFim(""); setFiltroTipo("__all__"); setFiltroVeiculo("__all__"); setFiltroEmpresa("__all__"); setFiltroOficina("__all__"); }} className="text-xs text-red-400 hover:text-red-300 h-9">
-          Limpar Filtros
+          Limpar
         </Button>
       </div>
+
       <div className="flex gap-6">
         {/* MENU LATERAL */}
         <div className="w-64 shrink-0 glass rounded-2xl p-3 h-fit sticky top-4">
@@ -389,9 +371,7 @@ export default function RelatorioManutencao() {
                       key={item.id}
                       onClick={() => setAbaAtiva(item.id)}
                       className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-medium transition-colors ${
-                        abaAtiva === item.id 
-                          ? "bg-sky-600/20 text-sky-400" 
-                          : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                        abaAtiva === item.id ? "bg-sky-600/20 text-sky-400" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
                       }`}
                     >
                       <Icone className="size-3.5 shrink-0" /> {item.label}
@@ -413,7 +393,6 @@ export default function RelatorioManutencao() {
 }
 
 // COMPONENTES AUXILIARES
-
 function AbaComGrafico({ titulo, data, dataKey, xKey, cor, formatter, colunas, dados }: any) {
   return (
     <div className="space-y-6">
@@ -520,28 +499,18 @@ function TabelaDados({ colunas, dados, vazio = "Nenhum dado encontrado." }: any)
       </Table>
     </div>
   );
-
-
-// --- COMPONENTES DE RELATÓRIOS AVANÇADOS ---
+}
 
 function RelatorioRatio() {
   const { data } = useQuery({ queryKey: ["relatorios-manutencao"], queryFn: () => apiGet<any>("/dashboard/relatorios-manutencao") });
   if (!data) return <div className="glass p-6 text-center text-slate-400">Carregando...</div>;
-
   return (
     <div className="glass p-6 rounded-2xl text-center space-y-4">
-      <h3 className="text-lg font-bold text-slate-100 mb-2 flex items-center justify-center gap-2"><TrendingUp className="size-5 text-emerald-400" /> Ratio Preventiva x Corretiva</h3>
+      <h3 className="text-lg font-bold text-slate-100 mb-2">Ratio Preventiva x Corretiva</h3>
       <div className="flex justify-center gap-12">
-        <div>
-          <p className="text-5xl font-bold text-emerald-400">{data.ratio.percentual_preventiva.toFixed(1)}%</p>
-          <p className="text-sm text-slate-400">Preventivas ({data.ratio.preventivas})</p>
-        </div>
-        <div>
-          <p className="text-5xl font-bold text-rose-400">{data.ratio.percentual_corretiva.toFixed(1)}%</p>
-          <p className="text-sm text-slate-400">Corretivas ({data.ratio.corretivas})</p>
-        </div>
+        <div><p className="text-5xl font-bold text-emerald-400">{data.ratio.percentual_preventiva.toFixed(1)}%</p><p className="text-sm text-slate-400">Preventivas ({data.ratio.preventivas})</p></div>
+        <div><p className="text-5xl font-bold text-rose-400">{data.ratio.percentual_corretiva.toFixed(1)}%</p><p className="text-sm text-slate-400">Corretivas ({data.ratio.corretivas})</p></div>
       </div>
-      <p className="text-sm text-slate-400 mt-4">Meta recomendada: 80% Preventiva / 20% Corretiva</p>
     </div>
   );
 }
@@ -549,10 +518,9 @@ function RelatorioRatio() {
 function RelatorioFaixaKm() {
   const { data } = useQuery({ queryKey: ["relatorios-manutencao"], queryFn: () => apiGet<any>("/dashboard/relatorios-manutencao") });
   if (!data) return <div className="glass p-6 text-center text-slate-400">Carregando...</div>;
-
   return (
     <div className="glass p-6 rounded-2xl">
-      <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><Activity className="size-5 text-sky-400" /> Manutenções por Faixa de Hodômetro</h3>
+      <h3 className="text-lg font-bold text-slate-100 mb-4">Manutenções por Faixa de Hodômetro</h3>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data.faixas_km}>
@@ -571,34 +539,12 @@ function RelatorioFaixaKm() {
 function RelatorioDesvioConsumo() {
   const { data: veiculos = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
   const { data: manutencoes = [] } = useQuery({ queryKey: ["manutencoes"], queryFn: () => apiGet<any[]>("/manutencoes") });
-  
-  // Simulação: Veículos com manutenção nos últimos 30 dias
-  const recentes = veiculos.filter((v: any) => {
-    const manuts = manutencoes.filter((m: any) => m.veiculo_id === v.id);
-    return manuts.length > 0;
-  });
-
+  const recentes = veiculos.filter((v: any) => manutencoes.some((m: any) => m.veiculo_id === v.id));
   return (
     <div className="glass p-6 rounded-2xl">
-      <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><GitCompare className="size-5 text-amber-400" /> Desvio de Consumo (Pós-Manutenção)</h3>
-      <p className="text-sm text-slate-400">Veículos com manutenção nos últimos 30 dias. O consumo deve ser comparado antes e depois.</p>
-      <Table>
-        <TableHeader>
-          <TableRow className="border-slate-800">
-            <TableHead className="text-xs uppercase text-slate-500">Veículo</TableHead>
-            <TableHead className="text-xs uppercase text-slate-500">Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {recentes.map((v: any) => (
-            <TableRow key={v.id} className="border-slate-800">
-              <TableCell className="text-slate-200">{v.placa} - {v.modelo}</TableCell>
-              <TableCell className="text-emerald-400 text-xs">Aguardando Telemetria</TableCell>
-            </TableRow>
-          ))}
-          {recentes.length === 0 && <TableRow><TableCell colSpan={2} className="text-center text-slate-500">Nenhum veículo com manutenção recente.</TableCell></TableRow>}
-        </TableBody>
-      </Table>
+      <h3 className="text-lg font-bold text-slate-100 mb-4">Desvio de Consumo (Pós-Manutenção)</h3>
+      <Table><TableHeader><TableRow><TableHead>Veículo</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+      <TableBody>{recentes.map((v: any) => <TableRow key={v.id}><TableCell>{v.placa} - {v.modelo}</TableCell><TableCell className="text-emerald-400 text-xs">Aguardando Telemetria</TableCell></TableRow>)}</TableBody></Table>
     </div>
   );
 }
@@ -606,24 +552,13 @@ function RelatorioDesvioConsumo() {
 function RelatorioPrevisao() {
   const { data } = useQuery({ queryKey: ["relatorios-manutencao"], queryFn: () => apiGet<any>("/dashboard/relatorios-manutencao") });
   if (!data) return <div className="glass p-6 text-center text-slate-400">Carregando...</div>;
-
   return (
     <div className="glass p-6 rounded-2xl text-center space-y-4">
-      <h3 className="text-lg font-bold text-slate-100 mb-2 flex items-center justify-center gap-2"><DollarSign className="size-5 text-amber-400" /> Previsão Orçamentária</h3>
-      <p className="text-sm text-slate-400 mb-4">Projeção baseada na média dos últimos 3 meses.</p>
+      <h3 className="text-lg font-bold text-slate-100 mb-2">Previsão Orçamentária</h3>
       <div className="flex justify-center gap-12">
-        <div>
-          <p className="text-3xl font-bold text-slate-100">{brl(data.forecast.media_mensal)}</p>
-          <p className="text-xs uppercase text-slate-500">Média Mensal</p>
-        </div>
-        <div>
-          <p className="text-3xl font-bold text-amber-400">{brl(data.forecast.proximos_3_meses)}</p>
-          <p className="text-xs uppercase text-slate-500">Próximos 3 Meses</p>
-        </div>
-        <div>
-          <p className="text-3xl font-bold text-rose-400">{brl(data.forecast.proximos_6_meses)}</p>
-          <p className="text-xs uppercase text-slate-500">Próximos 6 Meses</p>
-        </div>
+        <div><p className="text-3xl font-bold text-slate-100">{brl(data.forecast.media_mensal)}</p><p className="text-xs uppercase text-slate-500">Média Mensal</p></div>
+        <div><p className="text-3xl font-bold text-amber-400">{brl(data.forecast.proximos_3_meses)}</p><p className="text-xs uppercase text-slate-500">Próximos 3 Meses</p></div>
+        <div><p className="text-3xl font-bold text-rose-400">{brl(data.forecast.proximos_6_meses)}</p><p className="text-xs uppercase text-slate-500">Próximos 6 Meses</p></div>
       </div>
     </div>
   );
@@ -631,40 +566,14 @@ function RelatorioPrevisao() {
 
 function RelatorioOficinaTempo() {
   const { data: manutencoes = [] } = useQuery({ queryKey: ["manutencoes"], queryFn: () => apiGet<any[]>("/manutencoes") });
-  
-  // Simulação: Agrupar por oficina e contar tempo médio
   const oficinas: Record<string, { total: number, custo: number }> = {};
-  manutencoes.forEach((m: any) => {
-    if (m.oficina && m.custo) {
-      if (!oficinas[m.oficina]) oficinas[m.oficina] = { total: 0, custo: 0 };
-      oficinas[m.oficina].total += 1;
-      oficinas[m.oficina].custo += m.custo;
-    }
-  });
-
+  manutencoes.forEach((m: any) => { if (m.oficina && m.custo) { if (!oficinas[m.oficina]) oficinas[m.oficina] = { total: 0, custo: 0 }; oficinas[m.oficina].total += 1; oficinas[m.oficina].custo += m.custo; } });
   const dados = Object.entries(oficinas).map(([nome, d]) => ({ nome, media: d.custo / d.total, total: d.total }));
-
   return (
     <div className="glass p-6 rounded-2xl">
-      <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><Clock className="size-5 text-sky-400" /> Tempo vs. Custo por Oficina</h3>
-      <Table>
-        <TableHeader>
-          <TableRow className="border-slate-800">
-            <TableHead className="text-xs uppercase text-slate-500">Oficina</TableHead>
-            <TableHead className="text-xs uppercase text-slate-500">Qtd. Serviços</TableHead>
-            <TableHead className="text-xs uppercase text-slate-500">Custo Médio</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {dados.map((d, i) => (
-            <TableRow key={i} className="border-slate-800">
-              <TableCell className="text-slate-200">{d.nome}</TableCell>
-              <TableCell className="text-slate-400">{d.total}</TableCell>
-              <TableCell className="text-amber-400">{brl(d.media)}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <h3 className="text-lg font-bold text-slate-100 mb-4">Tempo vs. Custo por Oficina</h3>
+      <Table><TableHeader><TableRow><TableHead>Oficina</TableHead><TableHead>Qtd.</TableHead><TableHead>Custo Médio</TableHead></TableRow></TableHeader>
+      <TableBody>{dados.map((d, i) => <TableRow key={i}><TableCell>{d.nome}</TableCell><TableCell>{d.total}</TableCell><TableCell className="text-amber-400">{brl(d.media)}</TableCell></TableRow>)}</TableBody></Table>
     </div>
   );
 }
@@ -672,36 +581,12 @@ function RelatorioOficinaTempo() {
 function RelatorioOleoAtraso() {
   const { data: veiculos = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
   const { data: planos = [] } = useQuery({ queryKey: ["planos-manutencao"], queryFn: () => apiGet<any[]>("/planos-manutencao") });
-
-  const atrasados = veiculos.filter((v: any) => {
-    const plano = planos.find((p: any) => p.veiculo_id === v.id && p.familia === "Lubrificação e Filtros");
-    if (!plano) return false;
-    const limite = (plano.ultima_execucao_km || 0) + (plano.intervalo || 10000);
-    return (v.hodometro_km || 0) > limite;
-  });
-
+  const atrasados = veiculos.filter((v: any) => { const plano = planos.find((p: any) => p.veiculo_id === v.id && p.familia === "Lubrificação e Filtros"); if (!plano) return false; return (v.hodometro_km || 0) > ((plano.ultima_execucao_km || 0) + (plano.intervalo || 10000)); });
   return (
     <div className="glass p-6 rounded-2xl">
-      <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><RotateCcw className="size-5 text-rose-400" /> Veículos com Óleo em Atraso</h3>
-      <Table>
-        <TableHeader>
-          <TableRow className="border-slate-800">
-            <TableHead className="text-xs uppercase text-slate-500">Veículo</TableHead>
-            <TableHead className="text-xs uppercase text-slate-500">KM Atual</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {atrasados.map((v: any) => (
-            <TableRow key={v.id} className="border-slate-800">
-              <TableCell className="text-slate-200">{v.placa} - {v.modelo}</TableCell>
-              <TableCell className="text-rose-400 font-mono">{(v.hodometro_km || 0).toLocaleString('pt-BR')} km</TableCell>
-            </TableRow>
-          ))}
-          {atrasados.length === 0 && <TableRow><TableCell colSpan={2} className="text-center text-slate-500">Nenhum veículo com óleo em atraso.</TableCell></TableRow>}
-        </TableBody>
-      </Table>
+      <h3 className="text-lg font-bold text-slate-100 mb-4">Veículos com Óleo em Atraso</h3>
+      <Table><TableHeader><TableRow><TableHead>Veículo</TableHead><TableHead>KM Atual</TableHead></TableRow></TableHeader>
+      <TableBody>{atrasados.map((v: any) => <TableRow key={v.id}><TableCell>{v.placa}</TableCell><TableCell className="text-rose-400">{v.hodometro_km} km</TableCell></TableRow>)}</TableBody></Table>
     </div>
   );
-}
-
 }
