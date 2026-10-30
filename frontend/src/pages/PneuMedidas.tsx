@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { FieldSelect } from "@/components/common/FieldSelect";
 
 export default function PneuMedidas() {
   const qc = useQueryClient();
@@ -17,6 +18,7 @@ export default function PneuMedidas() {
   const [form, setForm] = useState({ codigo: "", aro: "", tipo_construcao: "RADIAL", requer_camara: false });
 
   const { data: medidas = [] } = useQuery({ queryKey: ["pneu-medidas"], queryFn: () => apiGet<any[]>("/pneu-medidas") });
+  const { data: config } = useQuery({ queryKey: ["parametrizacao-meta"], queryFn: () => apiGet<any>("/parametrizacao/meta") });
 
   const seed = useMutation({
     mutationFn: () => apiPost("/pneu-medidas/seed", {}),
@@ -48,9 +50,11 @@ export default function PneuMedidas() {
     <div>
       <PageHeader eyebrow="Cadastros" title="Medidas de Pneus" description="Catálogo de medidas padronizadas." actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={popularMedidas} disabled={seed.isPending} className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 h-9">
-              {seed.isPending ? "Populando..." : "Popular Medidas"}
-            </Button>
+            {config?.mostrar_seed_medidas && (
+              <Button variant="outline" onClick={popularMedidas} disabled={seed.isPending} className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 h-9">
+                {seed.isPending ? "Populando..." : "Popular Medidas"}
+              </Button>
+            )}
             <Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500 h-9"><Plus className="size-4 mr-2" /> Nova Medida</Button>
           </div>
         } />
@@ -82,6 +86,14 @@ export default function PneuMedidas() {
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Código *</Label><Input value={form.codigo} onChange={(e) => setForm(s => ({ ...s, codigo: e.target.value }))} placeholder="Ex: 295/80 R22.5" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Aro *</Label><Input value={form.aro} onChange={(e) => setForm(s => ({ ...s, aro: e.target.value }))} placeholder="Ex: 22.5" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Construção</Label><Input value={form.tipo_construcao} onChange={(e) => setForm(s => ({ ...s, tipo_construcao: e.target.value }))} placeholder="RADIAL" /></div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">Requer Câmara?</Label>
+                <FieldSelect 
+                  value={form.requer_camara ? "sim" : "nao"} 
+                  onChange={(v) => setForm(s => ({ ...s, requer_camara: v === "sim" }))} 
+                  options={[{ value: "nao", label: "Não" }, { value: "sim", label: "Sim" }]} 
+                />
+              </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

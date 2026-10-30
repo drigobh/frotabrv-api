@@ -14,6 +14,7 @@ async def obter_meta(_u: dict = Depends(require("read"))):
     return ParametrizacaoBase(
         meta_abastecimento_ativo=config.get("meta_abastecimento_ativo", False),
         meta_abastecimento_valor=config.get("meta_abastecimento_valor", 2.5),
+        mostrar_seed_medidas=config.get("mostrar_seed_medidas", False),
         mostrar_seed_fornecedores=config.get("mostrar_seed_fornecedores", False)
     )
 
@@ -25,6 +26,7 @@ async def atualizar_meta(body: ParametrizacaoBase, _u: dict = Depends(require("w
             "id": "meta_abastecimento",
             "meta_abastecimento_ativo": body.meta_abastecimento_ativo,
             "meta_abastecimento_valor": body.meta_abastecimento_valor,
+            "mostrar_seed_medidas": body.mostrar_seed_medidas,
             "mostrar_seed_fornecedores": body.mostrar_seed_fornecedores,
             "updated_at": now_iso()
         }},

@@ -19,12 +19,14 @@ export default function Parametrizacao() {
   const [ativo, setAtivo] = useState(false);
   const [valor, setValor] = useState("2,5");
   const [mostrarSeed, setMostrarSeed] = useState(false);
+  const [mostrarSeedMedidas, setMostrarSeedMedidas] = useState(false);
 
   useEffect(() => {
     if (config) {
       setAtivo(config.meta_abastecimento_ativo);
       setValor(String(config.meta_abastecimento_valor).replace(".", ","));
       setMostrarSeed(config.mostrar_seed_fornecedores || false);
+      setMostrarSeedMedidas(config.mostrar_seed_medidas || false);
     }
   }, [config]);
 
@@ -33,6 +35,7 @@ export default function Parametrizacao() {
       meta_abastecimento_ativo: ativo,
       meta_abastecimento_valor: Number(String(valor).replace(",", ".")),
       mostrar_seed_fornecedores: mostrarSeed,
+      mostrar_seed_medidas: mostrarSeedMedidas,
     }),
     onSuccess: () => {
       toast.success("Parametrização salva com sucesso!");
@@ -116,6 +119,26 @@ export default function Parametrizacao() {
                 >
                   {mostrarSeed ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
                   {mostrarSeed ? "Visível" : "Oculto"}
+                </button>
+              </TableCell>
+              <TableCell colSpan={2} className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
+            </TableRow>
+            <TableRow className="border-slate-800">
+              <TableCell className="font-medium text-slate-200">
+                Exibir botão "Popular Medidas" na tela de Medidas de Pneus
+              </TableCell>
+              <TableCell>
+                <button
+                  type="button"
+                  onClick={() => setMostrarSeedMedidas(!mostrarSeedMedidas)}
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    mostrarSeedMedidas
+                      ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                      : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                  }`}
+                >
+                  {mostrarSeedMedidas ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
+                  {mostrarSeedMedidas ? "Visível" : "Oculto"}
                 </button>
               </TableCell>
               <TableCell colSpan={2} className="text-xs text-slate-500 italic">Útil apenas para setup inicial do sistema.</TableCell>
