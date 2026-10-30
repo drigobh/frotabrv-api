@@ -29,6 +29,7 @@ const MENUS = [
     items: [
       { label: "Cadastro de Planos", icon: Wrench, path: "/cadastros/planos-manutencao" },
       { label: "Medidas de Pneus", icon: Disc, path: "/cadastros/pneu-medidas" },
+      { label: "Marcas de Pneus", icon: Tag, path: "/cadastros/pneu-marcas" },
       { label: "Carretas", icon: Car, path: "/cadastros/carretas" },
       { label: "Combustíveis", icon: Fuel, path: "/cadastros/combustiveis" },
       { label: "Fornecedores", icon: Briefcase, path: "/cadastros/fornecedores" },
