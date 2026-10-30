@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import Optional
 
 class ParametrizacaoBase(BaseModel):
     meta_abastecimento_ativo: bool = False
@@ -7,8 +6,5 @@ class ParametrizacaoBase(BaseModel):
     mostrar_seed_fornecedores: bool = False
     mostrar_seed_medidas: bool = False
     mostrar_seed_marcas: bool = False
+    mostrar_seed_modelos: bool = False
     mostrar_seed_templates: bool = False
-
-class Parametrizacao(ParametrizacaoBase):
-    id: str
-    updated_at: str

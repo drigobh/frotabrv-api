@@ -17,6 +17,7 @@ async def obter_meta(_u: dict = Depends(require("read"))):
         mostrar_seed_fornecedores=config.get("mostrar_seed_fornecedores", False),
         mostrar_seed_medidas=config.get("mostrar_seed_medidas", False),
         mostrar_seed_marcas=config.get("mostrar_seed_marcas", False),
+        mostrar_seed_modelos=config.get("mostrar_seed_modelos", False),
         mostrar_seed_templates=config.get("mostrar_seed_templates", False)
     )
 
@@ -31,6 +32,7 @@ async def atualizar_meta(body: ParametrizacaoBase, _u: dict = Depends(require("w
             "mostrar_seed_fornecedores": body.mostrar_seed_fornecedores,
             "mostrar_seed_medidas": body.mostrar_seed_medidas,
             "mostrar_seed_marcas": body.mostrar_seed_marcas,
+            "mostrar_seed_modelos": body.mostrar_seed_modelos,
             "mostrar_seed_templates": body.mostrar_seed_templates,
             "updated_at": now_iso()
         }},
