@@ -24,27 +24,7 @@ async def criar(body: PneuCreate, user: dict = Depends(require("write"))):
     await db.pneus.insert_one(dict(doc))
     return Pneu(**doc)
 
-@router.put("/{id}", response_model=Pneu)
-async def atualizar(id: str, body: PneuCreate, user: dict = Depends(require("write"))):
-    existe = await db.pneus.find_one({"id": id})
-    if not existe:
-        raise HTTPException(404, "Pneu não encontrado.")
-    doc = body.model_dump()
-    doc["updated_at"] = now_iso()
-    doc["updated_by"] = user["nome"]
-    await db.pneus.update_one({"id": id}, {"$set": doc})
-    doc = await db.pneus.find_one({"id": id}, {"_id": 0})
-    return Pneu(**doc)
-
-@router.delete("/{id}")
-async def excluir(id: str, _u: dict = Depends(require("delete"))):
-    await db.pneus.delete_one({"id": id})
-    return {"ok": True}
-
-# ==========================================
-# ROTAS DE APOIO (MARCAS, MEDIDAS, MODELOS)
-# ==========================================
-
+# --- ROTAS FIXAS PRIMEIRO (Evita conflito com /{id}) ---
 @router.get("/marcas")
 async def listar_marcas(_u: dict = Depends(require("read"))):
     docs = await db.marcas_pneus.find({}, {"_id": 0}).sort("nome", 1).to_list(500)
@@ -78,3 +58,21 @@ async def seed_pneus(_u: dict = Depends(require("write"))):
             await db.modelos_pneus.insert_one({"id": str(uuid.uuid4()), "nome": m})
             
     return {"ok": True, "message": "Carga inicial de pneus realizada."}
+
+# --- ROTAS COM PARÂMETRO POR ÚLTIMO ---
+@router.put("/{id}", response_model=Pneu)
+async def atualizar(id: str, body: PneuCreate, user: dict = Depends(require("write"))):
+    existe = await db.pneus.find_one({"id": id})
+    if not existe:
+        raise HTTPException(404, "Pneu não encontrado.")
+    doc = body.model_dump()
+    doc["updated_at"] = now_iso()
+    doc["updated_by"] = user["nome"]
+    await db.pneus.update_one({"id": id}, {"$set": doc})
+    doc = await db.pneus.find_one({"id": id}, {"_id": 0})
+    return Pneu(**doc)
+
+@router.delete("/{id}")
+async def excluir(id: str, _u: dict = Depends(require("delete"))):
+    await db.pneus.delete_one({"id": id})
+    return {"ok": True}
