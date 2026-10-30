@@ -60,6 +60,25 @@ async def criar(body: PneuMovimentacaoCreate, user: dict = Depends(require("writ
     
     return PneuMovimentacao(**doc)
 
+@router.get("/motivos-descarte")
+async def motivos_descarte(_u: dict = Depends(require("read"))):
+    return [
+        {"codigo": "TAL-01", "descricao": "Quebra ou Deformação do Talão", "responsabilidade": "OFICINA"},
+        {"codigo": "TAL-02", "descricao": "Queima / Ressecamento Térmico do Talão", "responsabilidade": "MECANICA"},
+        {"codigo": "TAL-03", "descricao": "Rasgo / Dilaceração do Talão", "responsabilidade": "OFICINA"},
+        {"codigo": "LAT-01", "descricao": "Bolha Lateral / Rompimento de Carcaça", "responsabilidade": "MOTORISTA"},
+        {"codigo": "LAT-02", "descricao": "Corte / Dilaceração Lateral Transversal", "responsabilidade": "MOTORISTA"},
+        {"codigo": "LAT-03", "descricao": "Desgaste por Atrito Lateral (Roçamento)", "responsabilidade": "MECANICA"},
+        {"codigo": "LAT-04", "descricao": "Fadiga por Subpressão (Rodar Baixo/Murcho)", "responsabilidade": "MOTORISTA"},
+        {"codigo": "BAN-01", "descricao": "Separação de Lonas / Cintas Metálicas", "responsabilidade": "MANUTENCAO"},
+        {"codigo": "BAN-02", "descricao": "Arranque de Blocos (Picotamento Severo)", "responsabilidade": "GESTAO"},
+        {"codigo": "BAN-03", "descricao": "Freiada Brusca / Escamamento Plano", "responsabilidade": "MOTORISTA"},
+        {"codigo": "BAN-04", "descricao": "Fim de Vida Regular (Desgaste Natural)", "responsabilidade": "NATURAL"},
+        {"codigo": "REC-01", "descricao": "Recusa Técnica na Raspagem (Carcaça Fadigada)", "responsabilidade": "NATURAL"},
+        {"codigo": "REC-02", "descricao": "Descolamento de Banda Aplicada", "responsabilidade": "FORNECEDOR"},
+        {"codigo": "REC-03", "descricao": "Excesso de Furos / Proximidade de Furos", "responsabilidade": "OPERACAO"},
+    ]
+
 @router.get("/{pneu_id}/historico", response_model=list[PneuMovimentacao])
 async def historico(pneu_id: str, _u: dict = Depends(require("read"))):
     docs = await db.pneu_movimentacoes.find({"pneu_id": pneu_id}, {"_id": 0}).sort("created_at", -1).to_list(200)

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Disc, Search, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Disc, Search, AlertTriangle, RefreshCw, ArrowRightLeft, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -19,6 +19,8 @@ const TIPOS_PNEU = ["Direcional", "Tração", "Misto"];
 export default function Pneus() {
   const qc = useQueryClient();
   const veiculos = useVeiculos();
+  const [abaAtiva, setAbaAtiva] = useState("cadastrados");
+  
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [excluirId, setExcluirId] = useState<string | null>(null);
@@ -30,29 +32,30 @@ export default function Pneus() {
   const [buscaPlaca, setBuscaPlaca] = useState("");
 
   const { data: pneus = [] } = useQuery({ queryKey: ["pneus"], queryFn: () => apiGet<any[]>("/pneus") });
+  const { data: veiculosApi = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
   const { data: carretas = [] } = useQuery({ queryKey: ["carretas"], queryFn: () => apiGet<any[]>("/carretas") });
 
   const [form, setForm] = useState({
     numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: ""
   });
 
-  // Cálculos dos Cards
+  // Estatísticas para os Cards
   const stats = useMemo(() => {
     const total = pneus.length;
     const sucateados = pneus.filter((p: any) => p.status === "Sucateado").length;
     const emManutencao = pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).length;
+    const emEstoque = pneus.filter((p: any) => p.status === "Estoque");
     
-    // Contagem por marca
     const marcasCount: Record<string, number> = {};
     pneus.forEach((p: any) => {
       if (p.marca) marcasCount[p.marca] = (marcasCount[p.marca] || 0) + 1;
     });
     const topMarcas = Object.entries(marcasCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-    return { total, sucateados, emManutencao, topMarcas };
+    return { total, sucateados, emManutencao, topMarcas, emEstoque };
   }, [pneus]);
 
-  // Filtro de veículos por tipo (cavalo/carreta) e busca por placa
+  // Filtro de veículos para o mapa
   const veiculosFiltrados = useMemo(() => {
     const lista = tipoAtivo === "cavalo" 
       ? (veiculos.data ?? []).map((v: any) => ({ id: v.id, label: `${v.placa} - ${v.modelo}`, template_chassi_id: v.template_chassi_id }))
@@ -62,9 +65,18 @@ export default function Pneus() {
     return lista.filter((v: any) => v.label.toLowerCase().includes(buscaPlaca.toLowerCase()));
   }, [veiculos.data, carretas, tipoAtivo, buscaPlaca]);
 
-  const veiculoSelecionado = veiculosFiltrados.find((v: any) => v.id === veiculoMapa);
+  // Veículo selecionado (busca na lista completa)
+  const veiculoSelecionado = 
+    tipoAtivo === "cavalo" 
+      ? veiculosApi.find((v: any) => v.id === veiculoMapa)
+      : carretas.find((c: any) => c.id === veiculoMapa);
+  
+  // Debug: mostrar no console o que está vindo
+  if (veiculoMapa) {
+    console.log("Veículo selecionado:", veiculoSelecionado);
+  }
 
-  // Mutations de CRUD (Pneu)
+  // Mutations
   const salvar = useMutation({
     mutationFn: () => {
       const payload = { ...form, custo_aquisicao: Number(String(form.custo_aquisicao).replace(",", ".")) || 0 };
@@ -77,6 +89,21 @@ export default function Pneus() {
   const excluir = useMutation({
     mutationFn: (id: string) => apiDelete(`/pneus/${id}`),
     onSuccess: () => { toast.success("Pneu excluído."); setExcluirId(null); qc.invalidateQueries({ queryKey: ["pneus"] }); }
+  });
+
+  const movimentar = useMutation({
+    mutationFn: ({ pneu_id, tipo }: { pneu_id: string, tipo: string }) => {
+      return apiPost("/pneu-movimentacoes", {
+        pneu_id,
+        tipo,
+        motivo: tipo === "DESCARTE" ? "Descarte via Estoque" : null,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Movimentação registrada!");
+      qc.invalidateQueries({ queryKey: ["pneus"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Erro")
   });
 
   const abrirNovo = () => { setEditingId(null); setForm({ numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: "" }); setOpen(true); };
@@ -131,110 +158,170 @@ export default function Pneus() {
         </div>
       </div>
 
-      <div className="mb-4 flex gap-2">
-        <div className="relative w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-          <Input placeholder="Buscar por número de fogo ou marca..." value={filtro} onChange={(e) => setFiltro(e.target.value)} className="pl-9 h-9" />
-        </div>
+      {/* Navegação por Abas */}
+      <div className="flex gap-2 mb-4 border-b border-slate-800 pb-2">
+        <button 
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${abaAtiva === 'cadastrados' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
+          onClick={() => setAbaAtiva('cadastrados')}
+        >
+          <Disc className="size-4 inline mr-2" /> Pneus Cadastrados
+        </button>
+        <button 
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${abaAtiva === 'movimentacao' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
+          onClick={() => setAbaAtiva('movimentacao')}
+        >
+          <ArrowRightLeft className="size-4 inline mr-2" /> Movimentação (Chassi)
+        </button>
+        <button 
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${abaAtiva === 'estoque' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
+          onClick={() => setAbaAtiva('estoque')}
+        >
+          <RefreshCw className="size-4 inline mr-2" /> Estoque / Sucata
+        </button>
       </div>
 
-      <div className="glass overflow-hidden rounded-2xl">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-slate-800">
-              <TableHead className="text-xs uppercase text-slate-500">Nº Fogo</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Marca / Modelo</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Medida</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">DOT</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Tipo</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Status</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Custo</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500 text-center">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pneusFiltrados.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-slate-500">Nenhum pneu cadastrado.</TableCell></TableRow>
-            ) : (
-              pneusFiltrados.map((p: any) => (
-                <TableRow key={p.id} className="border-slate-800 hover:bg-slate-800/30">
-                  <TableCell className="font-bold text-slate-100">{p.numero_fogo}</TableCell>
-                  <TableCell className="text-slate-300">{p.marca} {p.modelo && `/ ${p.modelo}`}</TableCell>
-                  <TableCell className="text-slate-400 font-mono">{p.medida}</TableCell>
-                  <TableCell className="text-slate-400">{p.dot || "—"}</TableCell>
-                  <TableCell className="text-slate-400">{p.tipo}</TableCell>
-                  <TableCell><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span></TableCell>
-                  <TableCell className="text-amber-400 font-mono">{brl(p.custo_aquisicao)}</TableCell>
-                  <TableCell className="text-center">
-                    <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(p)}><Pencil className="size-4 text-sky-400" /></Button>
-                    <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(p.id)}><Trash2 className="size-4 text-red-300" /></Button>
-                  </TableCell>
+      {/* Aba 1: Pneus Cadastrados */}
+      {abaAtiva === "cadastrados" && (
+        <div>
+          <div className="mb-4 flex gap-2">
+            <div className="relative w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+              <Input placeholder="Buscar por número de fogo ou marca..." value={filtro} onChange={(e) => setFiltro(e.target.value)} className="pl-9 h-9" />
+            </div>
+          </div>
+
+          <div className="glass overflow-hidden rounded-2xl">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-800">
+                  <TableHead className="text-xs uppercase text-slate-500">Nº Fogo</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Marca / Modelo</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Medida</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">DOT</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Tipo</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Status</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Custo</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500 text-center">Ações</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Mapa de Chassi */}
-      <div className="mt-8">
-        <div className="flex items-center gap-4 mb-4 flex-wrap">
-          <h3 className="text-lg font-bold text-slate-100">Chassi do Veículo</h3>
-          
-          {/* Flag Cavalo/Carreta */}
-          <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-700">
-            <button 
-              className={`px-3 py-1 text-sm rounded-md font-medium ${tipoAtivo === 'cavalo' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-              onClick={() => { setTipoAtivo('cavalo'); setVeiculoMapa(''); }}
-            >
-              Cavalo
-            </button>
-            <button 
-              className={`px-3 py-1 text-sm rounded-md font-medium ${tipoAtivo === 'carreta' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-              onClick={() => { setTipoAtivo('carreta'); setVeiculoMapa(''); }}
-            >
-              Carreta
-            </button>
+              </TableHeader>
+              <TableBody>
+                {pneusFiltrados.length === 0 ? (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-slate-500">Nenhum pneu cadastrado.</TableCell></TableRow>
+                ) : (
+                  pneusFiltrados.map((p: any) => (
+                    <TableRow key={p.id} className="border-slate-800 hover:bg-slate-800/30">
+                      <TableCell className="font-bold text-slate-100">{p.numero_fogo}</TableCell>
+                      <TableCell className="text-slate-300">{p.marca} {p.modelo && `/ ${p.modelo}`}</TableCell>
+                      <TableCell className="text-slate-400 font-mono">{p.medida}</TableCell>
+                      <TableCell className="text-slate-400">{p.dot || "—"}</TableCell>
+                      <TableCell className="text-slate-400">{p.tipo}</TableCell>
+                      <TableCell><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span></TableCell>
+                      <TableCell className="text-amber-400 font-mono">{brl(p.custo_aquisicao)}</TableCell>
+                      <TableCell className="text-center">
+                        <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(p)}><Pencil className="size-4 text-sky-400" /></Button>
+                        <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(p.id)}><Trash2 className="size-4 text-red-300" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
-
-          {/* Busca por placa */}
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-            <Input 
-              placeholder={tipoAtivo === 'cavalo' ? "Buscar por placa..." : "Buscar por código..."}
-              value={buscaPlaca}
-              onChange={(e) => setBuscaPlaca(e.target.value)}
-              className="pl-9 h-9"
-            />
-          </div>
-
-          {/* Select de Veículo (filtrado) */}
-          <select 
-            value={veiculoMapa} 
-            onChange={(e) => setVeiculoMapa(e.target.value)}
-            className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3 min-w-[200px]"
-          >
-            <option value="">Selecione...</option>
-            {veiculosFiltrados.map((v: any) => (
-              <option key={v.id} value={v.id}>{v.label}</option>
-            ))}
-          </select>
         </div>
+      )}
 
-        {/* ChassiMapa */}
-        {veiculoMapa ? (
-          <ChassiMapa 
-            pneus={pneus} 
-            veiculoId={veiculoMapa} 
-            tipo={tipoAtivo} 
-            templateChassiId={veiculoSelecionado?.template_chassi_id} 
-          />
-        ) : (
-          <div className="glass p-6 rounded-2xl text-center text-slate-500">
-            <p className="text-sm">Selecione um veículo acima para visualizar o chassi.</p>
+      {/* Aba 2: Movimentação (Chassi) */}
+      {abaAtiva === "movimentacao" && (
+        <div>
+          <div className="flex items-center gap-4 mb-4 flex-wrap">
+            <h3 className="text-lg font-bold text-slate-100">Chassi do Veículo</h3>
+            
+            <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-700">
+              <button className={`px-3 py-1 text-sm rounded-md font-medium ${tipoAtivo === 'cavalo' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('cavalo'); setVeiculoMapa(''); }}>Cavalo</button>
+              <button className={`px-3 py-1 text-sm rounded-md font-medium ${tipoAtivo === 'carreta' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('carreta'); setVeiculoMapa(''); }}>Carreta</button>
+            </div>
+
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+              <Input placeholder={tipoAtivo === 'cavalo' ? "Buscar por placa..." : "Buscar por código..."} value={buscaPlaca} onChange={(e) => setBuscaPlaca(e.target.value)} className="pl-9 h-9" />
+            </div>
+
+            <select value={veiculoMapa} onChange={(e) => setVeiculoMapa(e.target.value)} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3 min-w-[200px]">
+              <option value="">Selecione...</option>
+              {veiculosFiltrados.map((v: any) => (
+                <option key={v.id} value={v.id}>{v.label}</option>
+              ))}
+            </select>
           </div>
-        )}
-      </div>
+
+          {veiculoMapa ? (
+            <ChassiMapa 
+              pneus={pneus} 
+              veiculoId={veiculoMapa} 
+              tipo={tipoAtivo} 
+              templateChassiId={veiculoSelecionado?.template_chassi_id} 
+            />
+          ) : (
+            <div className="glass p-6 rounded-2xl text-center text-slate-500">
+              <p className="text-sm">Selecione um veículo acima para visualizar o chassi.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Aba 3: Estoque / Sucata */}
+      {abaAtiva === "estoque" && (
+        <div>
+          <div className="glass p-6 rounded-2xl">
+            <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+              <RefreshCw className="size-5 text-sky-400" /> Pneus em Estoque para Recapagem / Sucata
+            </h3>
+            
+            {stats.emEstoque.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">Nenhum pneu em estoque no momento.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {stats.emEstoque.map((p: any) => (
+                  <div key={p.id} className="glass p-4 rounded-xl border border-sky-500/30">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-bold text-sky-400">{p.numero_fogo}</p>
+                        <p className="text-xs text-slate-300">{p.marca} - {p.medida}</p>
+                        <p className="text-[10px] text-slate-500">DOT: {p.dot || "—"} | Sulco: {p.sulco_atual || "—"} mm</p>
+                      </div>
+                      <span className="text-xs font-mono text-amber-400">{brl(p.custo_aquisicao)}</span>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                        onClick={() => movimentar.mutate({ pneu_id: p.id, tipo: "RECAPAGEM" })}
+                        disabled={movimentar.isPending}
+                      >
+                        <RefreshCw className="size-3 mr-1" /> Recapagem
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 text-xs border-rose-500/40 text-rose-400 hover:bg-rose-500/10"
+                        onClick={() => {
+                          if (confirm("Descartar este pneu como sucata?")) {
+                            movimentar.mutate({ pneu_id: p.id, tipo: "DESCARTE" });
+                          }
+                        }}
+                        disabled={movimentar.isPending}
+                      >
+                        <ShieldAlert className="size-3 mr-1" /> Sucatear
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal de Cadastro/Edição */}
       {open && (
