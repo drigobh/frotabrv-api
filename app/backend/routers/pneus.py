@@ -59,49 +59,6 @@ async def seed_pneus(_u: dict = Depends(require("write"))):
             
     return {"ok": True, "message": "Carga inicial de pneus realizada."}
 
-
-# ==========================================
-# CRUD DE MARCAS
-# ==========================================
-@router.post("/marcas")
-async def criar_marca(body: dict, _u: dict = Depends(require("write"))):
-    if not await db.marcas_pneus.find_one({"nome": body.get("nome")}):
-        await db.marcas_pneus.insert_one({"id": str(uuid.uuid4()), "nome": body.get("nome")})
-    return {"ok": True}
-
-@router.delete("/marcas/{id}")
-async def excluir_marca(id: str, _u: dict = Depends(require("delete"))):
-    await db.marcas_pneus.delete_one({"id": id})
-    return {"ok": True}
-
-# ==========================================
-# CRUD DE MEDIDAS
-# ==========================================
-@router.post("/medidas")
-async def criar_medida(body: dict, _u: dict = Depends(require("write"))):
-    if not await db.medidas_pneus.find_one({"medida": body.get("medida")}):
-        await db.medidas_pneus.insert_one({"id": str(uuid.uuid4()), "medida": body.get("medida")})
-    return {"ok": True}
-
-@router.delete("/medidas/{id}")
-async def excluir_medida(id: str, _u: dict = Depends(require("delete"))):
-    await db.medidas_pneus.delete_one({"id": id})
-    return {"ok": True}
-
-# ==========================================
-# CRUD DE MODELOS
-# ==========================================
-@router.post("/modelos")
-async def criar_modelo(body: dict, _u: dict = Depends(require("write"))):
-    if not await db.modelos_pneus.find_one({"nome": body.get("nome")}):
-        await db.modelos_pneus.insert_one({"id": str(uuid.uuid4()), "nome": body.get("nome")})
-    return {"ok": True}
-
-@router.delete("/modelos/{id}")
-async def excluir_modelo(id: str, _u: dict = Depends(require("delete"))):
-    await db.modelos_pneus.delete_one({"id": id})
-    return {"ok": True}
-
 # --- ROTAS COM PARÂMETRO POR ÚLTIMO ---
 @router.put("/{id}", response_model=Pneu)
 async def atualizar(id: str, body: PneuCreate, user: dict = Depends(require("write"))):

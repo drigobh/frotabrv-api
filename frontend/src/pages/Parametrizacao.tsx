@@ -99,7 +99,7 @@ export default function Parametrizacao() {
             <TableRow className="border-slate-800">
               <TableCell className="font-medium text-slate-200">Exibir botão "Popular Lista Base" (Tipos de Fornecedores)</TableCell>
               <TableCell>
-                <BotaoStatus ativo={seedForn} onClick={() => setSeedForn(!seedForn)} textoAtivo="Visível" textoInativo="Habilitado" />
+                <BotaoStatus ativo={seedForn} onClick={() => setSeedForn(!seedForn)} textoAtivo="Visível" textoInativo="Oculto" />
               </TableCell>
               <TableCell className="text-xs text-slate-500 italic">Setup inicial.</TableCell>
             </TableRow>
@@ -107,7 +107,7 @@ export default function Parametrizacao() {
             <TableRow className="border-slate-800">
               <TableCell className="font-medium text-slate-200">Exibir botão "Popular Medidas" (Medidas de Pneus)</TableCell>
               <TableCell>
-                <BotaoStatus ativo={seedMed} onClick={() => setSeedMed(!seedMed)} textoAtivo="Visível" textoInativo="Habilitado" />
+                <BotaoStatus ativo={seedMed} onClick={() => setSeedMed(!seedMed)} textoAtivo="Visível" textoInativo="Oculto" />
               </TableCell>
               <TableCell className="text-xs text-slate-500 italic">Setup inicial.</TableCell>
             </TableRow>
@@ -115,7 +115,7 @@ export default function Parametrizacao() {
             <TableRow className="border-slate-800">
               <TableCell className="font-medium text-slate-200">Exibir botão "Popular Marcas" (Marcas de Pneus)</TableCell>
               <TableCell>
-                <BotaoStatus ativo={seedMarc} onClick={() => setSeedMarc(!seedMarc)} textoAtivo="Visível" textoInativo="Habilitado" />
+                <BotaoStatus ativo={seedMarc} onClick={() => setSeedMarc(!seedMarc)} textoAtivo="Visível" textoInativo="Oculto" />
               </TableCell>
               <TableCell className="text-xs text-slate-500 italic">Setup inicial.</TableCell>
             </TableRow>
@@ -123,7 +123,7 @@ export default function Parametrizacao() {
             <TableRow className="border-slate-800">
               <TableCell className="font-medium text-slate-200">Exibir botão "Popular Templates" (Templates de Chassi)</TableCell>
               <TableCell>
-                <BotaoStatus ativo={seedTemp} onClick={() => setSeedTemp(!seedTemp)} textoAtivo="Visível" textoInativo="Habilitado" />
+                <BotaoStatus ativo={seedTemp} onClick={() => setSeedTemp(!seedTemp)} textoAtivo="Visível" textoInativo="Oculto" />
               </TableCell>
               <TableCell className="text-xs text-slate-500 italic">Setup inicial.</TableCell>
             </TableRow>
