@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Layers } from "lucide-react";
+import { Plus, Pencil, Trash2, Layers, Database } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -39,7 +39,10 @@ export default function ChassiTemplates() {
 
   const seed = useMutation({
     mutationFn: () => apiPost("/chassi-templates/seed", {}),
-    onSuccess: () => { toast.success("Templates populados!"); qc.invalidateQueries({ queryKey: ["chassi-templates"] }); },
+    onSuccess: (data: any) => { 
+      toast.success(`${data.inseridos} templates populados!`); 
+      qc.invalidateQueries({ queryKey: ["chassi-templates"] }); 
+    },
     onError: (e: any) => toast.error(e.message || "Erro")
   });
 
@@ -86,9 +89,10 @@ export default function ChassiTemplates() {
         title="Templates de Chassi"
         description="Configurador topológico de eixos e estepes."
         actions={<div className="flex gap-2">
+          
           {config?.mostrar_seed_templates && (
-            <Button variant="outline" onClick={() => { if(confirm("Adicionar templates padrão?")) seed.mutate(); }} disabled={seed.isPending} className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 h-9">
-              {seed.isPending ? "Populando..." : "Popular Templates"}
+            <Button variant="outline" onClick={() => { if(confirm("Adicionar templates padrão de fábrica?")) seed.mutate(); }} disabled={seed.isPending} className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 h-9">
+              <Database className="size-4 mr-2" /> {seed.isPending ? "Populando..." : "Popular Templates"}
             </Button>
           )}
           <Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500 h-9"><Plus className="size-4 mr-2" /> Novo Template</Button>
@@ -119,6 +123,9 @@ export default function ChassiTemplates() {
                 </TableCell>
               </TableRow>
             ))}
+            {templates.length === 0 && (
+              <TableRow><TableCell colSpan={5} className="text-center py-8 text-slate-500">Nenhum template cadastrado. Clique em "Popular Templates" ou "Novo Template".</TableCell></TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
@@ -148,7 +155,7 @@ export default function ChassiTemplates() {
                 <Button type="button" variant="outline" size="sm" onClick={addEixo}><Plus className="size-3 mr-1" /> Adicionar Eixo</Button>
               </div>
               {form.eixos.length === 0 ? (
-                <p className="text-xs text-slate-500 italic text-center py-4">Nenhum eixo adicionado. Clique em "Adicionar Eixo".</p>
+                <p className="text-xs text-slate-500 italic text-center py-4">Nenhum eixo adicionado.</p>
               ) : (
                 <div className="space-y-3">
                   {form.eixos.map((e: any, idx: number) => (
