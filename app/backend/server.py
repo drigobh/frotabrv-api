@@ -29,7 +29,7 @@ async def health():
 
 # Importando todas as rotas
 from routers import empresa
-from routers import planos_manutencao, tipos_fornecedores, parametrizacao, auth, movimentacoes, pecas, fornecedores, combustiveis, veiculos, carretas, motoristas, dashboard, acoplamentos, abastecimentos, manutencoes
+from routers import pneus, planos_manutencao, tipos_fornecedores, parametrizacao, auth, movimentacoes, pecas, fornecedores, combustiveis, veiculos, carretas, motoristas, dashboard, acoplamentos, abastecimentos, manutencoes
 from routers import empresa
 from routers import admin
 
@@ -47,6 +47,7 @@ api_router.include_router(abastecimentos.router)
 api_router.include_router(manutencoes.router)
 api_router.include_router(parametrizacao.router)
 api_router.include_router(planos_manutencao.router)
+api_router.include_router(pneus.router)
 api_router.include_router(empresa.router)
 api_router.include_router(tipos_fornecedores.router)
 
