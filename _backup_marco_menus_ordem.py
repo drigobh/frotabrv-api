@@ -4,7 +4,7 @@ import zipfile
 
 def backup():
     agora = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    nome_arquivo = f"BACKUP_MARCO_MENUS_{agora}.zip"
+    nome_arquivo = f"BACKUP_MARCO_MENUS_ORDEM_ALFABETICA_{agora}.zip"
     caminho_zip = os.path.join(os.getcwd(), "_automacao", "backups", nome_arquivo)
     os.makedirs(os.path.dirname(caminho_zip), exist_ok=True)
     
@@ -16,7 +16,6 @@ def backup():
                 continue
             
             for root, dirs, files in os.walk(caminho_pasta):
-                # Ignora pastas pesadas, de build ou lixo
                 dirs[:] = [d for d in dirs if d not in 
                            ['node_modules', '__pycache__', 'backups', 'dist', 'build', '.git', '.vscode', '.idea']]
                 

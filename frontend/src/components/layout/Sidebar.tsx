@@ -15,49 +15,48 @@ const MENUS = [
   {
     id: "administracao", label: "Administração", icon: Shield,
     items: [
-      { label: "Usuários", icon: UserCog, path: "/admin/usuarios" },
-      { label: "Auditoria", icon: FileBox, path: "/admin/auditoria" },
       { label: "Avisos", icon: Bell, path: "/admin/avisos" },
-      { label: "Segurança", icon: Shield, path: "/admin/seguranca" },
+      { label: "Auditoria", icon: FileBox, path: "/admin/auditoria" },
+      { label: "Base (Limpeza)", icon: FileText, path: "/admin/base" },
       { label: "Empresa", icon: Building, path: "/admin/empresa" },
       { label: "Parametrização", icon: Settings, path: "/admin/parametrizacao" },
-      { label: "Base (Limpeza)", icon: FileText, path: "/admin/base" },
+      { label: "Segurança", icon: Shield, path: "/admin/seguranca" },
+      { label: "Usuários", icon: UserCog, path: "/admin/usuarios" },
     ]
   },
   {
     id: "cadastros", label: "Cadastro", icon: FolderOpen,
     items: [
-      { label: "Veículos", icon: Truck, path:"/cadastros/veiculos" },
+      { label: "Cadastro de Planos", icon: Wrench, path: "/cadastros/planos-manutencao" },
       { label: "Carretas", icon: Car, path: "/cadastros/carretas" },
-      { label: "Motoristas", icon: Users, path: "/cadastros/motoristas" },
       { label: "Combustíveis", icon: Fuel, path: "/cadastros/combustiveis" },
       { label: "Fornecedores", icon: Briefcase, path: "/cadastros/fornecedores" },
-      { label: "Tipos de Fornecedores", icon:Tag, path: "/cadastros/tipos-fornecedores" },
-      { label: "Cadastro de Planos", icon: Wrench, path: "/cadastros/planos-manutencao" },
+      { label: "Motoristas", icon: Users, path: "/cadastros/motoristas" },
+      { label: "Tipos de Fornecedores", icon: Tag, path: "/cadastros/tipos-fornecedores" },
+      { label: "Veículos", icon: Truck, path: "/cadastros/veiculos" },
     ]
   },
   { id: "financeiro", label: "Financeiro", icon: DollarSign, path: "/financeiro", items: [] },
-  { id: "frota", label: "Frota", icon: Truck, path: "/frota", items: [] },
+  {
+    id: "frota", label: "Frota", icon: Truck,
+    items: [
+      { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
+      { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
+      { label: "Estoque", icon: Package, path: "/operacao/estoque" },
+      { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
+      { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
+      { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
+    ]
+  },
   {
     id: "gestao", label: "Gestão", icon: BarChart3,
     items: [
-      { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
-      { label: "Performance de Fornecedores",icon: BarChart3, path: "/relatorios/fornecedores" },
+      { label: "Performance de Fornecedores", icon: BarChart3, path: "/relatorios/fornecedores" },
       { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },
+      { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
     ]
   },
-  {
-    id: "operacao", label: "Operação", icon: Activity,
-    items: [
-      { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
-      { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
-      { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
-      { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
-      { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
-      { label: "Monitoramento", icon: Activity, path: "/operacao/monitoramento" },
-      { label: "Estoque", icon: Package, path: "/operacao/estoque" },
-    ]
-  },
+  { id: "relatorios-gerais", label: "Relatórios Gerais", icon: FileText, path: "/relatorios-gerais", items: [] },
 ];
 
 export function Sidebar() {

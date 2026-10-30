@@ -5,7 +5,7 @@ import zipfile
 
 def backup(raiz):
     agora = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    caminho_zip = os.path.join(raiz, "_automacao", "backups", f"BACKUP_RECRIAR_MENUS_{agora}.zip")
+    caminho_zip = os.path.join(raiz, "_automacao", "backups", f"BACKUP_MENUS_AJUSTE_{agora}.zip")
     os.makedirs(os.path.dirname(caminho_zip), exist_ok=True)
     caminho_abs = os.path.join(raiz, "frontend", "src", "components", "layout", "Sidebar.tsx")
     if os.path.exists(caminho_abs):
@@ -18,7 +18,6 @@ def fix(raiz):
     with open(caminho, 'r', encoding='utf-8') as f:
         c = f.read()
 
-    # 1. LOCALIZAR E SUBSTITUIR O ARRAY MENUS INTEIRO
     padrao_menu = re.compile(r'const MENUS = \[[\s\S]*?\];', re.DOTALL)
     
     novo_menu = '''const MENUS = [
@@ -48,7 +47,17 @@ def fix(raiz):
     ]
   },
   { id: "financeiro", label: "Financeiro", icon: DollarSign, path: "/financeiro", items: [] },
-  { id: "frota", label: "Frota", icon: Truck, path: "/frota", items: [] },
+  {
+    id: "frota", label: "Frota", icon: Truck,
+    items: [
+      { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
+      { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
+      { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
+      { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
+      { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
+      { label: "Estoque", icon: Package, path: "/operacao/estoque" },
+    ]
+  },
   {
     id: "gestao", label: "Gestão", icon: BarChart3,
     items: [
@@ -57,36 +66,14 @@ def fix(raiz):
       { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },
     ]
   },
-  {
-    id: "operacao", label: "Operação", icon: Activity,
-    items: [
-      { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
-      { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
-      { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
-      { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
-      { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
-      { label: "Monitoramento", icon: Activity, path: "/operacao/monitoramento" },
-      { label: "Estoque", icon: Package, path: "/operacao/estoque" },
-    ]
-  },
+  { id: "relatorios-gerais", label: "Relatórios Gerais", icon: FileText, path: "/relatorios-gerais", items: [] },
 ];'''
 
     if padrao_menu.search(c):
         c = padrao_menu.sub(novo_menu, c, count=1)
-        print("✅ Array MENUS reescrito com a ordem alfabética e os novos menus.")
+        print("✅ Menus reorganizados (Gestão mantido + Relatórios Gerais vazio).")
     else:
-        print("⚠️ Não foi possível encontrar o array MENUS.")
-
-    # 2. GARANTIR IMPORTS (FolderOpen)
-    import_match = re.search(r'import\s*\{([^}]+)\}\s*from\s*["\']lucide-react["\']', c)
-    if import_match:
-        atuais = import_match.group(1)
-        if 'FolderOpen' not in atuais:
-            novos = atuais + ", FolderOpen"
-            c = c[:import_match.start(1)] + novos + c[import_match.end(1):]
-            print("✅ Import do FolderOpen adicionado.")
-    else:
-        print("⚠️ Import do lucide-react não encontrado para adicionar FolderOpen.")
+        print("⚠️ Array MENUS não encontrado.")
 
     with open(caminho, 'w', encoding='utf-8') as f:
         f.write(c)
