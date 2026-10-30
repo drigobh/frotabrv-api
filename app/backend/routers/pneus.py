@@ -25,6 +25,34 @@ async def criar(body: PneuCreate, user: dict = Depends(require("write"))):
     return Pneu(**doc)
 
 # --- ROTAS FIXAS PRIMEIRO (Evita conflito com /{id}) ---
+
+@router.get("/dashboard")
+async def dashboard_pneus(_u: dict = Depends(require("read"))):
+    pneus = await db.pneus.find({}, {"_id": 0}).to_list(2000)
+    
+    total = len(pneus)
+    aplicados = sum(1 for p in pneus if p.get("status") == "Aplicado")
+    sucateados = sum(1 for p in pneus if p.get("status") == "Sucateado")
+    # Critério de sulco crítico: <= 3.0 mm
+    sulco_critico = sum(1 for p in pneus if p.get("sulco_atual") is not None and p.get("sulco_atual") <= 3.0)
+    
+    # Agrupamento por marca
+    marcas = {}
+    for p in pneus:
+        m = p.get("marca") or "Desconhecida"
+        marcas[m] = marcas.get(m, 0) + 1
+    
+    top_marcas = [{"marca": k, "qtd": v} for k, v in sorted(marcas.items(), key=lambda item: item[1], reverse=True)[:5]]
+    
+    return {
+        "total": total,
+        "aplicados": aplicados,
+        "sucateados": sucateados,
+        "sulco_critico": sulco_critico,
+        "top_marcas": top_marcas
+    }
+
+
 @router.get("/marcas")
 async def listar_marcas(_u: dict = Depends(require("read"))):
     docs = await db.marcas_pneus.find({}, {"_id": 0}).sort("nome", 1).to_list(500)

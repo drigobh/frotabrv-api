@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Disc, Search, AlertTriangle, RefreshCw, ArrowRightLeft, ShieldAlert } from "lucide-react";
+import { BarChart3, Plus, Pencil, Trash2, Disc, Search, AlertTriangle, RefreshCw, ArrowRightLeft, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -17,7 +17,7 @@ const TIPOS_PNEU = ["Direcional", "Tração", "Misto"];
 
 export default function Pneus() {
   const qc = useQueryClient();
-  const [abaAtiva, setAbaAtiva] = useState("cadastrados");
+  const [abaAtiva, setAbaAtiva] = useState<"cadastrados" | "movimentacao" | "estoque" | "dashboard">("cadastrados");
   
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -30,6 +30,7 @@ export default function Pneus() {
   const [buscaPlaca, setBuscaPlaca] = useState("");
 
   const { data: pneus = [] } = useQuery({ queryKey: ["pneus"], queryFn: () => apiGet<any[]>("/pneus") });
+  const { data: dash = { total: 0, aplicados: 0, sucateados: 0, sulco_critico: 0, top_marcas: [] } } = useQuery({ queryKey: ["pneus-dashboard"], queryFn: () => apiGet<any>("/pneus/dashboard") });
   const { data: carretas = [] } = useQuery({ queryKey: ["carretas"], queryFn: () => apiGet<any[]>("/carretas") });
   const { data: veiculosApi = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
   const { data: marcasDb = [] } = useQuery({ queryKey: ["marcas-pneus"], queryFn: () => apiGet<any[]>("/pneus/marcas") });
@@ -172,7 +173,14 @@ export default function Pneus() {
           className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${abaAtiva === 'estoque' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
           onClick={() => setAbaAtiva('estoque')}
         >
-          <RefreshCw className="size-4 inline mr-2" /> Estoque / Sucata
+          
+        <button 
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${abaAtiva === 'dashboard' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
+          onClick={() => setAbaAtiva('dashboard')}
+        >
+          <BarChart3 className="size-4 inline mr-2" /> Indicadores
+        </button>
+<RefreshCw className="size-4 inline mr-2" /> Estoque / Sucata
         </button>
       </div>
 
@@ -315,6 +323,83 @@ export default function Pneus() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      
+      {/* Aba 4: Dashboard */}
+      {abaAtiva === "dashboard" && (
+        <div className="space-y-6">
+          {/* Cards de KPI */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="glass p-4 rounded-xl flex justify-between items-center">
+              <div><p className="text-xs uppercase text-slate-400">Total de Pneus</p><p className="text-2xl font-bold text-slate-100">{dash.total}</p></div>
+              <div className="p-2 bg-sky-500/10 rounded-lg"><Disc className="size-5 text-sky-400" /></div>
+            </div>
+            <div className="glass p-4 rounded-xl flex justify-between items-center">
+              <div><p className="text-xs uppercase text-slate-400">Pneus Aplicados</p><p className="text-2xl font-bold text-emerald-400">{dash.aplicados}</p></div>
+              <div className="p-2 bg-emerald-500/10 rounded-lg"><CheckCircle2 className="size-5 text-emerald-400" /></div>
+            </div>
+            <div className="glass p-4 rounded-xl flex justify-between items-center border border-amber-500/30">
+              <div><p className="text-xs uppercase text-amber-500 font-bold">Sulco Crítico (≤3mm)</p><p className="text-2xl font-bold text-amber-400">{dash.sulco_critico}</p></div>
+              <div className="p-2 bg-amber-500/10 rounded-lg"><AlertTriangle className="size-5 text-amber-400" /></div>
+            </div>
+            <div className="glass p-4 rounded-xl flex justify-between items-center">
+              <div><p className="text-xs uppercase text-slate-400">Sucateados</p><p className="text-2xl font-bold text-rose-400">{dash.sucateados}</p></div>
+              <div className="p-2 bg-rose-500/10 rounded-lg"><Trash2 className="size-5 text-rose-400" /></div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Gráfico de Marcas */}
+            <div className="glass p-6 rounded-2xl">
+              <h3 className="text-sm font-bold text-slate-100 mb-6 flex items-center gap-2">
+                <BarChart3 className="size-4 text-sky-400" /> Top 5 Marcas na Frota
+              </h3>
+              <div className="space-y-4">
+                {dash.top_marcas.length === 0 ? (
+                  <p className="text-sm text-slate-500">Sem dados suficientes.</p>
+                ) : (
+                  dash.top_marcas.map((m: any, i: number) => {
+                    const maxQtd = dash.top_marcas[0].qtd;
+                    const pct = (m.qtd / maxQtd) * 100;
+                    return (
+                      <div key={i}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-slate-300 font-medium">{m.marca}</span>
+                          <span className="text-sky-400 font-bold">{m.qtd} un</span>
+                        </div>
+                        <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-sky-500 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Saúde da Frota */}
+            <div className="glass p-6 rounded-2xl flex flex-col justify-center">
+              <h3 className="text-sm font-bold text-slate-100 mb-6 flex items-center gap-2">
+                <Activity className="size-4 text-emerald-400" /> Saúde da Frota
+              </h3>
+              <div className="space-y-3">
+                 <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Aplicados (Rodando)</span>
+                    <span className="font-bold text-emerald-400">{dash.aplicados}</span>
+                 </div>
+                 <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">Em Estoque / Manutenção</span>
+                    <span className="font-bold text-sky-400">{dash.total - dash.aplicados - dash.sucateados}</span>
+                 </div>
+                 <div className="flex items-center justify-between text-sm border-t border-slate-800 pt-3 mt-3">
+                    <span className="text-slate-400">Fora de Operação (Sucata)</span>
+                    <span className="font-bold text-rose-400">{dash.sucateados}</span>
+                 </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
