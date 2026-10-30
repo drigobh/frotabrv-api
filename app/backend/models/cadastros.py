@@ -8,6 +8,7 @@ class VeiculoCreate(BaseModel):
     modelo: str = Field(min_length=1)
     ano: int = Field(ge=1950, le=2100)
     hodometro_km: float = Field(default=0, ge=0)
+    template_chassi_id: str | None = None
     observacoes: str = ""
 
     @field_validator("placa", mode="before")
@@ -30,6 +31,7 @@ class CarretaCreate(BaseModel):
     modelo: str = ""
     ano: int | None = None
     hodometro_km: float = Field(default=0, ge=0)
+    template_chassi_id: str | None = None
     observacoes: str = ""
 
     @field_validator("codigo", mode="before")
