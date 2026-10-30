@@ -96,6 +96,7 @@ export default function App() {
               <Route path="/relatorios/estoque" element={<RelatorioEstoque />} />
               <Route path="/relatorios/fornecedores" element={<RelatorioFornecedores />} />
               <Route path="/operacao/estoque" element={<Estoque />} />
+              <Route path="/cadastros/pneu-modelos" element={<ModelosPneus />} />
               <Route path="/operacao/pneus" element={<Pneus />} />
               <Route path="/operacao/monitoramento" element={<Monitoramento />} />
             </Route>
