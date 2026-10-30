@@ -86,7 +86,7 @@ export default function ChassiTemplates() {
         title="Templates de Chassi"
         description="Configurador topológico de eixos e estepes."
         actions={<div className="flex gap-2">
-          {config?.mostrar_seed_marcas && (
+          {config?.mostrar_seed_templates && (
             <Button variant="outline" onClick={() => { if(confirm("Adicionar templates padrão?")) seed.mutate(); }} disabled={seed.isPending} className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 h-9">
               {seed.isPending ? "Populando..." : "Popular Templates"}
             </Button>

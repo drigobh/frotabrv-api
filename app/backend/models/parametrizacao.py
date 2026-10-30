@@ -7,6 +7,7 @@ class ParametrizacaoBase(BaseModel):
     mostrar_seed_fornecedores: bool = False
     mostrar_seed_medidas: bool = False
     mostrar_seed_marcas: bool = False
+    mostrar_seed_templates: bool = False
 
 class Parametrizacao(ParametrizacaoBase):
     id: str

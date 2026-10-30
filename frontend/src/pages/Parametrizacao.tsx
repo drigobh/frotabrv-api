@@ -21,6 +21,7 @@ export default function Parametrizacao() {
   const [mostrarSeedFornecedores, setMostrarSeedFornecedores] = useState(false);
   const [mostrarSeedMedidas, setMostrarSeedMedidas] = useState(false);
   const [mostrarSeedMarcas, setMostrarSeedMarcas] = useState(false);
+  const [mostrarSeedTemplates, setMostrarSeedTemplates] = useState(false);
 
   useEffect(() => {
     if (config) {
@@ -29,6 +30,7 @@ export default function Parametrizacao() {
       setMostrarSeedFornecedores(config.mostrar_seed_fornecedores || false);
       setMostrarSeedMedidas(config.mostrar_seed_medidas || false);
       setMostrarSeedMarcas(config.mostrar_seed_marcas || false);
+      setMostrarSeedTemplates(config.mostrar_seed_templates || false);
     }
   }, [config]);
 
@@ -39,6 +41,7 @@ export default function Parametrizacao() {
       mostrar_seed_fornecedores: mostrarSeedFornecedores,
       mostrar_seed_medidas: mostrarSeedMedidas,
       mostrar_seed_marcas: mostrarSeedMarcas,
+      mostrar_seed_templates: mostrarSeedTemplates,
     }),
     onSuccess: () => {
       toast.success("Parametrização salva com sucesso!");
