@@ -1,3 +1,4 @@
+import Frota from "@/pages/Frota";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
@@ -60,6 +61,10 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/frota" element={<Frota />} />
+              <Route path="/financeiro" element={<Financeiro />} />
+              <Route path="/frota" element={<Frota />} />
+              <Route path="/financeiro" element={<Financeiro />} />
               <Route path="/abastecimentos" element={<Abastecimentos />} />
               <Route path="/cadastros/planos-manutencao" element={<PlanosManutencao />} />
               <Route path="/relatorio-manutencao" element={<RelatorioManutencao />} />

@@ -4,13 +4,12 @@ import zipfile
 
 def backup():
     agora = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    nome_arquivo = f"BACKUP_MARCO_RELATORIOS_{agora}.zip"
+    nome_arquivo = f"BACKUP_MARCO_MENUS_{agora}.zip"
     caminho_zip = os.path.join(os.getcwd(), "_automacao", "backups", nome_arquivo)
     os.makedirs(os.path.dirname(caminho_zip), exist_ok=True)
     
     print("Criando backup completo (Código + Estrutura)...")
     with zipfile.ZipFile(caminho_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # Pastas principais do projeto
         for pasta in ["app", "frontend"]:
             caminho_pasta = os.path.join(os.getcwd(), pasta)
             if not os.path.exists(caminho_pasta):

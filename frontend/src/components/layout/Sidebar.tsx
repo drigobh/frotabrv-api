@@ -5,46 +5,13 @@ import {
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox
-, Tag , Building } from "lucide-react";
+, Tag , Building , FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 
 const MENUS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/", isDashboard: true, items: [] },
-  {
-    id: "frota", label: "Cadastro", icon: Truck,
-    items: [
-      { label: "Veículos", icon: Truck, path: "/cadastros/veiculos" },
-      { label: "Carretas", icon: Car, path: "/cadastros/carretas" },
-      { label: "Motoristas", icon: Users, path: "/cadastros/motoristas" },
-      { label: "Combustíveis", icon: Fuel, path: "/cadastros/combustiveis" },
-      { label: "Fornecedores", icon: Briefcase, path: "/cadastros/fornecedores" },
-      { label: "Tipos de Fornecedores", icon: Tag, path: "/cadastros/tipos-fornecedores" },
-      { label: "Cadastro de Planos", icon: Wrench, path: "/cadastros/planos-manutencao" },
-    ]
-  },
-  {
-    id: "operacao", label: "Operação", icon: Activity,
-    items: [
-      { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
-      { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
-      { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
-            { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
-      { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
-      { label: "Monitoramento", icon: Activity, path: "/operacao/monitoramento" },
-      { label: "Estoque", icon: Package, path: "/operacao/estoque" },
-    ]
-  },
-  {
-    id: "gestao", label: "Gestão", icon: BarChart3,
-    items: [
-        { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
-      { label: "Financeiro", icon: DollarSign, path: "/financeiro" },
-      { label: "Performance de Fornecedores", icon: BarChart3, path: "/relatorios/fornecedores" },
-      { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },
-    ]
-  },
   {
     id: "administracao", label: "Administração", icon: Shield,
     items: [
@@ -56,7 +23,41 @@ const MENUS = [
       { label: "Parametrização", icon: Settings, path: "/admin/parametrizacao" },
       { label: "Base (Limpeza)", icon: FileText, path: "/admin/base" },
     ]
-  }
+  },
+  {
+    id: "cadastros", label: "Cadastro", icon: FolderOpen,
+    items: [
+      { label: "Veículos", icon: Truck, path:"/cadastros/veiculos" },
+      { label: "Carretas", icon: Car, path: "/cadastros/carretas" },
+      { label: "Motoristas", icon: Users, path: "/cadastros/motoristas" },
+      { label: "Combustíveis", icon: Fuel, path: "/cadastros/combustiveis" },
+      { label: "Fornecedores", icon: Briefcase, path: "/cadastros/fornecedores" },
+      { label: "Tipos de Fornecedores", icon:Tag, path: "/cadastros/tipos-fornecedores" },
+      { label: "Cadastro de Planos", icon: Wrench, path: "/cadastros/planos-manutencao" },
+    ]
+  },
+  { id: "financeiro", label: "Financeiro", icon: DollarSign, path: "/financeiro", items: [] },
+  { id: "frota", label: "Frota", icon: Truck, path: "/frota", items: [] },
+  {
+    id: "gestao", label: "Gestão", icon: BarChart3,
+    items: [
+      { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
+      { label: "Performance de Fornecedores",icon: BarChart3, path: "/relatorios/fornecedores" },
+      { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },
+    ]
+  },
+  {
+    id: "operacao", label: "Operação", icon: Activity,
+    items: [
+      { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
+      { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
+      { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
+      { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
+      { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
+      { label: "Monitoramento", icon: Activity, path: "/operacao/monitoramento" },
+      { label: "Estoque", icon: Package, path: "/operacao/estoque" },
+    ]
+  },
 ];
 
 export function Sidebar() {
