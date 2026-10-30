@@ -127,3 +127,54 @@ async def resumo_dashboard(_u: dict = Depends(require("read"))):
         "volume_abastecimentos": volume_abastecimentos,
         "top_fornecedores": [{"nome": item["_id"], "quantidade": item["count"]} for item in top_fornecedores]
     }
+
+@router.get("/relatorios-manutencao")
+async def relatorios_manutencao(_u: dict = Depends(require("read"))):
+    # 1. Ratio Preventiva vs. Corretiva
+    total = await db.manutencoes.count_documents({})
+    preventivas = await db.manutencoes.count_documents({"tipo": "Preventiva"})
+    corretivas = await db.manutencoes.count_documents({"tipo": "Corretiva"})
+    
+    ratio = {
+        "total": total,
+        "preventivas": preventivas,
+        "corretivas": corretivas,
+        "percentual_preventiva": (preventivas / total * 100) if total > 0 else 0,
+        "percentual_corretiva": (corretivas / total * 100) if total > 0 else 0
+    }
+
+    # 2. Manutenções por Faixa de Hodômetro (Agrupado)
+    pipeline_km = [
+        {"$match": {"km_manutencao": {"$ne": None}}},
+        {"$bucket": {
+            "groupBy": "$km_manutencao",
+            "boundaries": [0, 100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 1000000],
+            "default": "1000000+",
+            "output": {"count": {"$sum": 1}}
+        }}
+    ]
+    faixas = await db.manutencoes.aggregate(pipeline_km).to_list(20)
+
+    # 3. Forecast (Previsão Orçamentária para os próximos 3 meses)
+    # Projeta com base na média dos últimos 3 meses
+    manutencoes_recentes = await db.manutencoes.find({}, {"custo": 1, "data": 1}).sort("data", -1).to_list(100)
+    custos_mensais = {}
+    for m in manutencoes_recentes:
+        if m.get("data") and m.get("custo"):
+            mes = m["data"][:7]
+            custos_mensais[mes] = custos_mensais.get(mes, 0) + m["custo"]
+    
+    ultimos_meses = sorted(custos_mensais.items(), reverse=True)[:3]
+    media_mensal = sum(c[1] for c in ultimos_meses) / len(ultimos_meses) if ultimos_meses else 0
+
+    forecast = {
+        "media_mensal": media_mensal,
+        "proximos_3_meses": media_mensal * 3,
+        "proximos_6_meses": media_mensal * 6
+    }
+
+    return {
+        "ratio": ratio,
+        "faixas_km": [{"faixa": str(f["_id"]), "quantidade": f["count"]} for f in faixas],
+        "forecast": forecast
+    }

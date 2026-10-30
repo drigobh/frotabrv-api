@@ -301,6 +301,13 @@ export default function RelatorioManutencao() {
 
   const renderAba = () => {
     switch (abaAtiva) {
+
+      case "relatorio-ratio": return <RelatorioRatio />;
+      case "relatorio-faixa-km": return <RelatorioFaixaKm />;
+      case "relatorio-desvio-consumo": return <RelatorioDesvioConsumo />;
+      case "relatorio-previsao": return <RelatorioPrevisao />;
+      case "relatorio-oficina-tempo": return <RelatorioOficinaTempo />;
+      case "relatorio-oleo-atraso": return <RelatorioOleoAtraso />;
       case "cpk": return <AbaComGrafico titulo="Top 10 CPK (Custo por KM)" data={cpkData.slice(0, 10)} dataKey="cpk" xKey="label" cor="#0284c7" formatter={(v: any) => `R$ ${v.toFixed(3)}/km`} colunas={["Veículo", "KM", "Custo", "CPK"]} dados={cpkData.map(i => [i.label, `${i.km.toLocaleString('pt-BR')} km`, brl(i.custo), `R$ ${i.cpk.toFixed(3)}`])} />;
       case "mtbf": return <AbaComGrafico titulo="Veículos com Mais Falhas (MTBF)" data={mtbfData} dataKey="falhas" xKey="label" cor="#ef4444" colunas={["Veículo", "Qtd. Falhas"]} dados={mtbfData.map(i => [i.label, i.falhas])} />;
       case "mttr": return <AbaMTTR data={mttrData} />;
@@ -513,4 +520,188 @@ function TabelaDados({ colunas, dados, vazio = "Nenhum dado encontrado." }: any)
       </Table>
     </div>
   );
+
+
+// --- COMPONENTES DE RELATÓRIOS AVANÇADOS ---
+
+function RelatorioRatio() {
+  const { data } = useQuery({ queryKey: ["relatorios-manutencao"], queryFn: () => apiGet<any>("/dashboard/relatorios-manutencao") });
+  if (!data) return <div className="glass p-6 text-center text-slate-400">Carregando...</div>;
+
+  return (
+    <div className="glass p-6 rounded-2xl text-center space-y-4">
+      <h3 className="text-lg font-bold text-slate-100 mb-2 flex items-center justify-center gap-2"><TrendingUp className="size-5 text-emerald-400" /> Ratio Preventiva x Corretiva</h3>
+      <div className="flex justify-center gap-12">
+        <div>
+          <p className="text-5xl font-bold text-emerald-400">{data.ratio.percentual_preventiva.toFixed(1)}%</p>
+          <p className="text-sm text-slate-400">Preventivas ({data.ratio.preventivas})</p>
+        </div>
+        <div>
+          <p className="text-5xl font-bold text-rose-400">{data.ratio.percentual_corretiva.toFixed(1)}%</p>
+          <p className="text-sm text-slate-400">Corretivas ({data.ratio.corretivas})</p>
+        </div>
+      </div>
+      <p className="text-sm text-slate-400 mt-4">Meta recomendada: 80% Preventiva / 20% Corretiva</p>
+    </div>
+  );
+}
+
+function RelatorioFaixaKm() {
+  const { data } = useQuery({ queryKey: ["relatorios-manutencao"], queryFn: () => apiGet<any>("/dashboard/relatorios-manutencao") });
+  if (!data) return <div className="glass p-6 text-center text-slate-400">Carregando...</div>;
+
+  return (
+    <div className="glass p-6 rounded-2xl">
+      <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><Activity className="size-5 text-sky-400" /> Manutenções por Faixa de Hodômetro</h3>
+      <div className="h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data.faixas_km}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+            <XAxis dataKey="faixa" stroke="#94a3b8" tick={{ fontSize: 10 }} tickFormatter={(v: any) => Number(v).toLocaleString('pt-BR')} />
+            <YAxis stroke="#94a3b8" allowDecimals={false} />
+            <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
+            <Bar dataKey="quantidade" fill="#0284c7" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function RelatorioDesvioConsumo() {
+  const { data: veiculos = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
+  const { data: manutencoes = [] } = useQuery({ queryKey: ["manutencoes"], queryFn: () => apiGet<any[]>("/manutencoes") });
+  
+  // Simulação: Veículos com manutenção nos últimos 30 dias
+  const recentes = veiculos.filter((v: any) => {
+    const manuts = manutencoes.filter((m: any) => m.veiculo_id === v.id);
+    return manuts.length > 0;
+  });
+
+  return (
+    <div className="glass p-6 rounded-2xl">
+      <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><GitCompare className="size-5 text-amber-400" /> Desvio de Consumo (Pós-Manutenção)</h3>
+      <p className="text-sm text-slate-400">Veículos com manutenção nos últimos 30 dias. O consumo deve ser comparado antes e depois.</p>
+      <Table>
+        <TableHeader>
+          <TableRow className="border-slate-800">
+            <TableHead className="text-xs uppercase text-slate-500">Veículo</TableHead>
+            <TableHead className="text-xs uppercase text-slate-500">Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {recentes.map((v: any) => (
+            <TableRow key={v.id} className="border-slate-800">
+              <TableCell className="text-slate-200">{v.placa} - {v.modelo}</TableCell>
+              <TableCell className="text-emerald-400 text-xs">Aguardando Telemetria</TableCell>
+            </TableRow>
+          ))}
+          {recentes.length === 0 && <TableRow><TableCell colSpan={2} className="text-center text-slate-500">Nenhum veículo com manutenção recente.</TableCell></TableRow>}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function RelatorioPrevisao() {
+  const { data } = useQuery({ queryKey: ["relatorios-manutencao"], queryFn: () => apiGet<any>("/dashboard/relatorios-manutencao") });
+  if (!data) return <div className="glass p-6 text-center text-slate-400">Carregando...</div>;
+
+  return (
+    <div className="glass p-6 rounded-2xl text-center space-y-4">
+      <h3 className="text-lg font-bold text-slate-100 mb-2 flex items-center justify-center gap-2"><DollarSign className="size-5 text-amber-400" /> Previsão Orçamentária</h3>
+      <p className="text-sm text-slate-400 mb-4">Projeção baseada na média dos últimos 3 meses.</p>
+      <div className="flex justify-center gap-12">
+        <div>
+          <p className="text-3xl font-bold text-slate-100">{brl(data.forecast.media_mensal)}</p>
+          <p className="text-xs uppercase text-slate-500">Média Mensal</p>
+        </div>
+        <div>
+          <p className="text-3xl font-bold text-amber-400">{brl(data.forecast.proximos_3_meses)}</p>
+          <p className="text-xs uppercase text-slate-500">Próximos 3 Meses</p>
+        </div>
+        <div>
+          <p className="text-3xl font-bold text-rose-400">{brl(data.forecast.proximos_6_meses)}</p>
+          <p className="text-xs uppercase text-slate-500">Próximos 6 Meses</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RelatorioOficinaTempo() {
+  const { data: manutencoes = [] } = useQuery({ queryKey: ["manutencoes"], queryFn: () => apiGet<any[]>("/manutencoes") });
+  
+  // Simulação: Agrupar por oficina e contar tempo médio
+  const oficinas: Record<string, { total: number, custo: number }> = {};
+  manutencoes.forEach((m: any) => {
+    if (m.oficina && m.custo) {
+      if (!oficinas[m.oficina]) oficinas[m.oficina] = { total: 0, custo: 0 };
+      oficinas[m.oficina].total += 1;
+      oficinas[m.oficina].custo += m.custo;
+    }
+  });
+
+  const dados = Object.entries(oficinas).map(([nome, d]) => ({ nome, media: d.custo / d.total, total: d.total }));
+
+  return (
+    <div className="glass p-6 rounded-2xl">
+      <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><Clock className="size-5 text-sky-400" /> Tempo vs. Custo por Oficina</h3>
+      <Table>
+        <TableHeader>
+          <TableRow className="border-slate-800">
+            <TableHead className="text-xs uppercase text-slate-500">Oficina</TableHead>
+            <TableHead className="text-xs uppercase text-slate-500">Qtd. Serviços</TableHead>
+            <TableHead className="text-xs uppercase text-slate-500">Custo Médio</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {dados.map((d, i) => (
+            <TableRow key={i} className="border-slate-800">
+              <TableCell className="text-slate-200">{d.nome}</TableCell>
+              <TableCell className="text-slate-400">{d.total}</TableCell>
+              <TableCell className="text-amber-400">{brl(d.media)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function RelatorioOleoAtraso() {
+  const { data: veiculos = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
+  const { data: planos = [] } = useQuery({ queryKey: ["planos-manutencao"], queryFn: () => apiGet<any[]>("/planos-manutencao") });
+
+  const atrasados = veiculos.filter((v: any) => {
+    const plano = planos.find((p: any) => p.veiculo_id === v.id && p.familia === "Lubrificação e Filtros");
+    if (!plano) return false;
+    const limite = (plano.ultima_execucao_km || 0) + (plano.intervalo || 10000);
+    return (v.hodometro_km || 0) > limite;
+  });
+
+  return (
+    <div className="glass p-6 rounded-2xl">
+      <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2"><RotateCcw className="size-5 text-rose-400" /> Veículos com Óleo em Atraso</h3>
+      <Table>
+        <TableHeader>
+          <TableRow className="border-slate-800">
+            <TableHead className="text-xs uppercase text-slate-500">Veículo</TableHead>
+            <TableHead className="text-xs uppercase text-slate-500">KM Atual</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {atrasados.map((v: any) => (
+            <TableRow key={v.id} className="border-slate-800">
+              <TableCell className="text-slate-200">{v.placa} - {v.modelo}</TableCell>
+              <TableCell className="text-rose-400 font-mono">{(v.hodometro_km || 0).toLocaleString('pt-BR')} km</TableCell>
+            </TableRow>
+          ))}
+          {atrasados.length === 0 && <TableRow><TableCell colSpan={2} className="text-center text-slate-500">Nenhum veículo com óleo em atraso.</TableCell></TableRow>}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 }
