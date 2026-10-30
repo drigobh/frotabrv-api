@@ -155,18 +155,7 @@ export default function Parametrizacao() {
         </Table>
 
         <div className="flex justify-end mt-6">
-          <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={async () => {
-              await apiPost("/parametrizacao/forcar-seed", {});
-              toast.success("Flags ativadas! Recarregue a página.");
-              qc.invalidateQueries({ queryKey: ["parametrizacao-meta"] });
-            }}
-            className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
-          >
-            Forçar Flags de Seed
-          </Button>
+          <div className="flex justify-end mt-6">
           </div>
           <Button onClick={() => salvar.mutate()} disabled={salvar.isPending} className="bg-sky-600 hover:bg-sky-500">
             {salvar.isPending ? "Salvando..." : "Salvar Parametrizações"}
