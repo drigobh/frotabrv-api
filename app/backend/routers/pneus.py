@@ -62,22 +62,19 @@ async def listar_modelos(_u: dict = Depends(require("read"))):
 
 @router.post("/seed")
 async def seed_pneus(_u: dict = Depends(require("write"))):
-    # Carga inicial de Marcas
     marcas = ["Michelin", "Bridgestone", "Pirelli", "Goodyear", "Continental", "Bandag"]
     for m in marcas:
         if not await db.marcas_pneus.find_one({"nome": m}):
             await db.marcas_pneus.insert_one({"id": str(uuid.uuid4()), "nome": m})
             
-    # Carga inicial de Medidas
-    medidas = ["295/80 R22.5", "275/80 R22.5", "11R22.5", "12R22.5", "295/80 R22.5"]
+    medidas = ["295/80 R22.5", "275/80 R22.5", "11R22.5", "12R22.5"]
     for m in medidas:
         if not await db.medidas_pneus.find_one({"medida": m}):
             await db.medidas_pneus.insert_one({"id": str(uuid.uuid4()), "medida": m})
 
-    # Carga inicial de Modelos
     modelos = ["X Multi Z", "X Line Energy", "R268", "M840", "G580"]
     for m in modelos:
         if not await db.modelos_pneus.find_one({"nome": m}):
             await db.modelos_pneus.insert_one({"id": str(uuid.uuid4()), "nome": m})
             
-    return {"ok": True, "message": "Carga inicial realizada com sucesso."}
+    return {"ok": True, "message": "Carga inicial de pneus realizada."}
