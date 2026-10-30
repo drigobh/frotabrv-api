@@ -1,3 +1,4 @@
+import ChassiTemplates from "@/pages/ChassiTemplates";
 import PneuMarcas from "@/pages/PneuMarcas";
 import PneuMedidas from "@/pages/PneuMedidas";
 import Frota from "@/pages/Frota";
@@ -65,6 +66,7 @@ export default function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/cadastros/pneu-medidas" element={<PneuMedidas />} />
               <Route path="/cadastros/pneu-marcas" element={<PneuMarcas />} />
+              <Route path="/cadastros/chassi-templates" element={<ChassiTemplates />} />
               <Route path="/frota" element={<Frota />} />
               <Route path="/financeiro" element={<Financeiro />} />
               <Route path="/frota" element={<Frota />} />

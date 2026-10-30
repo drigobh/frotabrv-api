@@ -5,7 +5,7 @@ import {
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox
-, Tag , Building , FolderOpen } from "lucide-react";
+, Tag , Building , FolderOpen , Layers} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ const MENUS = [
       { label: "Cadastro de Planos", icon: Wrench, path: "/cadastros/planos-manutencao" },
       { label: "Medidas de Pneus", icon: Disc, path: "/cadastros/pneu-medidas" },
       { label: "Marcas de Pneus", icon: Tag, path: "/cadastros/pneu-marcas" },
+      { label: "Templates de Chassi", icon: Layers, path: "/cadastros/chassi-templates" },
       { label: "Carretas", icon: Car, path: "/cadastros/carretas" },
       { label: "Combustíveis", icon: Fuel, path: "/cadastros/combustiveis" },
       { label: "Fornecedores", icon: Briefcase, path: "/cadastros/fornecedores" },
