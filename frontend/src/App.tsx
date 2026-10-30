@@ -31,6 +31,7 @@ import RelatorioCustosVeiculo from '@/pages/RelatorioCustosVeiculo';
 import RelatorioEstoque from "@/pages/RelatorioEstoque";
 import Estoque from "@/pages/Estoque";
 import CadastrosPneus from "@/pages/CadastrosPneus";
+import ModelosPneus from "@/pages/ModelosPneus";
 import Pneus from "@/pages/Pneus";
 import Monitoramento from "@/pages/Monitoramento";
 import Usuarios from "@/pages/Usuarios";
