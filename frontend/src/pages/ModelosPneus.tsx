@@ -35,11 +35,7 @@ export default function ModelosPneus() {
 
   return (
     <div>
-      <PageHeader
-        eyebrow="Cadastros"
-        title="Modelos de Pneus"
-        description="Gerencie os modelos de pneus disponíveis no sistema."
-      />
+      <PageHeader eyebrow="Cadastros" title="Modelos de Pneus" description="Gerencie os modelos de pneus disponíveis no sistema." />
 
       <div className="glass p-4 rounded-xl mb-4 flex items-end gap-3">
         <div className="grid gap-1.5 flex-1 max-w-sm">

@@ -20,6 +20,7 @@ export default function Parametrizacao() {
   const [seedForn, setSeedForn] = useState(false);
   const [seedMed, setSeedMed] = useState(false);
   const [seedMarc, setSeedMarc] = useState(false);
+  const [seedMod, setSeedMod] = useState(false);
   const [seedTemp, setSeedTemp] = useState(false);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function Parametrizacao() {
       setSeedForn(config.mostrar_seed_fornecedores || false);
       setSeedMed(config.mostrar_seed_medidas || false);
       setSeedMarc(config.mostrar_seed_marcas || false);
+      setSeedMod(config.mostrar_seed_modelos || false);
       setSeedTemp(config.mostrar_seed_templates || false);
     }
   }, [config]);
@@ -40,6 +42,7 @@ export default function Parametrizacao() {
       mostrar_seed_fornecedores: seedForn,
       mostrar_seed_medidas: seedMed,
       mostrar_seed_marcas: seedMarc,
+      mostrar_seed_modelos: seedMod,
       mostrar_seed_templates: seedTemp,
     }),
     onSuccess: () => {
@@ -124,6 +127,14 @@ export default function Parametrizacao() {
               <TableCell className="font-medium text-slate-200">Exibir botão "Popular Templates" (Templates de Chassi)</TableCell>
               <TableCell>
                 <BotaoStatus ativo={seedTemp} onClick={() => setSeedTemp(!seedTemp)} textoAtivo="Visível" textoInativo="Oculto" />
+              </TableCell>
+              <TableCell className="text-xs text-slate-500 italic">Setup inicial.</TableCell>
+            </TableRow>
+          
+            <TableRow className="border-slate-800">
+              <TableCell className="font-medium text-slate-200">Exibir botão "Popular Modelos" (Modelos de Pneus)</TableCell>
+              <TableCell>
+                <BotaoStatus ativo={seedMod} onClick={() => setSeedMod(!seedMod)} textoAtivo="Visível" textoInativo="Oculto" />
               </TableCell>
               <TableCell className="text-xs text-slate-500 italic">Setup inicial.</TableCell>
             </TableRow>

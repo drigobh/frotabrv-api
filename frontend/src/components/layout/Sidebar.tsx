@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { Type, useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   FileBarChart, CalendarClock, LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
@@ -30,6 +30,7 @@ const MENUS = [
       { label: "Cadastro de Planos", icon: Wrench, path: "/cadastros/planos-manutencao" },
       { label: "Medidas de Pneus", icon: Disc, path: "/cadastros/pneu-medidas" },
       { label: "Marcas de Pneus", icon: Tag, path: "/cadastros/pneu-marcas" },
+      { label: "Modelos de Pneus", icon: Type, path: "/cadastros/pneu-modelos" },
       { label: "Templates de Chassi", icon: Layers, path: "/cadastros/chassi-templates" },
       { label: "Carretas", icon: Car, path: "/cadastros/carretas" },
       { label: "Combustíveis", icon: Fuel, path: "/cadastros/combustiveis" },

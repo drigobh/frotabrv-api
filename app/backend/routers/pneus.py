@@ -60,6 +60,18 @@ async def seed_pneus(_u: dict = Depends(require("write"))):
     return {"ok": True, "message": "Carga inicial de pneus realizada."}
 
 # --- ROTAS COM PARÂMETRO POR ÚLTIMO ---
+
+@router.post("/modelos")
+async def criar_modelo(body: dict, _u: dict = Depends(require("write"))):
+    if not await db.modelos_pneus.find_one({"nome": body.get("nome")}):
+        await db.modelos_pneus.insert_one({"id": str(uuid.uuid4()), "nome": body.get("nome")})
+    return {"ok": True}
+
+@router.delete("/modelos/{id}")
+async def excluir_modelo(id: str, _u: dict = Depends(require("delete"))):
+    await db.modelos_pneus.delete_one({"id": id})
+    return {"ok": True}
+
 @router.put("/{id}", response_model=Pneu)
 async def atualizar(id: str, body: PneuCreate, user: dict = Depends(require("write"))):
     existe = await db.pneus.find_one({"id": id})
