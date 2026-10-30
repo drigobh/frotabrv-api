@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Search, MapPin, Info, Star, Barcode, Box, ArrowDownRight, ClipboardList, RefreshCw, Printer, FileSpreadsheet, Eye } from "lucide-react";
+import { Package, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Search, MapPin, Info, Star, Barcode, Box, ArrowDownRight, ClipboardList, RefreshCw, Printer, FileSpreadsheet, Eye , Disc } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
@@ -17,7 +17,10 @@ import { useVeiculos, useCarretas } from "@/hooks/useCadastros";
 import { useMe } from "@/hooks/useSession";
 
 export default function Estoque() {
-  const { data: me } = useMe();
+    const { data: pneusEstoque = [] } = useQuery({ queryKey: ["pneus-estoque"], queryFn: () => apiGet<any[]>("/pneus") });
+  const pneusEmEstoque = pneusEstoque.filter((p: any) => p.status === "Estoque");
+
+const { data: me } = useMe();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState("catalogo");
   
@@ -618,6 +621,32 @@ export default function Estoque() {
 
       <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Excluir peça?" description="Ação irreversível." confirmLabel="Excluir" destructive pending={excluir.isPending} onConfirm={() => excluirId && excluir.mutate(excluirId)} testId="peca-excluir" />
       <ConfirmDialog open={excluirInvId !== null} onOpenChange={(o) => !o && setExcluirInvId(null)} title="Excluir histórico de inventário?" description="O registro será apagado, mas o estoque atual NÃO será revertido." confirmLabel="Excluir" destructive pending={excluirInv.isPending} onConfirm={() => excluirInvId && excluirInv.mutate(excluirInvId)} testId="inventario-excluir" />
-    </div>
+    
+      {/* Seção de Pneus em Estoque */}
+      <div className="mt-8">
+        <div className="flex items-center gap-2 mb-3">
+          <Disc className="size-5 text-sky-400" />
+          <h3 className="text-lg font-bold text-slate-100">Pneus em Estoque</h3>
+          <span className="bg-sky-500/20 text-sky-400 text-xs font-bold px-2 py-0.5 rounded-full">{pneusEmEstoque.length}</span>
+        </div>
+        {pneusEmEstoque.length === 0 ? (
+          <div className="glass p-6 rounded-2xl text-center text-slate-500 text-sm">Nenhum pneu em estoque no momento.</div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {pneusEmEstoque.map((p: any) => (
+              <div key={p.id} className="glass p-4 rounded-xl border border-sky-500/30">
+                <p className="text-sm font-bold text-sky-400">{p.numero_fogo}</p>
+                <p className="text-xs text-slate-300 mt-1">{p.marca} {p.modelo && `- ${p.modelo}`}</p>
+                <p className="text-xs text-slate-500">{p.medida}</p>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{p.tipo}</span>
+                  <span className="text-xs font-mono text-amber-400">R$ {p.custo_aquisicao?.toFixed(2) || "0,00"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+</div>
   );
 }

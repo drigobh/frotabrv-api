@@ -3,12 +3,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Disc, Upload, Search } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
+import { useVeiculos } from "@/hooks/useCadastros";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FieldSelect } from "@/components/common/FieldSelect";
+import { useQuery } from "@tanstack/react-query";
+import { ChassiMapa } from "@/components/ChassiMapa";
 import { brl } from "@/lib/format";
 
 const STATUS_PNEU = ["Estoque", "Aplicado", "Recapagem", "Conserto", "Sucateado"];
@@ -20,18 +23,23 @@ export default function Pneus() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState("");
+  const [tipoAtivo, setTipoAtivo] = useState<"cavalo" | "carreta">("cavalo");
 
   const { data: pneus = [] } = useQuery({ queryKey: ["pneus"], queryFn: () => apiGet<any[]>("/pneus") });
+  const veiculos = useVeiculos();
+  const { data: carretas = [] } = useQuery({ queryKey: ["carretas"], queryFn: () => apiGet<any[]>("/carretas") });
 
   const [form, setForm] = useState({
-    numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: "", foto_url: ""
+    numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: "", foto_url: "", veiculo_id: "", carreta_id: "", posicao: "", sulco_atual: "", pressao_atual: ""
   });
 
   const salvar = useMutation({
     mutationFn: () => {
       const payload = {
         ...form,
-        custo_aquisicao: Number(String(form.custo_aquisicao).replace(",", ".")) || 0
+        custo_aquisicao: Number(String(form.custo_aquisicao).replace(",", ".")) || 0,
+        sulco_atual: form.sulco_atual ? Number(form.sulco_atual) : null,
+        pressao_atual: form.pressao_atual ? Number(form.pressao_atual) : null
       };
       return editingId ? apiPut(`/pneus/${editingId}`, payload) : apiPost("/pneus", payload);
     },
@@ -50,13 +58,13 @@ export default function Pneus() {
 
   const abrirNovo = () => {
     setEditingId(null);
-    setForm({ numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: "", foto_url: "" });
+    setForm({ numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: "", foto_url: "", veiculo_id: "", carreta_id: "", posicao: "", sulco_atual: "", pressao_atual: "" });
     setOpen(true);
   };
 
   const abrirEdicao = (r: any) => {
     setEditingId(r.id);
-    setForm({ ...r, custo_aquisicao: String(r.custo_aquisicao || "") });
+    setForm({ ...r, custo_aquisicao: String(r.custo_aquisicao || ""), sulco_atual: String(r.sulco_atual || ""), pressao_atual: String(r.pressao_atual || "") });
     setOpen(true);
   };
 
@@ -162,7 +170,50 @@ export default function Pneus() {
                 <FieldSelect value={form.status} onChange={(v) => setForm(s => ({ ...s, status: v }))} options={STATUS_PNEU.map(s => ({ value: s, label: s }))} />
               </div>
               <div className="grid gap-1.5">
-                <Label className="text-xs text-slate-400">Custo de Aquisição (R$)</Label>
+                <div className="col-span-2 grid gap-1.5">
+                <Label className="text-xs text-slate-400">Tipo de Ativo</Label>
+                <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-700">
+                  <button 
+                    className={`flex-1 py-1.5 text-sm rounded-md font-medium ${tipoAtivo === 'cavalo' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    onClick={() => { setTipoAtivo('cavalo'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); }}
+                  >
+                    Cavalo Mecânico
+                  </button>
+                  <button 
+                    className={`flex-1 py-1.5 text-sm rounded-md font-medium ${tipoAtivo === 'carreta' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    onClick={() => { setTipoAtivo('carreta'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); }}
+                  >
+                    Carreta / Semi
+                  </button>
+                </div>
+              </div>
+
+              <div className="col-span-2 grid gap-1.5">
+                <Label className="text-xs text-slate-400">{tipoAtivo === 'cavalo' ? 'Veículo' : 'Carreta'}</Label>
+                {tipoAtivo === 'cavalo' ? (
+                  <FieldSelect value={form.veiculo_id} onChange={(v) => setForm(s => ({ ...s, veiculo_id: v }))} options={(veiculos.data ?? []).map((v: any) => ({ value: v.id, label: `${v.placa} - ${v.modelo}` }))} placeholder="Selecione..." />
+                ) : (
+                  <FieldSelect value={form.carreta_id} onChange={(v) => setForm(s => ({ ...s, carreta_id: v }))} options={carretas.map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.tipo}` }))} placeholder="Selecione..." />
+                )}
+              </div>
+
+              <div className="col-span-2 grid gap-1.5">
+                <Label className="text-xs text-slate-400">Posição no Eixo</Label>
+                <Input value={form.posicao} onChange={(e) => setForm(s => ({ ...s, posicao: e.target.value }))} placeholder="Ex: 2-DE (Eixo 2, Direito Externo)" />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">Sulco Atual (mm)</Label>
+                <Input type="number" step="0.1" value={form.sulco_atual} onChange={(e) => setForm(s => ({ ...s, sulco_atual: e.target.value }))} placeholder="Ex: 5.5" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">Pressão Atual (psi)</Label>
+                <Input type="number" value={form.pressao_atual} onChange={(e) => setForm(s => ({ ...s, pressao_atual: e.target.value }))} placeholder="Ex: 120" />
+              </div>
+            </div>
+            
+            <div className="col-span-2 grid gap-1.5">
+              <Label className="text-xs text-slate-400">Custo de Aquisição (R$)</Label>
                 <Input value={form.custo_aquisicao} onChange={(e) => setForm(s => ({ ...s, custo_aquisicao: e.target.value }))} placeholder="0,00" />
               </div>
               <div className="col-span-2 grid gap-1.5">
@@ -191,6 +242,25 @@ export default function Pneus() {
           </div>
         </div>
       )}
-    </div>
+    
+      {/* Mapa de Chassi */}
+      <div className="mt-8">
+        <h3 className="text-lg font-bold text-slate-100 mb-4">Chassi do Veículo</h3>
+        <div className="grid grid-cols-1 gap-4">
+          <ChassiMapa 
+            pneus={pneus} 
+            veiculoId="00000000-0000-0000-0000-000000000000" 
+            configuracao="6x2" 
+            tipo="cavalo" 
+          />
+          <ChassiMapa 
+            pneus={pneus} 
+            veiculoId="00000000-0000-0000-0000-000000000000" 
+            configuracao="3 eixos" 
+            tipo="carreta" 
+          />
+        </div>
+      </div>
+</div>
   );
 }
