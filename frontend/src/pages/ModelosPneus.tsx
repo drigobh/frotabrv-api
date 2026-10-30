@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Type } from "lucide-react";
+import { Plus, Trash2, Tag, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -13,6 +13,7 @@ export default function ModelosPneus() {
   const qc = useQueryClient();
   const [novoModelo, setNovoModelo] = useState("");
 
+  const { data: config } = useQuery({ queryKey: ["parametrizacao-meta"], queryFn: () => apiGet<any>("/parametrizacao/meta") });
   const { data: modelos = [] } = useQuery({ queryKey: ["modelos-pneus"], queryFn: () => apiGet<any[]>("/pneus/modelos") });
 
   const criar = useMutation({
@@ -33,19 +34,34 @@ export default function ModelosPneus() {
     }
   });
 
+  const popular = useMutation({
+    mutationFn: () => apiPost("/pneus/seed", {}),
+    onSuccess: () => {
+      toast.success("Modelos populados com sucesso!");
+      qc.invalidateQueries({ queryKey: ["modelos-pneus"] });
+    }
+  });
+
   return (
     <div>
-      <PageHeader eyebrow="Cadastros" title="Modelos de Pneus" description="Gerencie os modelos de pneus disponíveis no sistema." />
+      <PageHeader 
+        eyebrow="Cadastros" 
+        title="Modelos de Pneus" 
+        description="Gerencie os modelos de pneus disponíveis no sistema." 
+        actions={
+          config?.mostrar_seed_modelos && (
+            <Button onClick={() => popular.mutate()} disabled={popular.isPending} variant="outline" className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10 h-9">
+              <RefreshCw className={`size-4 mr-2 ${popular.isPending ? 'animate-spin' : ''}`} /> 
+              Popular Modelos
+            </Button>
+          )
+        }
+      />
 
       <div className="glass p-4 rounded-xl mb-4 flex items-end gap-3">
         <div className="grid gap-1.5 flex-1 max-w-sm">
           <Label className="text-xs text-slate-400">Novo Modelo</Label>
-          <Input 
-            value={novoModelo} 
-            onChange={(e) => setNovoModelo(e.target.value)} 
-            placeholder="Ex: X Multi Z" 
-            onKeyDown={(e) => e.key === 'Enter' && novoModelo && criar.mutate()}
-          />
+          <Input value={novoModelo} onChange={(e) => setNovoModelo(e.target.value)} placeholder="Ex: X Multi Z" onKeyDown={(e) => e.key === 'Enter' && novoModelo && criar.mutate()} />
         </div>
         <Button onClick={() => criar.mutate()} disabled={!novoModelo || criar.isPending} className="bg-sky-600 hover:bg-sky-500 h-9">
           <Plus className="size-4 mr-2" /> Adicionar
