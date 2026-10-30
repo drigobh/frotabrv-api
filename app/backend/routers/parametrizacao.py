@@ -35,3 +35,17 @@ async def atualizar_meta(body: ParametrizacaoBase, _u: dict = Depends(require("w
         upsert=True
     )
     return body
+
+@router.post("/forcar-seed")
+async def forcar_seed(_u: dict = Depends(require("write"))):
+    await db.parametrizacoes.update_one(
+        {"id": "meta_abastecimento"},
+        {"$set": {
+            "mostrar_seed_fornecedores": True,
+            "mostrar_seed_medidas": True,
+            "mostrar_seed_marcas": True,
+            "updated_at": now_iso()
+        }},
+        upsert=True
+    )
+    return {"ok": True, "mensagem": "Flags de seed ativadas com sucesso."}
