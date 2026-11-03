@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Database, Trash2, AlertTriangle } from "lucide-react";
+import {Database, Trash2, AlertTriangle, Disc} from "lucide-react";
 import { toast } from "sonner";
-import { apiPost } from "@/lib/api";
+import {apiPost, apiDelete} from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
