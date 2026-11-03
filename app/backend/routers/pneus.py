@@ -1,4 +1,5 @@
 import uuid
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from lib.db import db
 from lib.security import require
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/pneus", tags=["Pneus"])
 
 @router.get("", response_model=list[Pneu])
 async def listar(_u: dict = Depends(require("read"))):
-    docs = await db.pneus.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    docs = await db.pneus.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
     return [Pneu(**d) for d in docs]
 
 @router.post("", response_model=Pneu, status_code=201)
@@ -24,35 +25,63 @@ async def criar(body: PneuCreate, user: dict = Depends(require("write"))):
     await db.pneus.insert_one(dict(doc))
     return Pneu(**doc)
 
-# --- ROTAS FIXAS PRIMEIRO (Evita conflito com /{id}) ---
+# ==========================================
+# ROTA DE IMPORTAÇÃO (Antes de /{id})
+# ==========================================
+@router.post("/importar")
+async def importar_pneus(body: List[dict], user: dict = Depends(require("write"))):
+    inseridos = 0
+    erros = []
+    
+    for item in body:
+        try:
+            if not item.get("numero_fogo") or not item.get("marca"):
+                continue
+                
+            existente = await db.pneus.find_one({"numero_fogo": item["numero_fogo"]})
+            if existente:
+                erros.append(f"Pneu {item['numero_fogo']} já existe.")
+                continue
+                
+            doc = {
+                "id": str(uuid.uuid4()),
+                "numero_fogo": item.get("numero_fogo"),
+                "marca": item.get("marca"),
+                "modelo": item.get("modelo", ""),
+                "medida": item.get("medida", ""),
+                "dot": item.get("dot", ""),
+                "tipo": item.get("tipo", "Tração"),
+                "status": item.get("status", "Estoque"),
+                "custo_aquisicao": float(item.get("custo_aquisicao", 0)),
+                "observacoes": item.get("observacoes", ""),
+                "equipamento": item.get("equipamento", ""),
+                "posicao": item.get("posicao", ""),
+                "banda_rod": item.get("banda_rod", ""),
+                "estrutura": item.get("estrutura", ""),
+                "n_serie": item.get("n_serie", ""),
+                "n_recap": item.get("n_recap", ""),
+                "data_compra": item.get("data_compra", ""),
+                "data_descarte": item.get("data_descarte", ""),
+                "custo_total_atual": float(item.get("custo_total_atual", 0)),
+                "profundidade_atual": float(item.get("profundidade_atual", 0)),
+                "uso_atual": item.get("uso_atual", ""),
+                "custo_por_km": float(item.get("custo_por_km", 0)),
+                "km_posicao": float(item.get("km_posicao", 0)),
+                "veiculo_id": item.get("veiculo_id"),
+                "carreta_id": item.get("carreta_id"),
+                "created_at": now_iso(),
+                "created_by": user["nome"],
+            }
+            await db.pneus.insert_one(doc)
+            inseridos += 1
+        except Exception as e:
+            erros.append(f"Erro no pneu {item.get('numero_fogo')}: {str(e)}")
+            
+    return {"ok": True, "inseridos": inseridos, "erros": erros}
 
-@router.get("/dashboard")
-async def dashboard_pneus(_u: dict = Depends(require("read"))):
-    pneus = await db.pneus.find({}, {"_id": 0}).to_list(2000)
-    
-    total = len(pneus)
-    aplicados = sum(1 for p in pneus if p.get("status") == "Aplicado")
-    sucateados = sum(1 for p in pneus if p.get("status") == "Sucateado")
-    # Critério de sulco crítico: <= 3.0 mm
-    sulco_critico = sum(1 for p in pneus if p.get("sulco_atual") is not None and p.get("sulco_atual") <= 3.0)
-    
-    # Agrupamento por marca
-    marcas = {}
-    for p in pneus:
-        m = p.get("marca") or "Desconhecida"
-        marcas[m] = marcas.get(m, 0) + 1
-    
-    top_marcas = [{"marca": k, "qtd": v} for k, v in sorted(marcas.items(), key=lambda item: item[1], reverse=True)[:5]]
-    
-    return {
-        "total": total,
-        "aplicados": aplicados,
-        "sucateados": sucateados,
-        "sulco_critico": sulco_critico,
-        "top_marcas": top_marcas
-    }
-
-
+# ==========================================
+# ROTAS FIXAS (Antes de /{id})
+# ==========================================
 @router.get("/marcas")
 async def listar_marcas(_u: dict = Depends(require("read"))):
     docs = await db.marcas_pneus.find({}, {"_id": 0}).sort("nome", 1).to_list(500)
@@ -67,6 +96,30 @@ async def listar_medidas(_u: dict = Depends(require("read"))):
 async def listar_modelos(_u: dict = Depends(require("read"))):
     docs = await db.modelos_pneus.find({}, {"_id": 0}).sort("nome", 1).to_list(500)
     return docs
+
+@router.get("/dashboard")
+async def dashboard_pneus(_u: dict = Depends(require("read"))):
+    pneus = await db.pneus.find({}, {"_id": 0}).to_list(2000)
+    
+    total = len(pneus)
+    aplicados = sum(1 for p in pneus if p.get("status") == "Aplicado")
+    sucateados = sum(1 for p in pneus if p.get("status") == "Sucateado")
+    sulco_critico = sum(1 for p in pneus if p.get("sulco_atual") is not None and p.get("sulco_atual") <= 3.0)
+    
+    marcas = {}
+    for p in pneus:
+        m = p.get("marca") or "Desconhecida"
+        marcas[m] = marcas.get(m, 0) + 1
+    
+    top_marcas = [{"marca": k, "qtd": v} for k, v in sorted(marcas.items(), key=lambda item: item[1], reverse=True)[:5]]
+    
+    return {
+        "total": total,
+        "aplicados": aplicados,
+        "sucateados": sucateados,
+        "sulco_critico": sulco_critico,
+        "top_marcas": top_marcas
+    }
 
 @router.post("/seed")
 async def seed_pneus(_u: dict = Depends(require("write"))):
@@ -87,19 +140,9 @@ async def seed_pneus(_u: dict = Depends(require("write"))):
             
     return {"ok": True, "message": "Carga inicial de pneus realizada."}
 
-# --- ROTAS COM PARÂMETRO POR ÚLTIMO ---
-
-@router.post("/modelos")
-async def criar_modelo(body: dict, _u: dict = Depends(require("write"))):
-    if not await db.modelos_pneus.find_one({"nome": body.get("nome")}):
-        await db.modelos_pneus.insert_one({"id": str(uuid.uuid4()), "nome": body.get("nome")})
-    return {"ok": True}
-
-@router.delete("/modelos/{id}")
-async def excluir_modelo(id: str, _u: dict = Depends(require("delete"))):
-    await db.modelos_pneus.delete_one({"id": id})
-    return {"ok": True}
-
+# ==========================================
+# ROTAS DE EDIÇÃO/EXCLUSÃO (Por último)
+# ==========================================
 @router.put("/{id}", response_model=Pneu)
 async def atualizar(id: str, body: PneuCreate, user: dict = Depends(require("write"))):
     existe = await db.pneus.find_one({"id": id})

@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Plus, Pencil, Trash2, Disc, Search, AlertTriangle, RefreshCw, ArrowRightLeft, ShieldAlert } from "lucide-react";
+import { BarChart3, Plus, Pencil, Trash2, Disc, Search, AlertTriangle, RefreshCw, ArrowRightLeft, ShieldAlert, CheckCircle2, Activity, X, Wrench, FileDown, FileSpreadsheet, Truck, Container, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -11,18 +11,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FieldSelect } from "@/components/common/FieldSelect";
 import { ChassiMapa } from "@/components/ChassiMapa";
 import { brl } from "@/lib/format";
+import * as XLSX from "xlsx";
 
 const STATUS_PNEU = ["Estoque", "Aplicado", "Recapagem", "Conserto", "Sucateado"];
-const TIPOS_PNEU = ["Direcional", "Tração", "Misto"];
+const TIPOS_PNEU = ["Direcional", "Tração", "Misto", "Banda"];
 
 export default function Pneus() {
   const qc = useQueryClient();
-  const [abaAtiva, setAbaAtiva] = useState<"cadastrados" | "movimentacao" | "estoque" | "dashboard">("cadastrados");
+  const [abaAtiva, setAbaAtiva] = useState<"cadastrados" | "movimentacao" | "estoque" | "dashboard" | "manutencao">("cadastrados");
   
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [excluirId, setExcluirId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Estados de Filtro
   const [filtro, setFiltro] = useState("");
+  const [filtroMarca, setFiltroMarca] = useState("");
+  const [filtroMedida, setFiltroMedida] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState("");
 
   // Estados do Mapa
   const [tipoAtivo, setTipoAtivo] = useState<"cavalo" | "carreta">("cavalo");
@@ -37,16 +45,19 @@ export default function Pneus() {
   const { data: medidasDb = [] } = useQuery({ queryKey: ["medidas-pneus"], queryFn: () => apiGet<any[]>("/pneus/medidas") });
   const { data: modelosDb = [] } = useQuery({ queryKey: ["modelos-pneus"], queryFn: () => apiGet<any[]>("/pneus/modelos") });
 
+  // Formulário expandido com todos os campos
   const [form, setForm] = useState({
-    numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: ""
+    numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: "",
+    equipamento: "", posicao: "", banda_rod: "", estrutura: "", n_serie: "", n_recap: "", data_compra: "", data_descarte: "",
+    custo_total_atual: "", profundidade_atual: "", uso_atual: "", custo_por_km: "", km_posicao: ""
   });
 
-  // Estatísticas para os Cards
+  // Estatísticas e Custos
   const stats = useMemo(() => {
     const total = pneus.length;
     const sucateados = pneus.filter((p: any) => p.status === "Sucateado").length;
     const emManutencao = pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).length;
-    const emEstoque = pneus.filter((p: any) => p.status === "Estoque" || p.status === "Conserto");
+    const emEstoque = pneus.filter((p: any) => p.status === "Estoque");
     
     const marcasCount: Record<string, number> = {};
     pneus.forEach((p: any) => {
@@ -54,7 +65,10 @@ export default function Pneus() {
     });
     const topMarcas = Object.entries(marcasCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-    return { total, sucateados, emManutencao, topMarcas, emEstoque };
+    const custoCompra = pneus.reduce((acc: number, p: any) => acc + (Number(p.custo_aquisicao) || 0), 0);
+    const custoManutencao = emManutencao * 150;
+
+    return { total, sucateados, emManutencao, topMarcas, emEstoque, custoCompra, custoManutencao };
   }, [pneus]);
 
   // Filtro de veículos para o mapa
@@ -67,7 +81,6 @@ export default function Pneus() {
     return lista.filter((v: any) => v.label.toLowerCase().includes(buscaPlaca.toLowerCase()));
   }, [veiculosApi, carretas, tipoAtivo, buscaPlaca]);
 
-  // Veículo selecionado (busca na lista completa)
   const veiculoSelecionado = 
     tipoAtivo === "cavalo" 
       ? veiculosApi.find((v: any) => v.id === veiculoMapa)
@@ -79,13 +92,13 @@ export default function Pneus() {
       const payload = { ...form, custo_aquisicao: Number(String(form.custo_aquisicao).replace(",", ".")) || 0 };
       return editingId ? apiPut(`/pneus/${editingId}`, payload) : apiPost("/pneus", payload);
     },
-    onSuccess: () => { toast.success("Pneu salvo!"); setOpen(false); qc.invalidateQueries({ queryKey: ["pneus"] }); },
+    onSuccess: () => { toast.success("Pneu salvo!"); setOpen(false); qc.invalidateQueries({ queryKey: ["pneus"] }); qc.invalidateQueries({ queryKey: ["pneus-dashboard"] }); },
     onError: (e: any) => toast.error(e.message || "Erro")
   });
 
   const excluir = useMutation({
     mutationFn: (id: string) => apiDelete(`/pneus/${id}`),
-    onSuccess: () => { toast.success("Pneu excluído."); setExcluirId(null); qc.invalidateQueries({ queryKey: ["pneus"] }); }
+    onSuccess: () => { toast.success("Pneu excluído."); setExcluirId(null); qc.invalidateQueries({ queryKey: ["pneus"] }); qc.invalidateQueries({ queryKey: ["pneus-dashboard"] }); }
   });
 
   const movimentar = useMutation({
@@ -99,24 +112,270 @@ export default function Pneus() {
     onSuccess: () => {
       toast.success("Movimentação registrada!");
       qc.invalidateQueries({ queryKey: ["pneus"] });
+      qc.invalidateQueries({ queryKey: ["pneus-dashboard"] });
     },
     onError: (e: any) => toast.error(e.message || "Erro")
   });
 
-  const abrirNovo = () => { setEditingId(null); setForm({ numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: "" }); setOpen(true); };
-  const abrirEdicao = (r: any) => { setEditingId(r.id); setForm({ ...r, custo_aquisicao: String(r.custo_aquisicao || "") }); setOpen(true); };
+  const abrirNovo = () => { 
+    setEditingId(null); 
+    setForm({ 
+      numero_fogo: "", marca: "", modelo: "", medida: "", dot: "", tipo: "Tração", status: "Estoque", custo_aquisicao: "", observacoes: "",
+      equipamento: "", posicao: "", banda_rod: "", estrutura: "", n_serie: "", n_recap: "", data_compra: "", data_descarte: "",
+      custo_total_atual: "", profundidade_atual: "", uso_atual: "", custo_por_km: "", km_posicao: ""
+    }); 
+    setOpen(true); 
+  };
 
-  const pneusFiltrados = pneus.filter((p: any) => {
-    if (!filtro) return true;
-    return p.numero_fogo.toLowerCase().includes(filtro.toLowerCase()) || p.marca.toLowerCase().includes(filtro.toLowerCase());
-  });
+  const abrirEdicao = (r: any) => { 
+    setEditingId(r.id); 
+    setForm({ 
+      ...r, 
+      custo_aquisicao: String(r.custo_aquisicao || ""),
+      equipamento: r.equipamento || "",
+      posicao: r.posicao || "",
+      banda_rod: r.banda_rod || "",
+      estrutura: r.estrutura || "",
+      n_serie: r.n_serie || "",
+      n_recap: r.n_recap || "",
+      data_compra: r.data_compra || "",
+      data_descarte: r.data_descarte || "",
+      custo_total_atual: r.custo_total_atual || "",
+      profundidade_atual: r.profundidade_atual || "",
+      uso_atual: r.uso_atual || "",
+      custo_por_km: r.custo_por_km || "",
+      km_posicao: r.km_posicao || ""
+    }); 
+    setOpen(true); 
+  };
 
+  // ==========================================
+  // IMPORTAÇÃO DE PLANILHA BSOFT
+  // ==========================================
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        
+        if (data.length === 0) {
+          toast.error("A planilha está vazia.");
+          return;
+        }
+
+        // Mapear colunas da planilha Bsoft
+        const payload = data.map((row: any) => ({
+          numero_fogo: String(row["Marca Fogo"] || row["Nº Fogo"] || row["Fogo"] || "").trim(),
+          marca: String(row["Marca"] || "").trim(),
+          modelo: String(row["Modelo"] || "").trim(),
+          medida: String(row["Tamanho"] || row["Medida"] || "").replace(",", ".").replace(" ", "/"),
+          dot: String(row["DOT"] || "").trim(),
+          tipo: String(row["Tipo"] || "Tração").trim(),
+          status: row["Data Descarte"] && String(row["Data Descarte"]).trim() !== "" ? "Sucateado" : 
+                  (row["Equipamento"] && String(row["Equipamento"]).trim() !== "" ? "Aplicado" : "Estoque"),
+          custo_aquisicao: Number(String(row["Custo Total Atual"] || 0).replace(",", ".")),
+          equipamento: String(row["Equipamento"] || "").trim(),
+          posicao: String(row["Posição"] || "").trim(),
+          banda_rod: String(row["Banda Rod."] || "").trim(),
+          estrutura: String(row["Estrutura"] || "").trim(),
+          n_serie: String(row["N.º Série"] || "").trim(),
+          n_recap: String(row["N.º Recap."] || "").trim(),
+          data_compra: String(row["Data Compra"] || "").trim(),
+          data_descarte: String(row["Data Descarte"] || "").trim(),
+          custo_total_atual: Number(String(row["Custo Total Atual"] || 0).replace(",", ".")),
+          profundidade_atual: Number(String(row["Profundidade Atual"] || 0).replace(",", ".")),
+          uso_atual: String(row["Uso Atual"] || "").trim(),
+          custo_por_km: Number(String(row["Custo por KM"] || 0).replace(",", ".")),
+          km_posicao: Number(String(row["KM na Posição"] || 0).replace(",", ".")),
+        })).filter(p => p.numero_fogo && p.marca);
+
+        if (payload.length === 0) {
+          toast.error("Nenhum pneu válido encontrado. Verifique os nomes das colunas.");
+          return;
+        }
+
+        // Enviar para o backend
+        const res = await apiPost<any>("/pneus/importar", payload);
+        toast.success(`Importação concluída! ${res.inseridos} pneus adicionados.`);
+        if (res.erros?.length > 0) {
+          toast.warning(`${res.erros.length} pneus não foram importados (duplicidade ou erro).`);
+          console.log("Erros:", res.erros);
+        }
+        
+        qc.invalidateQueries({ queryKey: ["pneus"] });
+        qc.invalidateQueries({ queryKey: ["pneus-dashboard"] });
+      } catch (err) {
+        console.error(err);
+        toast.error("Erro ao ler a planilha. Verifique se o arquivo é um Excel válido.");
+      }
+    };
+    reader.readAsBinaryString(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Lógica de Filtro Combinado
+  const pneusFiltrados = useMemo(() => {
+    return pneus.filter((p: any) => {
+      const matchText = !filtro || p.numero_fogo.toLowerCase().includes(filtro.toLowerCase()) || p.marca.toLowerCase().includes(filtro.toLowerCase());
+      const matchMarca = !filtroMarca || p.marca === filtroMarca;
+      const matchMedida = !filtroMedida || p.medida === filtroMedida;
+      const matchTipo = !filtroTipo || p.tipo === filtroTipo;
+      const matchStatus = !filtroStatus || p.status === filtroStatus;
+      return matchText && matchMarca && matchMedida && matchTipo && matchStatus;
+    });
+  }, [pneus, filtro, filtroMarca, filtroMedida, filtroTipo, filtroStatus]);
+
+  // Cores dos Status no Grid
   const statusColor = (status: string) => {
     if (status === "Estoque") return "bg-sky-500/20 text-sky-400";
-    if (status === "Aplicado") return "bg-emerald-500/20 text-emerald-400";
-    if (status === "Recapagem") return "bg-amber-500/20 text-amber-400";
-    if (status === "Sucateado") return "bg-rose-500/20 text-rose-400";
+    if (status === "Aplicado") return "bg-emerald-600 text-white";
+    if (status === "Recapagem" || status === "Conserto") return "bg-red-600 text-white";
+    if (status === "Sucateado") return "bg-purple-600 text-white";
     return "bg-slate-800 text-slate-400";
+  };
+
+  // Componente de Ícone Dinâmico
+  const StatusIcon = ({ status }: { status: string }) => {
+    if (status === "Aplicado") return <span title="Rodando"><Disc className="size-4 text-white mr-2 inline" /></span>;
+    if (status === "Conserto" || status === "Recapagem") return <span title="Em Manutenção"><Disc className="size-4 text-red-500 mr-2 inline animate-pulse" /></span>;
+    if (status === "Sucateado") return <span title="Sucateado"><X className="size-4 text-purple-500 mr-2 inline" /></span>;
+    if (status === "Estoque") return <span title="Em Estoque"><Disc className="size-4 text-amber-500 mr-2 inline" /></span>;
+    return <span title="Desconhecido"><Disc className="size-4 text-slate-400 mr-2 inline" /></span>;
+  };
+
+  // Função para obter informações de aplicação
+  const getInfoAplicacao = (p: any) => {
+    let placa = "—";
+    let tipoAtivo = "";
+    
+    if (p.veiculo_id) {
+      const v = veiculosApi.find((v: any) => v.id === p.veiculo_id);
+      if (v) {
+        placa = v.placa;
+        tipoAtivo = "Cavalo";
+      }
+    } else if (p.carreta_id) {
+      const c = carretas.find((c: any) => c.id === p.carreta_id);
+      if (c) {
+        placa = c.codigo;
+        tipoAtivo = "Carreta";
+      }
+    }
+
+    let km = "—";
+    if (p.veiculo_id) {
+      const v = veiculosApi.find((v: any) => v.id === p.veiculo_id);
+      if (v && v.hodometro_km) km = `${v.hodometro_km.toLocaleString('pt-BR')} km`;
+    } else if (p.km_aplicacao) {
+      km = `${Number(p.km_aplicacao).toLocaleString('pt-BR')} km`;
+    }
+
+    const quemAplicou = p.updated_by || p.created_by || "Usuário do Sistema";
+
+    return { placa, tipoAtivo, km, quemAplicou };
+  };
+
+  // ==========================================
+  // FUNÇÕES DE EXPORTAÇÃO
+  // ==========================================
+  const exportToExcel = () => {
+    const headers = ["Nº Fogo", "Marca", "Modelo", "Medida", "DOT", "Tipo", "Status", "Custo (R$)"];
+    const rows = pneusFiltrados.map((p: any) => [
+      p.numero_fogo, 
+      p.marca, 
+      p.modelo || "-", 
+      p.medida, 
+      p.dot || "-", 
+      p.tipo, 
+      p.status, 
+      String(p.custo_aquisicao || 0).replace(".", ",")
+    ]);
+    
+    const csvContent = [headers, ...rows].map(e => e.join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Relatorio_Pneus_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast.success("Download do Excel iniciado!");
+  };
+
+  const exportToPDF = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error("Por favor, permita pop-ups para gerar o PDF.");
+      return;
+    }
+
+    const html = `
+      <html>
+        <head>
+          <title>Relatório de Pneus - Bravus Frota</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #333; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0284c7; padding-bottom: 10px; }
+            .header h1 { margin: 0; color: #0f172a; font-size: 24px; }
+            .header p { margin: 5px 0 0 0; color: #64748b; font-size: 14px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+            th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
+            th { background-color: #f1f5f9; color: #334155; font-weight: bold; text-transform: uppercase; }
+            tr:nth-child(even) { background-color: #f8fafc; }
+            .footer { margin-top: 30px; text-align: right; font-size: 10px; color: #94a3b8; }
+            .status { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; background: #e2e8f0; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Relatório de Controle de Pneus</h1>
+            <p>Gerado em: ${new Date().toLocaleString('pt-BR')} | Registros: ${pneusFiltrados.length}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Nº Fogo</th>
+                <th>Marca / Modelo</th>
+                <th>Medida</th>
+                <th>DOT</th>
+                <th>Tipo</th>
+                <th>Status</th>
+                <th>Custo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pneusFiltrados.map((p: any) => `
+                <tr>
+                  <td><strong>${p.numero_fogo}</strong></td>
+                  <td>${p.marca} ${p.modelo ? '/ ' + p.modelo : ''}</td>
+                  <td>${p.medida}</td>
+                  <td>${p.dot || '-'}</td>
+                  <td>${p.tipo}</td>
+                  <td><span class="status">${p.status}</span></td>
+                  <td>R$ ${Number(p.custo_aquisicao || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="footer">
+            Bravus Frota - Sistema de Gestão
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
   };
 
   return (
@@ -125,33 +384,44 @@ export default function Pneus() {
         eyebrow="Operação"
         title="Controle de Pneus"
         description="Gestão de pneus por número de fogo, marca, DOT e status."
-        actions={<Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500 h-9"><Plus className="size-4 mr-2" /> Novo Pneu</Button>}
+        actions={
+          <div className="flex gap-2">
+            <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} onChange={handleImportFile} className="hidden" />
+            <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 h-9">
+              <Upload className="size-4 mr-2" /> Importar Planilha
+            </Button>
+            <Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500 h-9">
+              <Plus className="size-4 mr-2" /> Novo Pneu
+            </Button>
+          </div>
+        }
       />
 
       {/* Cards de KPI */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-        <div className="glass p-4 rounded-xl flex justify-between items-center">
-          <div><p className="text-xs uppercase text-slate-400">Total de Pneus</p><p className="text-2xl font-bold text-slate-100">{stats.total}</p></div>
-          <div className="p-2 bg-sky-500/10 rounded-lg"><Disc className="size-5 text-sky-400" /></div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6 mb-6">
+        <div className="glass p-3 rounded-xl flex justify-between items-center">
+          <div><p className="text-[10px] uppercase text-slate-400">Total</p><p className="text-xl font-bold text-slate-100">{stats.total}</p></div>
+          <Disc className="size-5 text-sky-400" />
         </div>
-        <div className="glass p-4 rounded-xl flex justify-between items-center">
-          <div><p className="text-xs uppercase text-slate-400">Sucateados</p><p className="text-2xl font-bold text-rose-400">{stats.sucateados}</p></div>
-          <div className="p-2 bg-rose-500/10 rounded-lg"><Trash2 className="size-5 text-rose-400" /></div>
+        <div className="glass p-3 rounded-xl flex justify-between items-center">
+          <div><p className="text-[10px] uppercase text-slate-400">Sucateados</p><p className="text-xl font-bold text-purple-500">{stats.sucateados}</p></div>
+          <Trash2 className="size-5 text-purple-500" />
         </div>
-        <div className="glass p-4 rounded-xl flex justify-between items-center">
-          <div><p className="text-xs uppercase text-slate-400">Em Manutenção</p><p className="text-2xl font-bold text-amber-400">{stats.emManutencao}</p></div>
-          <div className="p-2 bg-amber-500/10 rounded-lg"><AlertTriangle className="size-5 text-amber-400" /></div>
+        <div className="glass p-3 rounded-xl flex justify-between items-center">
+          <div><p className="text-[10px] uppercase text-slate-400">Manutenção</p><p className="text-xl font-bold text-red-500">{stats.emManutencao}</p></div>
+          <AlertTriangle className="size-5 text-red-500" />
         </div>
-        <div className="glass p-4 rounded-xl flex flex-col justify-center">
-          <p className="text-xs uppercase text-slate-400 mb-2">Top Marcas</p>
-          <div className="space-y-1">
-            {stats.topMarcas.map(([marca, qtd]: any, i: number) => (
-              <div key={i} className="flex justify-between text-xs">
-                <span className="text-slate-300 truncate">{marca}</span>
-                <span className="text-sky-400 font-bold">{qtd}</span>
-              </div>
-            ))}
-          </div>
+        <div className="glass p-3 rounded-xl flex flex-col justify-center">
+          <p className="text-[10px] uppercase text-slate-400">Top Marcas</p>
+          <p className="text-xs text-sky-400 font-bold truncate">{stats.topMarcas[0]?.[0] || "—"}</p>
+        </div>
+        <div className="glass p-3 rounded-xl flex flex-col justify-center border-l-2 border-white">
+          <p className="text-[10px] uppercase text-slate-400">Custo Compra</p>
+          <p className="text-sm font-bold text-white">{brl(stats.custoCompra)}</p>
+        </div>
+        <div className="glass p-3 rounded-xl flex flex-col justify-center border-l-2 border-red-500">
+          <p className="text-[10px] uppercase text-slate-400">Custo Manutenção</p>
+          <p className="text-sm font-bold text-red-500">{brl(stats.custoManutencao)}</p>
         </div>
       </div>
 
@@ -170,31 +440,67 @@ export default function Pneus() {
           <ArrowRightLeft className="size-4 inline mr-2" /> Movimentação (Chassi)
         </button>
         <button 
-          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${abaAtiva === 'estoque' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
-          onClick={() => setAbaAtiva('estoque')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${abaAtiva === 'manutencao' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
+          onClick={() => setAbaAtiva('manutencao')}
         >
-          
+          <Wrench className="size-4 inline mr-2" /> Manutenção
+        </button>
         <button 
           className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${abaAtiva === 'dashboard' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
           onClick={() => setAbaAtiva('dashboard')}
         >
           <BarChart3 className="size-4 inline mr-2" /> Indicadores
         </button>
-<RefreshCw className="size-4 inline mr-2" /> Estoque / Sucata
+        <button 
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${abaAtiva === 'estoque' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
+          onClick={() => setAbaAtiva('estoque')}
+        >
+          <RefreshCw className="size-4 inline mr-2" /> Estoque / Sucata
         </button>
       </div>
 
       {/* Aba 1: Pneus Cadastrados */}
       {abaAtiva === "cadastrados" && (
         <div>
-          <div className="mb-4 flex gap-2">
-            <div className="relative w-72">
+          {/* Barra de Filtros */}
+          <div className="mb-4 flex gap-2 flex-wrap items-center">
+            <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-              <Input placeholder="Buscar por número de fogo ou marca..." value={filtro} onChange={(e) => setFiltro(e.target.value)} className="pl-9 h-9" />
+              <Input placeholder="Buscar Nº fogo ou marca..." value={filtro} onChange={(e) => setFiltro(e.target.value)} className="pl-9 h-9" />
+            </div>
+            
+            <select value={filtroMarca} onChange={(e) => setFiltroMarca(e.target.value)} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+              <option value="">Todas as Marcas</option>
+              {marcasDb.map((m: any) => <option key={m.id} value={m.nome}>{m.nome}</option>)}
+            </select>
+
+            <select value={filtroMedida} onChange={(e) => setFiltroMedida(e.target.value)} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+              <option value="">Todas as Medidas</option>
+              {medidasDb.map((m: any) => <option key={m.id} value={m.medida}>{m.medida}</option>)}
+            </select>
+
+            <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+              <option value="">Todos os Tipos</option>
+              {TIPOS_PNEU.map((t: string) => <option key={t} value={t}>{t}</option>)}
+            </select>
+
+            <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+              <option value="">Todos os Status</option>
+              {STATUS_PNEU.map((s: string) => <option key={s} value={s}>{s}</option>)}
+            </select>
+
+            {/* Botões de Exportação à Direita */}
+            <div className="flex gap-2 ml-auto">
+              <Button onClick={exportToExcel} variant="outline" className="h-9 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10">
+                <FileSpreadsheet className="size-4 mr-2" /> Excel
+              </Button>
+              <Button onClick={exportToPDF} variant="outline" className="h-9 border-rose-500/40 text-rose-400 hover:bg-rose-500/10">
+                <FileDown className="size-4 mr-2" /> PDF
+              </Button>
             </div>
           </div>
 
-          <div className="glass overflow-hidden rounded-2xl">
+          <div className="glass rounded-2xl overflow-visible">
             <Table>
               <TableHeader>
                 <TableRow className="border-slate-800">
@@ -205,28 +511,54 @@ export default function Pneus() {
                   <TableHead className="text-xs uppercase text-slate-500">Tipo</TableHead>
                   <TableHead className="text-xs uppercase text-slate-500">Status</TableHead>
                   <TableHead className="text-xs uppercase text-slate-500">Custo</TableHead>
-                  <TableHead className="text-xs uppercase text-slate-500 text-center">Ações</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500 text-right pr-6">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pneusFiltrados.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-slate-500">Nenhum pneu cadastrado.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-slate-500">Nenhum pneu encontrado com os filtros selecionados.</TableCell></TableRow>
                 ) : (
-                  pneusFiltrados.map((p: any) => (
-                    <TableRow key={p.id} className="border-slate-800 hover:bg-slate-800/30">
-                      <TableCell className="font-bold text-slate-100">{p.numero_fogo}</TableCell>
-                      <TableCell className="text-slate-300">{p.marca} {p.modelo && `/ ${p.modelo}`}</TableCell>
-                      <TableCell className="text-slate-400 font-mono">{p.medida}</TableCell>
-                      <TableCell className="text-slate-400">{p.dot || "—"}</TableCell>
-                      <TableCell className="text-slate-400">{p.tipo}</TableCell>
-                      <TableCell><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span></TableCell>
-                      <TableCell className="text-amber-400 font-mono">{brl(p.custo_aquisicao)}</TableCell>
-                      <TableCell className="text-center">
-                        <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(p)}><Pencil className="size-4 text-sky-400" /></Button>
-                        <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(p.id)}><Trash2 className="size-4 text-red-300" /></Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  pneusFiltrados.map((p: any) => {
+                    const info = getInfoAplicacao(p);
+                    return (
+                      <TableRow key={p.id} className="border-slate-800 hover:bg-slate-800/30">
+                        <TableCell className="font-bold text-slate-100">
+                          <StatusIcon status={p.status} /> {p.numero_fogo}
+                        </TableCell>
+                        <TableCell className="text-slate-300">{p.marca} {p.modelo && `/ ${p.modelo}`}</TableCell>
+                        <TableCell className="text-slate-400 font-mono">{p.medida}</TableCell>
+                        <TableCell className="text-slate-400">{p.dot || "—"}</TableCell>
+                        <TableCell className="text-slate-400">{p.tipo}</TableCell>
+                        <TableCell><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span></TableCell>
+                        <TableCell className="text-amber-400 font-mono">{brl(p.custo_aquisicao)}</TableCell>
+                        
+                        {/* Coluna de Ações Alinhada à Direita */}
+                        <TableCell className="text-right pr-6">
+                          <div className="flex items-center justify-end gap-1">
+                            {p.status === "Aplicado" ? (
+                              <div className="relative group inline-block">
+                                <Button size="icon-sm" variant="ghost" className="cursor-help">
+                                  {p.veiculo_id ? <Truck className="size-4 text-emerald-400" /> : <Container className="size-4 text-emerald-400" />}
+                                </Button>
+                                {/* Tooltip posicionado à esquerda para não cortar */}
+                                <div className="absolute top-1/2 -translate-y-1/2 right-full mr-2 hidden group-hover:block w-48 bg-slate-800 border border-slate-700 rounded-lg p-3 text-xs z-50 shadow-xl pointer-events-none">
+                                  <p className="font-bold text-slate-100 mb-1">Aplicado em:</p>
+                                  <p className="text-slate-300">{info.placa} ({info.tipoAtivo})</p>
+                                  <p className="text-slate-400 mt-2">KM: <span className="text-slate-200">{info.km}</span></p>
+                                  <p className="text-slate-400">Por: <span className="text-slate-200">{info.quemAplicou}</span></p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-[32px] h-[32px]"></div> /* Espaçador invisível para alinhar */
+                            )}
+                            <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(p)}><Pencil className="size-4 text-sky-400" /></Button>
+                            <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(p.id)}><Trash2 className="size-4 text-red-300" /></Button>
+                          </div>
+                        </TableCell>
+                        
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -273,12 +605,52 @@ export default function Pneus() {
         </div>
       )}
 
-      {/* Aba 3: Estoque / Sucata */}
+      {/* Aba 3: Manutenção */}
+      {abaAtiva === "manutencao" && (
+        <div>
+          <div className="glass overflow-hidden rounded-2xl">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-800">
+                  <TableHead className="text-xs uppercase text-slate-500">Nº Fogo</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Marca / Medida</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Status</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500">Custo Compra</TableHead>
+                  <TableHead className="text-xs uppercase text-slate-500 text-center">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).length === 0 ? (
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-slate-500">Nenhum pneu em manutenção.</TableCell></TableRow>
+                ) : (
+                  pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).map((p: any) => (
+                    <TableRow key={p.id} className="border-slate-800 hover:bg-slate-800/30">
+                      <TableCell className="font-bold text-slate-100">
+                        <StatusIcon status={p.status} /> {p.numero_fogo}
+                      </TableCell>
+                      <TableCell className="text-slate-300">{p.marca} - {p.medida}</TableCell>
+                      <TableCell><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span></TableCell>
+                      <TableCell className="text-amber-400 font-mono">{brl(p.custo_aquisicao)}</TableCell>
+                      <TableCell className="text-center">
+                        <Button size="sm" variant="outline" className="text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10" onClick={() => { setEditingId(p.id); setForm({ ...p, status: "Estoque", custo_aquisicao: String(p.custo_aquisicao || "") }); setOpen(true); }}>
+                          <CheckCircle2 className="size-3 mr-1" /> Retornar ao Estoque
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* Aba 4: Estoque / Sucata */}
       {abaAtiva === "estoque" && (
         <div>
           <div className="glass p-6 rounded-2xl">
             <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
-              <RefreshCw className="size-5 text-sky-400" /> Pneus em Estoque para Recapagem / Sucata
+              <RefreshCw className="size-5 text-sky-400" /> Pneus em Estoque
             </h3>
             
             {stats.emEstoque.length === 0 ? (
@@ -296,28 +668,8 @@ export default function Pneus() {
                       <span className="text-xs font-mono text-amber-400">{brl(p.custo_aquisicao)}</span>
                     </div>
                     <div className="mt-3 flex gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="flex-1 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
-                        onClick={() => movimentar.mutate({ pneu_id: p.id, tipo: "RECAPAGEM" })}
-                        disabled={movimentar.isPending}
-                      >
-                        <RefreshCw className="size-3 mr-1" /> Recapagem
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="flex-1 text-xs border-rose-500/40 text-rose-400 hover:bg-rose-500/10"
-                        onClick={() => {
-                          if (confirm("Descartar este pneu como sucata?")) {
-                            movimentar.mutate({ pneu_id: p.id, tipo: "DESCARTE" });
-                          }
-                        }}
-                        disabled={movimentar.isPending}
-                      >
-                        <ShieldAlert className="size-3 mr-1" /> Sucatear
-                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10" onClick={() => movimentar.mutate({ pneu_id: p.id, tipo: "RECAPAGEM" })} disabled={movimentar.isPending}><RefreshCw className="size-3 mr-1" /> Manutenção</Button>
+                      <Button size="sm" variant="outline" className="flex-1 text-xs border-rose-500/40 text-rose-400 hover:bg-rose-500/10" onClick={() => { if (confirm("Descartar este pneu como sucata?")) movimentar.mutate({ pneu_id: p.id, tipo: "DESCARTE" }); }} disabled={movimentar.isPending}><ShieldAlert className="size-3 mr-1" /> Sucatear</Button>
                     </div>
                   </div>
                 ))}
@@ -327,11 +679,9 @@ export default function Pneus() {
         </div>
       )}
 
-      
-      {/* Aba 4: Dashboard */}
+      {/* Aba 5: Dashboard */}
       {abaAtiva === "dashboard" && (
         <div className="space-y-6">
-          {/* Cards de KPI */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="glass p-4 rounded-xl flex justify-between items-center">
               <div><p className="text-xs uppercase text-slate-400">Total de Pneus</p><p className="text-2xl font-bold text-slate-100">{dash.total}</p></div>
@@ -352,7 +702,6 @@ export default function Pneus() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Gráfico de Marcas */}
             <div className="glass p-6 rounded-2xl">
               <h3 className="text-sm font-bold text-slate-100 mb-6 flex items-center gap-2">
                 <BarChart3 className="size-4 text-sky-400" /> Top 5 Marcas na Frota
@@ -380,7 +729,6 @@ export default function Pneus() {
               </div>
             </div>
 
-            {/* Saúde da Frota */}
             <div className="glass p-6 rounded-2xl flex flex-col justify-center">
               <h3 className="text-sm font-bold text-slate-100 mb-6 flex items-center gap-2">
                 <Activity className="size-4 text-emerald-400" /> Saúde da Frota
@@ -407,42 +755,59 @@ export default function Pneus() {
       {/* Modal de Cadastro/Edição */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl p-6">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-4xl p-6">
             <h2 className="text-lg font-bold text-slate-100 mb-4">{editingId ? "Editar Pneu" : "Novo Pneu"}</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Número de Fogo *</Label><Input value={form.numero_fogo} onChange={(e) => setForm(s => ({ ...s, numero_fogo: e.target.value }))} placeholder="Ex: FOG-10492" /></div>
+            <div className="grid grid-cols-3 gap-4">
+              
+              {/* Linha 1 */}
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Marca Fogo *</Label><Input value={form.numero_fogo} onChange={(e) => setForm(s => ({ ...s, numero_fogo: e.target.value }))} placeholder="Ex: FOG-10492" /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Equipamento</Label><Input value={form.equipamento} onChange={(e) => setForm(s => ({ ...s, equipamento: e.target.value }))} placeholder="Ex: QPN5139" /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Posição</Label><Input value={form.posicao} onChange={(e) => setForm(s => ({ ...s, posicao: e.target.value }))} placeholder="Ex: 1-E" /></div>
+
+              {/* Linha 2 */}
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">Tipo</Label>
+                <FieldSelect value={form.tipo} onChange={(v) => setForm(s => ({ ...s, tipo: v }))} options={TIPOS_PNEU.map(t => ({ value: t, label: t }))} testId="pneu-tipo" />
+              </div>
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">Marca *</Label>
-                <FieldSelect 
-                  value={form.marca} 
-                  onChange={(v) => setForm(s => ({ ...s, marca: v }))} 
-                  options={marcasDb.map((m: any) => ({ value: m.nome, label: m.nome }))} 
-                  placeholder="Selecione a Marca..." 
-                />
+                <FieldSelect value={form.marca} onChange={(v) => setForm(s => ({ ...s, marca: v }))} options={marcasDb.map((m: any) => ({ value: m.nome, label: m.nome }))} placeholder="Selecione a Marca..." testId="pneu-marca" />
               </div>
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">Modelo</Label>
-                <FieldSelect 
-                  value={form.modelo} 
-                  onChange={(v) => setForm(s => ({ ...s, modelo: v }))} 
-                  options={modelosDb.map((m: any) => ({ value: m.nome, label: m.nome }))} 
-                  placeholder="Selecione o Modelo..." 
-                />
+                <FieldSelect value={form.modelo} onChange={(v) => setForm(s => ({ ...s, modelo: v }))} options={modelosDb.map((m: any) => ({ value: m.nome, label: m.nome }))} placeholder="Selecione o Modelo..." testId="pneu-modelo" />
               </div>
+
+              {/* Linha 3 */}
               <div className="grid gap-1.5">
-                <Label className="text-xs text-slate-400">Medida *</Label>
-                <FieldSelect 
-                  value={form.medida} 
-                  onChange={(v) => setForm(s => ({ ...s, medida: v }))} 
-                  options={medidasDb.map((m: any) => ({ value: m.medida, label: m.medida }))} 
-                  placeholder="Selecione a Medida..." 
-                />
+                <Label className="text-xs text-slate-400">Tamanho *</Label>
+                <FieldSelect value={form.medida} onChange={(v) => setForm(s => ({ ...s, medida: v }))} options={medidasDb.map((m: any) => ({ value: m.medida, label: m.medida }))} placeholder="Selecione a Medida..." testId="pneu-medida" />
               </div>
-              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">DOT (Semana/Ano)</Label><Input value={form.dot} onChange={(e) => setForm(s => ({ ...s, dot: e.target.value }))} placeholder="Ex: 4523" maxLength={4} /></div>
-              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Tipo</Label><FieldSelect value={form.tipo} onChange={(v) => setForm(s => ({ ...s, tipo: v }))} options={TIPOS_PNEU.map(t => ({ value: t, label: t }))} /></div>
-              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Status</Label><FieldSelect value={form.status} onChange={(v) => setForm(s => ({ ...s, status: v }))} options={STATUS_PNEU.map(s => ({ value: s, label: s }))} /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Banda Rod.</Label><Input value={form.banda_rod} onChange={(e) => setForm(s => ({ ...s, banda_rod: e.target.value }))} placeholder="Ex: Original" /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Estrutura</Label><Input value={form.estrutura} onChange={(e) => setForm(s => ({ ...s, estrutura: e.target.value }))} placeholder="Ex: Radial" /></div>
+
+              {/* Linha 4 */}
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">N.º Série</Label><Input value={form.n_serie} onChange={(e) => setForm(s => ({ ...s, n_serie: e.target.value }))} placeholder="Ex: 12345" /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">DOT</Label><Input value={form.dot} onChange={(e) => setForm(s => ({ ...s, dot: e.target.value }))} placeholder="Ex: 4523" maxLength={4} /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">N.º Recap.</Label><Input value={form.n_recap} onChange={(e) => setForm(s => ({ ...s, n_recap: e.target.value }))} placeholder="Ex: 1" /></div>
+
+              {/* Linha 5 */}
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Data Compra</Label><Input type="date" value={form.data_compra} onChange={(e) => setForm(s => ({ ...s, data_compra: e.target.value }))} /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Data Descarte</Label><Input type="date" value={form.data_descarte} onChange={(e) => setForm(s => ({ ...s, data_descarte: e.target.value }))} /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Status</Label><FieldSelect value={form.status} onChange={(v) => setForm(s => ({ ...s, status: v }))} options={STATUS_PNEU.map(s => ({ value: s, label: s }))} testId="pneu-status" /></div>
+
+              {/* Linha 6 */}
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Custo Total Atual (R$)</Label><Input value={form.custo_total_atual} onChange={(e) => setForm(s => ({ ...s, custo_total_atual: e.target.value }))} placeholder="0,00" /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Profundidade Atual (mm)</Label><Input value={form.profundidade_atual} onChange={(e) => setForm(s => ({ ...s, profundidade_atual: e.target.value }))} placeholder="Ex: 8.5" /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Uso Atual</Label><Input value={form.uso_atual} onChange={(e) => setForm(s => ({ ...s, uso_atual: e.target.value }))} placeholder="Ex: Rodando" /></div>
+
+              {/* Linha 7 */}
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Custo por KM (R$)</Label><Input value={form.custo_por_km} onChange={(e) => setForm(s => ({ ...s, custo_por_km: e.target.value }))} placeholder="0,00" /></div>
+              <div className="grid gap-1.5"><Label className="text-xs text-slate-400">KM na Posição</Label><Input value={form.km_posicao} onChange={(e) => setForm(s => ({ ...s, km_posicao: e.target.value }))} placeholder="Ex: 50000" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Custo de Aquisição (R$)</Label><Input value={form.custo_aquisicao} onChange={(e) => setForm(s => ({ ...s, custo_aquisicao: e.target.value }))} placeholder="0,00" /></div>
-              <div className="col-span-2 grid gap-1.5"><Label className="text-xs text-slate-400">Observações</Label><Input value={form.observacoes} onChange={(e) => setForm(s => ({ ...s, observacoes: e.target.value }))} placeholder="Ex: Comprado na loja X" /></div>
+
+              {/* Observações */}
+              <div className="col-span-3 grid gap-1.5"><Label className="text-xs text-slate-400">Observações</Label><Input value={form.observacoes} onChange={(e) => setForm(s => ({ ...s, observacoes: e.target.value }))} placeholder="Ex: Comprado na loja X" /></div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
