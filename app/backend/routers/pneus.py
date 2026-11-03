@@ -28,6 +28,18 @@ async def criar(body: PneuCreate, user: dict = Depends(require("write"))):
 # ==========================================
 # ROTA DE IMPORTAÇÃO (Antes de /{id})
 # ==========================================
+def normalizar_tipo(tipo_raw: str) -> str:
+    t = str(tipo_raw or "").strip().upper()
+    if t in ("LISO", "BORRACHUDO", "MISTO", "MISTA"):
+        return "Misto"
+    if t in ("DIRECIONAL",):
+        return "Direcional"
+    if t in ("TRACAO", "TRAÇÃO"):
+        return "Tração"
+    if t in ("BANDA",):
+        return "Banda"
+    return "Misto"
+
 @router.post("/importar")
 async def importar_pneus(body: List[dict], user: dict = Depends(require("write"))):
     inseridos = 0
@@ -43,6 +55,18 @@ async def importar_pneus(body: List[dict], user: dict = Depends(require("write")
                 erros.append(f"Pneu {item['numero_fogo']} já existe.")
                 continue
                 
+            # Garante que marca, modelo e medida existam nas tabelas de apoio
+            marca_nome = item.get("marca", "").strip()
+            modelo_nome = item.get("modelo", "").strip()
+            medida_nome = item.get("medida", "").strip()
+            
+            if marca_nome and not await db.marcas_pneus.find_one({"nome": marca_nome}):
+                await db.marcas_pneus.insert_one({"id": str(uuid.uuid4()), "nome": marca_nome})
+            if modelo_nome and not await db.modelos_pneus.find_one({"nome": modelo_nome}):
+                await db.modelos_pneus.insert_one({"id": str(uuid.uuid4()), "nome": modelo_nome})
+            if medida_nome and not await db.medidas_pneus.find_one({"medida": medida_nome}):
+                await db.medidas_pneus.insert_one({"id": str(uuid.uuid4()), "medida": medida_nome})
+                
             doc = {
                 "id": str(uuid.uuid4()),
                 "numero_fogo": item.get("numero_fogo"),
@@ -50,7 +74,7 @@ async def importar_pneus(body: List[dict], user: dict = Depends(require("write")
                 "modelo": item.get("modelo", ""),
                 "medida": item.get("medida", ""),
                 "dot": item.get("dot", ""),
-                "tipo": item.get("tipo", "Tração"),
+                "tipo": normalizar_tipo(item.get("tipo", "Misto")),
                 "status": item.get("status", "Estoque"),
                 "custo_aquisicao": float(item.get("custo_aquisicao", 0)),
                 "observacoes": item.get("observacoes", ""),

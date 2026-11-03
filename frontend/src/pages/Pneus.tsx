@@ -14,7 +14,7 @@ import { brl } from "@/lib/format";
 import * as XLSX from "xlsx";
 
 const STATUS_PNEU = ["Estoque", "Aplicado", "Recapagem", "Conserto", "Sucateado"];
-const TIPOS_PNEU = ["Direcional", "Tração", "Misto", "Banda"];
+const TIPOS_PNEU = ["Direcional", "Tração", "Misto", "Banda", "Liso", "Borrachudo"];
 
 export default function Pneus() {
   const qc = useQueryClient();
@@ -127,7 +127,12 @@ export default function Pneus() {
     setOpen(true); 
   };
 
-  const abrirEdicao = (r: any) => { 
+  const abrirEdicao = (r: any) => {
+    // Se o pneu tiver um valor que não está na lista, injeta dinamicamente para o select não ficar vazio
+    if (r.marca && !marcasDb.find((m: any) => m.nome === r.marca)) marcasDb.push({ id: 'temp', nome: r.marca });
+    if (r.modelo && !modelosDb.find((m: any) => m.nome === r.modelo)) modelosDb.push({ id: 'temp', nome: r.modelo });
+    if (r.medida && !medidasDb.find((m: any) => m.medida === r.medida)) medidasDb.push({ id: 'temp', medida: r.medida });
+     
     setEditingId(r.id); 
     setForm({ 
       ...r, 
