@@ -167,6 +167,12 @@ async def seed_pneus(_u: dict = Depends(require("write"))):
 # ==========================================
 # ROTAS DE EDIÇÃO/EXCLUSÃO (Por último)
 # ==========================================
+
+@router.delete("/limpar")
+async def limpar_pneus(_u: dict = Depends(require("delete"))):
+    await db.pneus.delete_many({})
+    return {"ok": True, "message": "Todos os pneus foram removidos."}
+
 @router.put("/{id}", response_model=Pneu)
 async def atualizar(id: str, body: PneuCreate, user: dict = Depends(require("write"))):
     existe = await db.pneus.find_one({"id": id})

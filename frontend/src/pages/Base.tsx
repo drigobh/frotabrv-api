@@ -17,6 +17,7 @@ const COLECOES = [
 ];
 
 export default function Base() {
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [colecaoAlvo, setColecaoAlvo] = useState<string | null>(null);
   const [confirmacao, setConfirmacao] = useState("");
