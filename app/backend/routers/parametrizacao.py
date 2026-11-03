@@ -18,7 +18,8 @@ async def obter_meta(_u: dict = Depends(require("read"))):
         mostrar_seed_medidas=config.get("mostrar_seed_medidas", False),
         mostrar_seed_marcas=config.get("mostrar_seed_marcas", False),
         mostrar_seed_modelos=config.get("mostrar_seed_modelos", False),
-        mostrar_seed_templates=config.get("mostrar_seed_templates", False)
+        mostrar_seed_templates=config.get("mostrar_seed_templates", False),
+        mostrar_importacao_pneus=config.get("mostrar_importacao_pneus", False)
     )
 
 @router.put("/meta", response_model=ParametrizacaoBase)
@@ -34,6 +35,7 @@ async def atualizar_meta(body: ParametrizacaoBase, _u: dict = Depends(require("w
             "mostrar_seed_marcas": body.mostrar_seed_marcas,
             "mostrar_seed_modelos": body.mostrar_seed_modelos,
             "mostrar_seed_templates": body.mostrar_seed_templates,
+            "mostrar_importacao_pneus": body.mostrar_importacao_pneus,
             "updated_at": now_iso()
         }},
         upsert=True

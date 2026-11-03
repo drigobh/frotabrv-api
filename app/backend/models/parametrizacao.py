@@ -8,3 +8,4 @@ class ParametrizacaoBase(BaseModel):
     mostrar_seed_marcas: bool = False
     mostrar_seed_modelos: bool = False
     mostrar_seed_templates: bool = False
+    mostrar_importacao_pneus: bool = False

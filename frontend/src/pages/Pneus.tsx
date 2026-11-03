@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Plus, Pencil, Trash2, Disc, Search, AlertTriangle, RefreshCw, ArrowRightLeft, ShieldAlert, CheckCircle2, Activity, X, Wrench, FileDown, FileSpreadsheet, Truck, Container, Upload } from "lucide-react";
+import { BarChart3, Plus, Pencil, Trash2, Disc, Search, AlertTriangle, RefreshCw, ArrowRightLeft, ShieldAlert, CheckCircle2, Activity, X, Wrench, FileDown, FileSpreadsheet, Truck, Container, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -25,6 +25,14 @@ export default function Pneus() {
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Estados do Modal de Importação
+  const [importOpen, setImportOpen] = useState(false);
+  const [importProgresso, setImportProgresso] = useState(0);
+  const [importTotal, setImportTotal] = useState(0);
+  const [importProcessados, setImportProcessados] = useState(0);
+  const [importErros, setImportErros] = useState<string[]>([]);
+  const [importando, setImportando] = useState(false);
+
   // Estados de Filtro
   const [filtro, setFiltro] = useState("");
   const [filtroMarca, setFiltroMarca] = useState("");
@@ -44,6 +52,7 @@ export default function Pneus() {
   const { data: marcasDb = [] } = useQuery({ queryKey: ["marcas-pneus"], queryFn: () => apiGet<any[]>("/pneus/marcas") });
   const { data: medidasDb = [] } = useQuery({ queryKey: ["medidas-pneus"], queryFn: () => apiGet<any[]>("/pneus/medidas") });
   const { data: modelosDb = [] } = useQuery({ queryKey: ["modelos-pneus"], queryFn: () => apiGet<any[]>("/pneus/modelos") });
+  const { data: config } = useQuery({ queryKey: ["parametrizacao-meta"], queryFn: () => apiGet<any>("/parametrizacao/meta") });
 
   // Formulário expandido com todos os campos
   const [form, setForm] = useState({
@@ -127,12 +136,7 @@ export default function Pneus() {
     setOpen(true); 
   };
 
-  const abrirEdicao = (r: any) => {
-    // Se o pneu tiver um valor que não está na lista, injeta dinamicamente para o select não ficar vazio
-    if (r.marca && !marcasDb.find((m: any) => m.nome === r.marca)) marcasDb.push({ id: 'temp', nome: r.marca });
-    if (r.modelo && !modelosDb.find((m: any) => m.nome === r.modelo)) modelosDb.push({ id: 'temp', nome: r.modelo });
-    if (r.medida && !medidasDb.find((m: any) => m.medida === r.medida)) medidasDb.push({ id: 'temp', medida: r.medida });
-     
+  const abrirEdicao = (r: any) => { 
     setEditingId(r.id); 
     setForm({ 
       ...r, 
@@ -154,7 +158,7 @@ export default function Pneus() {
     setOpen(true); 
   };
 
-// ==========================================
+  // ==========================================
   // IMPORTAÇÃO DE PLANILHA BSOFT (Mapeamento Robusto)
   // ==========================================
   const getValor = (row: any, ...chaves: string[]) => {
@@ -178,15 +182,12 @@ export default function Pneus() {
         const wb = XLSX.read(bstr, { type: 'binary' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
         
         if (data.length === 0) {
           toast.error("A planilha está vazia.");
           return;
         }
-
-        // Log para debug: mostra os nomes das colunas da primeira linha
-        console.log("Colunas encontradas na planilha:", Object.keys(data[0]));
 
         const payload = data.map((row: any) => {
           const numero_fogo = getValor(row, "Marca Fogo", "MarcaFogo", "Nº Fogo", "N.º Fogo", "Fogo");
@@ -240,19 +241,41 @@ export default function Pneus() {
           return;
         }
 
-        console.log("Payload de importação (primeiro item):", payload[0]);
+        setImportOpen(true);
+        setImportTotal(payload.length);
+        setImportProcessados(0);
+        setImportProgresso(0);
+        setImportErros([]);
+        setImportando(true);
+
+        // Simulação de progresso enquanto o backend processa
+        let processados = 0;
+        const interval = setInterval(() => {
+          processados += Math.ceil(payload.length / 20);
+          if (processados >= payload.length) {
+            processados = payload.length;
+            clearInterval(interval);
+          }
+          setImportProcessados(processados);
+          setImportProgresso(Math.round((processados / payload.length) * 100));
+        }, 200);
 
         const res = await apiPost<any>("/pneus/importar", payload);
-        toast.success(`Importação concluída! ${res.inseridos} pneus adicionados.`);
-        if (res.erros?.length > 0) {
-          toast.warning(`${res.erros.length} pneus não foram importados (duplicidade ou erro).`);
-          console.log("Erros:", res.erros);
-        }
+        clearInterval(interval);
         
+        setImportProcessados(payload.length);
+        setImportProgresso(100);
+        setImportando(false);
+        
+        if (res.erros?.length > 0) {
+          setImportErros(res.erros);
+        }
+
         qc.invalidateQueries({ queryKey: ["pneus"] });
         qc.invalidateQueries({ queryKey: ["pneus-dashboard"] });
       } catch (err) {
         console.error(err);
+        setImportando(false);
         toast.error("Erro ao ler a planilha. Verifique se o arquivo é um Excel válido.");
       }
     };
@@ -426,10 +449,14 @@ export default function Pneus() {
         description="Gestão de pneus por número de fogo, marca, DOT e status."
         actions={
           <div className="flex gap-2">
-            <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} onChange={handleImportFile} className="hidden" />
-            <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 h-9">
-              <Upload className="size-4 mr-2" /> Importar Planilha
-            </Button>
+            {config?.mostrar_importacao_pneus && (
+              <>
+                <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} onChange={handleImportFile} className="hidden" />
+                <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 h-9">
+                  <Upload className="size-4 mr-2" /> Importar Planilha
+                </Button>
+              </>
+            )}
             <Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500 h-9">
               <Plus className="size-4 mr-2" /> Novo Pneu
             </Button>
@@ -502,7 +529,6 @@ export default function Pneus() {
       {/* Aba 1: Pneus Cadastrados */}
       {abaAtiva === "cadastrados" && (
         <div>
-          {/* Barra de Filtros */}
           <div className="mb-4 flex gap-2 flex-wrap items-center">
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
@@ -529,7 +555,6 @@ export default function Pneus() {
               {STATUS_PNEU.map((s: string) => <option key={s} value={s}>{s}</option>)}
             </select>
 
-            {/* Botões de Exportação à Direita */}
             <div className="flex gap-2 ml-auto">
               <Button onClick={exportToExcel} variant="outline" className="h-9 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10">
                 <FileSpreadsheet className="size-4 mr-2" /> Excel
@@ -572,7 +597,6 @@ export default function Pneus() {
                         <TableCell><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span></TableCell>
                         <TableCell className="text-amber-400 font-mono">{brl(p.custo_aquisicao)}</TableCell>
                         
-                        {/* Coluna de Ações Alinhada à Direita */}
                         <TableCell className="text-right pr-6">
                           <div className="flex items-center justify-end gap-1">
                             {p.status === "Aplicado" ? (
@@ -580,7 +604,6 @@ export default function Pneus() {
                                 <Button size="icon-sm" variant="ghost" className="cursor-help">
                                   {p.veiculo_id ? <Truck className="size-4 text-emerald-400" /> : <Container className="size-4 text-emerald-400" />}
                                 </Button>
-                                {/* Tooltip posicionado à esquerda para não cortar */}
                                 <div className="absolute top-1/2 -translate-y-1/2 right-full mr-2 hidden group-hover:block w-48 bg-slate-800 border border-slate-700 rounded-lg p-3 text-xs z-50 shadow-xl pointer-events-none">
                                   <p className="font-bold text-slate-100 mb-1">Aplicado em:</p>
                                   <p className="text-slate-300">{info.placa} ({info.tipoAtivo})</p>
@@ -589,13 +612,12 @@ export default function Pneus() {
                                 </div>
                               </div>
                             ) : (
-                              <div className="w-[32px] h-[32px]"></div> /* Espaçador invisível para alinhar */
+                              <div className="w-[32px] h-[32px]"></div>
                             )}
                             <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(p)}><Pencil className="size-4 text-sky-400" /></Button>
                             <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(p.id)}><Trash2 className="size-4 text-red-300" /></Button>
                           </div>
                         </TableCell>
-                        
                       </TableRow>
                     );
                   })
@@ -798,13 +820,10 @@ export default function Pneus() {
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-4xl p-6">
             <h2 className="text-lg font-bold text-slate-100 mb-4">{editingId ? "Editar Pneu" : "Novo Pneu"}</h2>
             <div className="grid grid-cols-3 gap-4">
-              
-              {/* Linha 1 */}
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Marca Fogo *</Label><Input value={form.numero_fogo} onChange={(e) => setForm(s => ({ ...s, numero_fogo: e.target.value }))} placeholder="Ex: FOG-10492" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Equipamento</Label><Input value={form.equipamento} onChange={(e) => setForm(s => ({ ...s, equipamento: e.target.value }))} placeholder="Ex: QPN5139" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Posição</Label><Input value={form.posicao} onChange={(e) => setForm(s => ({ ...s, posicao: e.target.value }))} placeholder="Ex: 1-E" /></div>
 
-              {/* Linha 2 */}
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">Tipo</Label>
                 <FieldSelect value={form.tipo} onChange={(v) => setForm(s => ({ ...s, tipo: v }))} options={TIPOS_PNEU.map(t => ({ value: t, label: t }))} testId="pneu-tipo" />
@@ -818,7 +837,6 @@ export default function Pneus() {
                 <FieldSelect value={form.modelo} onChange={(v) => setForm(s => ({ ...s, modelo: v }))} options={modelosDb.map((m: any) => ({ value: m.nome, label: m.nome }))} placeholder="Selecione o Modelo..." testId="pneu-modelo" />
               </div>
 
-              {/* Linha 3 */}
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">Tamanho *</Label>
                 <FieldSelect value={form.medida} onChange={(v) => setForm(s => ({ ...s, medida: v }))} options={medidasDb.map((m: any) => ({ value: m.medida, label: m.medida }))} placeholder="Selecione a Medida..." testId="pneu-medida" />
@@ -826,32 +844,74 @@ export default function Pneus() {
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Banda Rod.</Label><Input value={form.banda_rod} onChange={(e) => setForm(s => ({ ...s, banda_rod: e.target.value }))} placeholder="Ex: Original" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Estrutura</Label><Input value={form.estrutura} onChange={(e) => setForm(s => ({ ...s, estrutura: e.target.value }))} placeholder="Ex: Radial" /></div>
 
-              {/* Linha 4 */}
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">N.º Série</Label><Input value={form.n_serie} onChange={(e) => setForm(s => ({ ...s, n_serie: e.target.value }))} placeholder="Ex: 12345" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">DOT</Label><Input value={form.dot} onChange={(e) => setForm(s => ({ ...s, dot: e.target.value }))} placeholder="Ex: 4523" maxLength={4} /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">N.º Recap.</Label><Input value={form.n_recap} onChange={(e) => setForm(s => ({ ...s, n_recap: e.target.value }))} placeholder="Ex: 1" /></div>
 
-              {/* Linha 5 */}
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Data Compra</Label><Input type="date" value={form.data_compra} onChange={(e) => setForm(s => ({ ...s, data_compra: e.target.value }))} /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Data Descarte</Label><Input type="date" value={form.data_descarte} onChange={(e) => setForm(s => ({ ...s, data_descarte: e.target.value }))} /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Status</Label><FieldSelect value={form.status} onChange={(v) => setForm(s => ({ ...s, status: v }))} options={STATUS_PNEU.map(s => ({ value: s, label: s }))} testId="pneu-status" /></div>
 
-              {/* Linha 6 */}
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Custo Total Atual (R$)</Label><Input value={form.custo_total_atual} onChange={(e) => setForm(s => ({ ...s, custo_total_atual: e.target.value }))} placeholder="0,00" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Profundidade Atual (mm)</Label><Input value={form.profundidade_atual} onChange={(e) => setForm(s => ({ ...s, profundidade_atual: e.target.value }))} placeholder="Ex: 8.5" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Uso Atual</Label><Input value={form.uso_atual} onChange={(e) => setForm(s => ({ ...s, uso_atual: e.target.value }))} placeholder="Ex: Rodando" /></div>
 
-              {/* Linha 7 */}
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Custo por KM (R$)</Label><Input value={form.custo_por_km} onChange={(e) => setForm(s => ({ ...s, custo_por_km: e.target.value }))} placeholder="0,00" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">KM na Posição</Label><Input value={form.km_posicao} onChange={(e) => setForm(s => ({ ...s, km_posicao: e.target.value }))} placeholder="Ex: 50000" /></div>
               <div className="grid gap-1.5"><Label className="text-xs text-slate-400">Custo de Aquisição (R$)</Label><Input value={form.custo_aquisicao} onChange={(e) => setForm(s => ({ ...s, custo_aquisicao: e.target.value }))} placeholder="0,00" /></div>
 
-              {/* Observações */}
               <div className="col-span-3 grid gap-1.5"><Label className="text-xs text-slate-400">Observações</Label><Input value={form.observacoes} onChange={(e) => setForm(s => ({ ...s, observacoes: e.target.value }))} placeholder="Ex: Comprado na loja X" /></div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button onClick={() => salvar.mutate()} disabled={salvar.isPending}>{salvar.isPending ? "Salvando..." : "Salvar"}</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Importação Premium */}
+      {importOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-slate-100 mb-2">Importando Pneus</h2>
+            <p className="text-sm text-slate-400 mb-6">Lendo a planilha e gravando no banco de dados...</p>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">Progresso:</span>
+                <span className="font-bold text-sky-400">{importProgresso}%</span>
+              </div>
+              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full bg-sky-500 rounded-full transition-all duration-300" style={{ width: `${importProgresso}%` }} />
+              </div>
+              
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">Processados:</span>
+                <span className="font-bold text-slate-200">{importProcessados} de {importTotal}</span>
+              </div>
+              
+              {importando && (
+                <div className="flex items-center gap-2 text-xs text-sky-400">
+                  <Loader2 className="size-4 animate-spin" /> Processando...
+                </div>
+              )}
+
+              {importErros.length > 0 && (
+                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg max-h-32 overflow-y-auto">
+                  <p className="text-xs font-bold text-red-400 mb-2">Erros encontrados:</p>
+                  <ul className="list-disc list-inside text-xs text-red-300 space-y-1">
+                    {importErros.map((erro, i) => <li key={i}>{erro}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={() => setImportOpen(false)} disabled={importando}>Fechar</Button>
+              {!importando && importProgresso === 100 && (
+                <Button onClick={() => setImportOpen(false)} className="bg-emerald-600 hover:bg-emerald-500">Concluir</Button>
+              )}
             </div>
           </div>
         </div>
