@@ -147,8 +147,8 @@ export default function Pneus() {
       estrutura: r.estrutura || "",
       n_serie: r.n_serie || "",
       n_recap: r.n_recap || "",
-      data_compra: r.data_compra || "",
-      data_descarte: r.data_descarte || "",
+      data_compra: r.data_compra ? String(r.data_compra).split(" ")[0] : "",
+      data_descarte: r.data_descarte ? String(r.data_descarte).split(" ")[0] : "",
       custo_total_atual: r.custo_total_atual || "",
       profundidade_atual: r.profundidade_atual || "",
       uso_atual: r.uso_atual || "",
@@ -158,7 +158,10 @@ export default function Pneus() {
     setOpen(true); 
   };
 
-const getValor = (row: any, ...chaves: string[]) => {
+  // ==========================================
+  // IMPORTAÇÃO DE PLANILHA BSOFT (Mapeamento Robusto)
+  // ==========================================
+  const getValor = (row: any, ...chaves: string[]) => {
     for (const chave of chaves) {
       const valor = row[chave];
       if (valor !== undefined && valor !== null && String(valor).trim() !== "") {
@@ -186,8 +189,6 @@ const getValor = (row: any, ...chaves: string[]) => {
           return;
         }
 
-        console.log("Colunas encontradas na planilha:", Object.keys(data[0]));
-
         const payload = data.map((row: any) => {
           const numero_fogo = getValor(row, "Marca Fogo", "MarcaFogo", "Nº Fogo", "N.º Fogo", "Fogo");
           const marca = getValor(row, "Marca", "MARCA");
@@ -196,11 +197,12 @@ const getValor = (row: any, ...chaves: string[]) => {
           
           if (!numero_fogo || !marca) return null;
 
-          const data_descarte = getValor(row, "Data Descarte", "DataDescarte", "Descarte");
+          const data_descarte_raw = getValor(row, "Data Descarte", "DataDescarte", "Descarte");
+          const data_compra_raw = getValor(row, "Data Compra", "DataCompra", "Compra");
           const equipamento = getValor(row, "Equipamento", "EQUIPAMENTO", "Equip.", "Placa");
           
           let status = "Estoque";
-          if (data_descarte) status = "Sucateado";
+          if (data_descarte_raw) status = "Sucateado";
           else if (equipamento) status = "Aplicado";
 
           const tipo_raw = getValor(row, "Tipo", "TIPO").toUpperCase();
@@ -225,8 +227,8 @@ const getValor = (row: any, ...chaves: string[]) => {
             estrutura: getValor(row, "Estrutura", "ESTRUTURA"),
             n_serie: getValor(row, "N.º Série", "NSerie", "N Serie", "Número de Série", "Serie"),
             n_recap: getValor(row, "N.º Recap.", "NRecap", "N Recap", "Recapagem", "Recap"),
-            data_compra: getValor(row, "Data Compra", "DataCompra", "Compra"),
-            data_descarte,
+            data_compra: data_compra_raw ? data_compra_raw.split(" ")[0] : "",
+            data_descarte: data_descarte_raw ? data_descarte_raw.split(" ")[0] : "",
             custo_total_atual: Number(getValor(row, "Custo Total Atual", "CustoTotalAtual").replace(".", "").replace(",", ".")) || 0,
             profundidade_atual: Number(getValor(row, "Profundidade Atual", "ProfundidadeAtual", "Profundidade").replace(",", ".")) || 0,
             uso_atual: getValor(row, "Uso Atual", "UsoAtual", "Uso", "KM na Posição", "KM"),
@@ -239,8 +241,6 @@ const getValor = (row: any, ...chaves: string[]) => {
           toast.error("Nenhum pneu válido encontrado. Verifique os nomes das colunas.");
           return;
         }
-
-        console.log("Payload de importação (primeiro item):", payload[0]);
 
         setImportOpen(true);
         setImportTotal(payload.length);
