@@ -154,9 +154,19 @@ export default function Pneus() {
     setOpen(true); 
   };
 
+// ==========================================
+  // IMPORTAÇÃO DE PLANILHA BSOFT (Mapeamento Robusto)
   // ==========================================
-  // IMPORTAÇÃO DE PLANILHA BSOFT
-  // ==========================================
+  const getValor = (row: any, ...chaves: string[]) => {
+    for (const chave of chaves) {
+      const valor = row[chave];
+      if (valor !== undefined && valor !== null && String(valor).trim() !== "") {
+        return String(valor).trim();
+      }
+    }
+    return "";
+  };
+
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -175,38 +185,63 @@ export default function Pneus() {
           return;
         }
 
-        // Mapear colunas da planilha Bsoft
-        const payload = data.map((row: any) => ({
-          numero_fogo: String(row["Marca Fogo"] || row["Nº Fogo"] || row["Fogo"] || "").trim(),
-          marca: String(row["Marca"] || "").trim(),
-          modelo: String(row["Modelo"] || "").trim(),
-          medida: String(row["Tamanho"] || row["Medida"] || "").replace(",", ".").replace(" ", "/"),
-          dot: String(row["DOT"] || "").trim(),
-          tipo: String(row["Tipo"] || "Tração").trim(),
-          status: row["Data Descarte"] && String(row["Data Descarte"]).trim() !== "" ? "Sucateado" : 
-                  (row["Equipamento"] && String(row["Equipamento"]).trim() !== "" ? "Aplicado" : "Estoque"),
-          custo_aquisicao: Number(String(row["Custo Total Atual"] || 0).replace(",", ".")),
-          equipamento: String(row["Equipamento"] || "").trim(),
-          posicao: String(row["Posição"] || "").trim(),
-          banda_rod: String(row["Banda Rod."] || "").trim(),
-          estrutura: String(row["Estrutura"] || "").trim(),
-          n_serie: String(row["N.º Série"] || "").trim(),
-          n_recap: String(row["N.º Recap."] || "").trim(),
-          data_compra: String(row["Data Compra"] || "").trim(),
-          data_descarte: String(row["Data Descarte"] || "").trim(),
-          custo_total_atual: Number(String(row["Custo Total Atual"] || 0).replace(",", ".")),
-          profundidade_atual: Number(String(row["Profundidade Atual"] || 0).replace(",", ".")),
-          uso_atual: String(row["Uso Atual"] || "").trim(),
-          custo_por_km: Number(String(row["Custo por KM"] || 0).replace(",", ".")),
-          km_posicao: Number(String(row["KM na Posição"] || 0).replace(",", ".")),
-        })).filter(p => p.numero_fogo && p.marca);
+        // Log para debug: mostra os nomes das colunas da primeira linha
+        console.log("Colunas encontradas na planilha:", Object.keys(data[0]));
+
+        const payload = data.map((row: any) => {
+          const numero_fogo = getValor(row, "Marca Fogo", "MarcaFogo", "Nº Fogo", "N.º Fogo", "Fogo");
+          const marca = getValor(row, "Marca", "MARCA");
+          const modelo = getValor(row, "Modelo", "MODELO");
+          const medida = getValor(row, "Tamanho", "Medida", "TAMANHO", "MEDIDA").replace(",", ".").replace(" ", "/");
+          
+          if (!numero_fogo || !marca) return null;
+
+          const data_descarte = getValor(row, "Data Descarte", "DataDescarte", "Descarte");
+          const equipamento = getValor(row, "Equipamento", "EQUIPAMENTO", "Equip.", "Placa");
+          
+          let status = "Estoque";
+          if (data_descarte) status = "Sucateado";
+          else if (equipamento) status = "Aplicado";
+
+          const tipo_raw = getValor(row, "Tipo", "TIPO").toUpperCase();
+          let tipo = "Misto";
+          if (tipo_raw === "LISO" || tipo_raw === "BORRACHUDO") tipo = "Misto";
+          else if (tipo_raw === "DIRECIONAL") tipo = "Direcional";
+          else if (tipo_raw === "TRACAO" || tipo_raw === "TRAÇÃO") tipo = "Tração";
+          else if (tipo_raw === "BANDA") tipo = "Banda";
+
+          return {
+            numero_fogo,
+            marca,
+            modelo,
+            medida,
+            dot: getValor(row, "DOT", "Dot"),
+            tipo,
+            status,
+            custo_aquisicao: Number(getValor(row, "Custo Total Atual", "CustoTotalAtual", "Custo", "Custo Aquisição").replace(".", "").replace(",", ".")) || 0,
+            equipamento,
+            posicao: getValor(row, "Posição", "Posicao", "POSIÇÃO", "Posição Pneu"),
+            banda_rod: getValor(row, "Banda Rod.", "BandaRod", "Banda", "BANDA ROD."),
+            estrutura: getValor(row, "Estrutura", "ESTRUTURA"),
+            n_serie: getValor(row, "N.º Série", "NSerie", "N Serie", "Número de Série", "Serie"),
+            n_recap: getValor(row, "N.º Recap.", "NRecap", "N Recap", "Recapagem", "Recap"),
+            data_compra: getValor(row, "Data Compra", "DataCompra", "Compra"),
+            data_descarte,
+            custo_total_atual: Number(getValor(row, "Custo Total Atual", "CustoTotalAtual").replace(".", "").replace(",", ".")) || 0,
+            profundidade_atual: Number(getValor(row, "Profundidade Atual", "ProfundidadeAtual", "Profundidade").replace(",", ".")) || 0,
+            uso_atual: getValor(row, "Uso Atual", "UsoAtual", "Uso", "KM na Posição", "KM"),
+            custo_por_km: Number(getValor(row, "Custo por KM", "CustoPorKM", "Custo KM", "CPK").replace(",", ".")) || 0,
+            km_posicao: Number(getValor(row, "KM na Posição", "KMnaPosicao", "KM Posição", "KM").replace(".", "").replace(",", ".")) || 0,
+          };
+        }).filter((p): p is any => p !== null);
 
         if (payload.length === 0) {
           toast.error("Nenhum pneu válido encontrado. Verifique os nomes das colunas.");
           return;
         }
 
-        // Enviar para o backend
+        console.log("Payload de importação (primeiro item):", payload[0]);
+
         const res = await apiPost<any>("/pneus/importar", payload);
         toast.success(`Importação concluída! ${res.inseridos} pneus adicionados.`);
         if (res.erros?.length > 0) {
