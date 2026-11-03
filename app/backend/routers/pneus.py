@@ -8,6 +8,18 @@ from models.pneus import PneuCreate, Pneu
 
 router = APIRouter(prefix="/pneus", tags=["Pneus"])
 
+def normalizar_tipo(tipo_raw: str) -> str:
+    t = str(tipo_raw or "").strip().upper()
+    if t in ("LISO", "BORRACHUDO", "MISTO", "MISTA"):
+        return "Misto"
+    if t == "DIRECIONAL":
+        return "Direcional"
+    if t in ("TRACAO", "TRAÇÃO"):
+        return "Tração"
+    if t == "BANDA":
+        return "Banda"
+    return "Misto"
+
 @router.get("", response_model=list[Pneu])
 async def listar(_u: dict = Depends(require("read"))):
     docs = await db.pneus.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
@@ -28,18 +40,6 @@ async def criar(body: PneuCreate, user: dict = Depends(require("write"))):
 # ==========================================
 # ROTA DE IMPORTAÇÃO (Antes de /{id})
 # ==========================================
-def normalizar_tipo(tipo_raw: str) -> str:
-    t = str(tipo_raw or "").strip().upper()
-    if t in ("LISO", "BORRACHUDO", "MISTO", "MISTA"):
-        return "Misto"
-    if t in ("DIRECIONAL",):
-        return "Direcional"
-    if t in ("TRACAO", "TRAÇÃO"):
-        return "Tração"
-    if t in ("BANDA",):
-        return "Banda"
-    return "Misto"
-
 @router.post("/importar")
 async def importar_pneus(body: List[dict], user: dict = Depends(require("write"))):
     inseridos = 0
@@ -54,7 +54,7 @@ async def importar_pneus(body: List[dict], user: dict = Depends(require("write")
             if existente:
                 erros.append(f"Pneu {item['numero_fogo']} já existe.")
                 continue
-                
+            
             # Garante que marca, modelo e medida existam nas tabelas de apoio
             marca_nome = item.get("marca", "").strip()
             modelo_nome = item.get("modelo", "").strip()
@@ -70,9 +70,9 @@ async def importar_pneus(body: List[dict], user: dict = Depends(require("write")
             doc = {
                 "id": str(uuid.uuid4()),
                 "numero_fogo": item.get("numero_fogo"),
-                "marca": item.get("marca"),
-                "modelo": item.get("modelo", ""),
-                "medida": item.get("medida", ""),
+                "marca": marca_nome,
+                "modelo": modelo_nome,
+                "medida": medida_nome,
                 "dot": item.get("dot", ""),
                 "tipo": normalizar_tipo(item.get("tipo", "Misto")),
                 "status": item.get("status", "Estoque"),
