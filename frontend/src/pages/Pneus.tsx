@@ -158,10 +158,7 @@ export default function Pneus() {
     setOpen(true); 
   };
 
-  // ==========================================
-  // IMPORTAÇÃO DE PLANILHA BSOFT (Mapeamento Robusto)
-  // ==========================================
-  const getValor = (row: any, ...chaves: string[]) => {
+const getValor = (row: any, ...chaves: string[]) => {
     for (const chave of chaves) {
       const valor = row[chave];
       if (valor !== undefined && valor !== null && String(valor).trim() !== "") {
@@ -188,6 +185,8 @@ export default function Pneus() {
           toast.error("A planilha está vazia.");
           return;
         }
+
+        console.log("Colunas encontradas na planilha:", Object.keys(data[0]));
 
         const payload = data.map((row: any) => {
           const numero_fogo = getValor(row, "Marca Fogo", "MarcaFogo", "Nº Fogo", "N.º Fogo", "Fogo");
@@ -241,6 +240,8 @@ export default function Pneus() {
           return;
         }
 
+        console.log("Payload de importação (primeiro item):", payload[0]);
+
         setImportOpen(true);
         setImportTotal(payload.length);
         setImportProcessados(0);
@@ -248,7 +249,6 @@ export default function Pneus() {
         setImportErros([]);
         setImportando(true);
 
-        // Simulação de progresso enquanto o backend processa
         let processados = 0;
         const interval = setInterval(() => {
           processados += Math.ceil(payload.length / 20);

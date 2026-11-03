@@ -5,20 +5,34 @@ class PneuCreate(BaseModel):
     numero_fogo: str
     marca: str
     modelo: Optional[str] = None
-    medida: str  # Ex: 295/80 R22.5
-    dot: Optional[str] = None  # Ex: 4523 (semana 45 de 2023)
-    tipo: str = "Tração"  # Direcional, Tração, Misto
+    medida: str
+    dot: Optional[str] = None
+    tipo: str = "Tração"
     status: str = "Estoque"
-    veiculo_id: str | None = None
-    carreta_id: str | None = None
-    posicao: str | None = None  # Ex: 2-DE
-    sulco_atual: float | None = None
-    pressao_atual: float | None = None  # Estoque, Aplicado, Recapagem, Sucateado, Conserto
     custo_aquisicao: float = 0.0
-    foto_url: Optional[str] = None
     observacoes: Optional[str] = None
+    foto_url: Optional[str] = None
+    
+    equipamento: Optional[str] = None
+    posicao: Optional[str] = None
+    banda_rod: Optional[str] = None
+    estrutura: Optional[str] = None
+    n_serie: Optional[str] = None
+    n_recap: Optional[str] = None
+    data_compra: Optional[str] = None
+    data_descarte: Optional[str] = None
+    custo_total_atual: Optional[float] = None
+    profundidade_atual: Optional[float] = None
+    uso_atual: Optional[str] = None
+    custo_por_km: Optional[float] = None
+    km_posicao: Optional[float] = None
+    
+    veiculo_id: Optional[str] = None
+    carreta_id: Optional[str] = None
 
 class Pneu(PneuCreate):
     id: str
     created_at: str
     created_by: str
+    updated_at: Optional[str] = None
+    updated_by: Optional[str] = None
