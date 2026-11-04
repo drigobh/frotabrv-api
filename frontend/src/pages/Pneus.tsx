@@ -16,6 +16,25 @@ import * as XLSX from "xlsx";
 const STATUS_PNEU = ["Estoque", "Aplicado", "Recapagem", "Conserto", "Sucateado"];
 const TIPOS_PNEU = ["Direcional", "Tração", "Misto", "Banda", "Liso", "Borrachudo"];
 
+const parseDate = (val: any): string => {
+  if (!val) return "";
+  const str = String(val).trim();
+  if (!str) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    return str.split("T")[0].split(" ")[0];
+  }
+  const num = Number(str);
+  if (!isNaN(num) && num > 0) {
+    const date = new Date((num - 25569) * 86400 * 1000);
+    return date.toISOString().split("T")[0];
+  }
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().split("T")[0];
+  }
+  return "";
+};
+
 export default function Pneus() {
   const qc = useQueryClient();
   const [abaAtiva, setAbaAtiva] = useState<"cadastrados" | "movimentacao" | "estoque" | "dashboard" | "manutencao">("cadastrados");
@@ -147,8 +166,8 @@ export default function Pneus() {
       estrutura: r.estrutura || "",
       n_serie: r.n_serie || "",
       n_recap: r.n_recap || "",
-      data_compra: r.data_compra ? String(r.data_compra).split("T")[0].split(" ")[0] : "",
-      data_descarte: r.data_descarte ? String(r.data_descarte).split("T")[0].split(" ")[0] : "",
+      data_compra: r.data_compra || "",
+      data_descarte: r.data_descarte || "",
       custo_total_atual: r.custo_total_atual || "",
       profundidade_atual: r.profundidade_atual || "",
       uso_atual: r.uso_atual || "",
@@ -179,10 +198,10 @@ export default function Pneus() {
     reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
         
         if (data.length === 0) {
           toast.error("A planilha está vazia.");
@@ -197,12 +216,11 @@ export default function Pneus() {
           
           if (!numero_fogo || !marca) return null;
 
-          const data_descarte_raw = getValor(row, "Data Descarte", "DataDescarte", "Descarte");
-          const data_compra_raw = getValor(row, "Data Compra", "DataCompra", "Compra");
+          const data_descarte = getValor(row, "Data Descarte", "DataDescarte", "Descarte");
           const equipamento = getValor(row, "Equipamento", "EQUIPAMENTO", "Equip.", "Placa");
           
           let status = "Estoque";
-          if (data_descarte_raw) status = "Sucateado";
+          if (data_descarte) status = "Sucateado";
           else if (equipamento) status = "Aplicado";
 
           const tipo_raw = getValor(row, "Tipo", "TIPO").toUpperCase();
@@ -227,8 +245,8 @@ export default function Pneus() {
             estrutura: getValor(row, "Estrutura", "ESTRUTURA"),
             n_serie: getValor(row, "N.º Série", "NSerie", "N Serie", "Número de Série", "Serie"),
             n_recap: getValor(row, "N.º Recap.", "NRecap", "N Recap", "Recapagem", "Recap"),
-            data_compra: data_compra_raw ? data_compra_raw.split("T")[0].split(" ")[0] : "",
-            data_descarte: data_descarte_raw ? data_descarte_raw.split("T")[0].split(" ")[0] : "",
+            data_compra: getValor(row, "Data Compra", "DataCompra", "Compra"),
+            data_descarte,
             custo_total_atual: Number(getValor(row, "Custo Total Atual", "CustoTotalAtual").replace(".", "").replace(",", ".")) || 0,
             profundidade_atual: Number(getValor(row, "Profundidade Atual", "ProfundidadeAtual", "Profundidade").replace(",", ".")) || 0,
             uso_atual: getValor(row, "Uso Atual", "UsoAtual", "Uso", "KM na Posição", "KM"),
@@ -249,6 +267,7 @@ export default function Pneus() {
         setImportErros([]);
         setImportando(true);
 
+        // Simulação de progresso enquanto o backend processa
         let processados = 0;
         const interval = setInterval(() => {
           processados += Math.ceil(payload.length / 20);
