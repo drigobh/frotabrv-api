@@ -18,19 +18,29 @@ const TIPOS_PNEU = ["Direcional", "Tração", "Misto", "Banda", "Liso", "Borrach
 
 const parseDate = (val: any): string => {
   if (!val) return "";
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return "";
+    return `${val.getFullYear()}-${String(val.getMonth()+1).padStart(2,'0')}-${String(val.getDate()).padStart(2,'0')}`;
+  }
   const str = String(val).trim();
   if (!str) return "";
-  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
-    return str.split("T")[0].split(" ")[0];
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+  if (/^\d+(\.\d+)?$/.test(str)) {
+    const num = parseFloat(str);
+    if (num > 1000) {
+      const d = new Date((num - 25569) * 86400 * 1000);
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+    }
   }
-  const num = Number(str);
-  if (!isNaN(num) && num > 0) {
-    const date = new Date((num - 25569) * 86400 * 1000);
-    return date.toISOString().split("T")[0];
-  }
-  const d = new Date(str);
-  if (!isNaN(d.getTime())) {
-    return d.toISOString().split("T")[0];
+  const parts = str.split(/[\/\-]/);
+  if (parts.length === 3) {
+     let p1 = parseInt(parts[0]), p2 = parseInt(parts[1]), p3 = parseInt(parts[2]);
+     let d, m, y;
+     if (p3 > 1000) { y = p3; } else { y = p3 + 2000; }
+     if (p1 > 12) { d = p1; m = p2; } else { m = p1; d = p2; }
+     if (d >= 1 && d <= 31 && m >= 1 && m <= 12) {
+         return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+     }
   }
   return "";
 };
