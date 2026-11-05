@@ -126,3 +126,14 @@ async def alternar_2fa(id: str, body: dict, _u: dict = Depends(require("write"))
     ativo = body.get("ativo", False)
     await db.usuarios.update_one({"id": id}, {"$set": {"two_factor_enabled": ativo}})
     return {"status": "ok", "two_factor_enabled": ativo}
+
+@router.post("/fix-datas-cadastro")
+async def fix_datas_cadastro(_u: dict = Depends(require("write"))):
+    from datetime import datetime
+    usuarios = await db.usuarios.find({"data_cadastro": {"$exists": False}}).to_list(1000)
+    for u in usuarios:
+        await db.usuarios.update_one(
+            {"id": u["id"]},
+            {"$set": {"data_cadastro": datetime.now().isoformat()}}
+        )
+    return {"status": "ok", "corrigidos": len(usuarios)}
