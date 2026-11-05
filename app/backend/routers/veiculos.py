@@ -15,6 +15,7 @@ router = build_cadastro_router(
 
 
 
+
 @router.get("/detalhes/{veiculo_id}")
 async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None, _u: dict = Depends(require("read"))):
     veiculo = await db.veiculos.find_one({"id": veiculo_id}, {"_id": 0})
@@ -23,12 +24,12 @@ async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None
 
     placa = veiculo.get("placa")
     
-    # Busca TODOS os abastecimentos e pneus (sem filtro no banco para não errar o campo)
-    # O filtro será feito aqui no Python
-    todos_abastecimentos = await db.abastecimentos.find({}, {"_id": 0}).sort("data_abastecimento", -1).to_list(1000)
-    todos_pneus = await db.pneus.find({}, {"_id": 0}).to_list(1000)
+    # Busca bruta de tudo (para evitar erro de nome de campo)
+    todos_abastecimentos = await db.abastecimentos.find({}, {"_id": 0}).to_list(2000)
+    todos_pneus = await db.pneus.find({}, {"_id": 0}).to_list(2000)
+    todas_manutencoes = await db.manutencoes.find({}, {"_id": 0}).to_list(2000)
     
-    # Filtra no Python: se o ID for o veiculo_id OU a placa estiver em qualquer campo de texto
+    # Filtra abastecimentos: por ID ou Placa
     abastecimentos = [
         a for a in todos_abastecimentos 
         if str(a.get("veiculo_id")) == veiculo_id 
@@ -36,6 +37,7 @@ async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None
         or str(a.get("equipamento", "")).upper() == str(placa).upper()
     ]
     
+    # Filtra pneus: por ID, Placa ou Equipamento
     pneus = [
         p for p in todos_pneus 
         if str(p.get("veiculo_id")) == veiculo_id 
@@ -43,19 +45,27 @@ async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None
         or str(p.get("placa", "")).upper() == str(placa).upper()
     ]
 
-    # Filtro de data (se aplicável)
+    # Filtra manutenções: por ID ou Placa
+    manutencoes = [
+        m for m in todas_manutencoes 
+        if str(m.get("veiculo_id")) == veiculo_id 
+        or str(m.get("veiculo_placa", "")).upper() == str(placa).upper()
+        or str(m.get("placa", "")).upper() == str(placa).upper()
+    ]
+
+    # Aplica filtro de mês/ano (se não for "Todos")
     if mes and mes != "0" and ano and ano != "0":
-        abastecimentos = [a for a in abastecimentos if str(a.get("data_abastecimento", "")).startswith(f"{ano}-{str(mes).zfill(2)}")]
-
-    manutencoes = await db.manutencoes.find({"veiculo_id": veiculo_id}, {"_id": 0}).to_list(100)
-
-    custo_abastecimento = sum(a.get("valor_total", 0) for a in abastecimentos)
-    custo_manutencao = sum(m.get("valor", 0) for m in manutencoes)
+        prefixo = f"{ano}-{str(mes).zfill(2)}"
+        abastecimentos = [a for a in abastecimentos if str(a.get("data", "")).startswith(prefixo) or str(a.get("data_abastecimento", "")).startswith(prefixo)]
+        manutencoes = [m for m in manutencoes if str(m.get("data", "")).startswith(prefixo) or str(m.get("data_entrada", "")).startswith(prefixo)]
+    
+    custo_abastecimento = sum(float(a.get("valor_total") or a.get("valor") or a.get("total") or 0) for a in abastecimentos)
+    custo_manutencao = sum(float(m.get("valor") or m.get("valor_total") or 0) for m in manutencoes)
 
     consumo_medio = 0
     if len(abastecimentos) >= 2:
-        kms = [a.get("hodometro_km", 0) for a in abastecimentos if a.get("hodometro_km")]
-        litros = sum(a.get("litros", 0) for a in abastecimentos)
+        kms = [float(a.get("hodometro_km") or a.get("km") or a.get("hodometro") or 0) for a in abastecimentos]
+        litros = sum(float(a.get("litros") or a.get("quantidade") or 0) for a in abastecimentos)
         if len(kms) >= 2 and litros > 0:
             distancia = max(kms) - min(kms)
             if distancia > 0:
