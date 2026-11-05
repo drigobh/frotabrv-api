@@ -72,3 +72,13 @@ async def atualizar_perfil(body: dict, _u: dict = Depends(require("read"))):
 async def listar_usuarios(_u: dict = Depends(require("read"))):
     usuarios = await db.usuarios.find({}, {"_id": 0, "senha": 0}).to_list(1000)
     return usuarios
+
+
+@router.post("/reativar-admin-temporario")
+async def reativar_admin_temporario():
+    """Rota temporária para reativar o admin. Remover depois."""
+    resultado = await db.usuarios.update_one(
+        {"email": "admin@frotabrv.com"},
+        {"$set": {"ativo": True}}
+    )
+    return {"status": "ok", "modificado": resultado.modified_count > 0}
