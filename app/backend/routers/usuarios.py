@@ -57,7 +57,7 @@ async def criar_usuario(body: dict, _u: dict = Depends(require("write"))):
 @router.put("/{id}")
 async def atualizar_usuario(id: str, body: dict, _u: dict = Depends(require("write"))):
     update = {}
-    for campo in ["nome", "email", "perfil_id", "setor", "cargo", "telefone", "whatsapp", "foto_url"]:
+    for campo in ["nome", "email", "perfil_id", "setor", "cargo", "telefone", "whatsapp", "foto_url", "notificacoes"]:
         if campo in body:
             update[campo] = body[campo]
     

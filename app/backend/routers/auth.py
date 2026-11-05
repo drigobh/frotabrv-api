@@ -49,26 +49,20 @@ async def logout_get(response: Response):
 
 @router.put("/perfil")
 async def atualizar_perfil(body: dict, _u: dict = Depends(require("read"))):
-    # Atualiza nome e telefone
     update_data = {}
-    if "nome" in body: update_data["nome"] = body["nome"]
-    if "telefone" in body: update_data["telefone"] = body["telefone"]
+    for campo in ["nome", "telefone", "setor", "cargo", "whatsapp", "foto_url", "notificacoes"]:
+        if campo in body:
+            update_data[campo] = body[campo]
+    
+    if "nova_senha" in body and body["nova_senha"]:
+        import bcrypt
+        senha_hash = bcrypt.hashpw(body["nova_senha"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        update_data["senha"] = senha_hash
     
     if update_data:
         await db.usuarios.update_one({"id": _u["id"]}, {"$set": update_data})
     
-    # Atualiza senha (se fornecida)
-    if body.get("nova_senha"):
-        import bcrypt
-        salt = bcrypt.gensalt()
-        hashed = bcrypt.hashpw(body["nova_senha"].encode('utf-8'), salt)
-        await db.usuarios.update_one(
-            {"id": _u["id"]}, 
-            {"$set": {"senha": hashed.decode('utf-8')}}
-        )
-    
-    return {"status": "ok", "message": "Perfil atualizado com sucesso!"}
-
+    return {"status": "ok", "message": "Perfil atualizado!"}
 
 @router.get("/usuarios")
 async def listar_usuarios(_u: dict = Depends(require("read"))):
