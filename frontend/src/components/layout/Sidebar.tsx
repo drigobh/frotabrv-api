@@ -50,6 +50,7 @@ const MENUS = [
       { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
       { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
       { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
+      { label: "Relatórios Pneus", icon: BarChart3, path: "/operacao/relatorios-pneus" },
     ]
   },
   {
