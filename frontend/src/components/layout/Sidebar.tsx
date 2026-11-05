@@ -5,7 +5,7 @@ import {
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox
-, Tag , Building , FolderOpen , Layers, BellRing } from "lucide-react";
+, Tag , Building , FolderOpen , Layers, BellRing , Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,7 @@ const MENUS = [
     id: "gestao", label: "Gestão", icon: BarChart3,
     items: [
       { label: "Central de Alertas", icon: BellRing, path: "/alertas" },
+      { label: "Ficha 360º", icon: Eye, path: "/gestao/veiculo-360" },
       { label: "Performance de Fornecedores", icon: BarChart3, path: "/relatorios/fornecedores" },
       { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },
       { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
