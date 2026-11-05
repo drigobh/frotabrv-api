@@ -166,7 +166,7 @@ export function Sidebar() {
       </div>
 
       <div className="p-3 border-t border-slate-800 shrink-0">
-        <div className={cn("flex items-center gap-3 px-2 py-2 rounded-lg bg-slate-900/50 mb-2", isCollapsed && "justify-center")}>
+        <Link to="/perfil" className={cn("flex items-center gap-3 px-2 py-2 rounded-lg bg-slate-900/50 mb-2 transition-colors hover:bg-slate-800", isCollapsed && "justify-center")}>
           <div className="size-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
             {me?.nome?.charAt(0).toUpperCase() || "R"}
           </div>
@@ -176,7 +176,7 @@ export function Sidebar() {
               <p className="text-[10px] text-slate-500 truncate">{me?.perfil || "Administrador"}</p>
             </div>
           )}
-        </div>
+        </Link>
         <Button variant="ghost" className={cn("w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 h-9", isCollapsed ? "justify-center px-0" : "justify-start px-3")} onClick={() => { localStorage.removeItem("token"); window.location.href = "/login"; }}>
           <LogOut className={cn("size-4", !isCollapsed && "mr-2")} /> 
           {!isCollapsed && "Sair"}
