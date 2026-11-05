@@ -11,32 +11,35 @@ router = build_cadastro_router(
 )
 
 
+
 @router.get("/detalhes/{veiculo_id}")
-async def detalhes_veiculo_360(veiculo_id: str, _u: dict = Depends(require("read"))):
-    # 1. Busca o veículo
+async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None, _u: dict = Depends(require("read"))):
     veiculo = await db.veiculos.find_one({"id": veiculo_id}, {"_id": 0})
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado.")
 
-    # 2. Busca abastecimentos (últimos 10)
-    abastecimentos = await db.abastecimentos.find(
-        {"veiculo_id": veiculo_id}, {"_id": 0}
-    ).sort("data_abastecimento", -1).to_list(10)
+    # Filtro de data (se fornecido)
+    filtro_data = {}
+    if mes and ano:
+        filtro_data = {"data_abastecimento": {"$regex": f"^{ano}-{mes.zfill(2)}"}}
 
-    # 3. Busca manutenções
-    manutencoes = await db.manutencoes.find(
-        {"veiculo_id": veiculo_id}, {"_id": 0}
-    ).to_list(50)
+    abastecimentos = await db.abastecimentos.find({"veiculo_id": veiculo_id, **filtro_data}, {"_id": 0}).sort("data_abastecimento", -1).to_list(100)
+    manutencoes = await db.manutencoes.find({"veiculo_id": veiculo_id}, {"_id": 0}).to_list(100)
+    pneus = await db.pneus.find({"veiculo_id": veiculo_id}, {"_id": 0}).to_list(100)
 
-    # 4. Busca pneus alocados neste veículo
-    pneus = await db.pneus.find(
-        {"veiculo_id": veiculo_id}, {"_id": 0}
-    ).to_list(50)
-
-    # Cálculos
     custo_abastecimento = sum(a.get("valor_total", 0) for a in abastecimentos)
     custo_manutencao = sum(m.get("valor", 0) for m in manutencoes)
-    
+
+    # Cálculo de consumo seguro (evita NaN)
+    consumo_medio = 0
+    if len(abastecimentos) >= 2:
+        kms = [a.get("hodometro_km", 0) for a in abastecimentos if a.get("hodometro_km")]
+        litros = sum(a.get("litros", 0) for a in abastecimentos)
+        if len(kms) >= 2 and litros > 0:
+            distancia = max(kms) - min(kms)
+            if distancia > 0:
+                consumo_medio = distancia / litros
+
     return {
         "veiculo": veiculo,
         "abastecimentos": abastecimentos,
@@ -44,7 +47,6 @@ async def detalhes_veiculo_360(veiculo_id: str, _u: dict = Depends(require("read
         "pneus": pneus,
         "financeiro": {
             "custo_total": custo_abastecimento + custo_manutencao,
-            "custo_abastecimento": custo_abastecimento,
-            "custo_manutencao": custo_manutencao
+            "consumo_medio": round(consumo_medio, 2) if consumo_medio > 0 else 0
         }
     }
