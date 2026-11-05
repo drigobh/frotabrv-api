@@ -16,6 +16,7 @@ router = build_cadastro_router(
 
 
 
+
 @router.get("/detalhes/{veiculo_id}")
 async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None, _u: dict = Depends(require("read"))):
     veiculo = await db.veiculos.find_one({"id": veiculo_id}, {"_id": 0})
@@ -24,12 +25,10 @@ async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None
 
     placa = veiculo.get("placa")
     
-    # Busca bruta de tudo (para evitar erro de nome de campo)
     todos_abastecimentos = await db.abastecimentos.find({}, {"_id": 0}).to_list(2000)
     todos_pneus = await db.pneus.find({}, {"_id": 0}).to_list(2000)
     todas_manutencoes = await db.manutencoes.find({}, {"_id": 0}).to_list(2000)
     
-    # Filtra abastecimentos: por ID ou Placa
     abastecimentos = [
         a for a in todos_abastecimentos 
         if str(a.get("veiculo_id")) == veiculo_id 
@@ -37,7 +36,6 @@ async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None
         or str(a.get("equipamento", "")).upper() == str(placa).upper()
     ]
     
-    # Filtra pneus: por ID, Placa ou Equipamento
     pneus = [
         p for p in todos_pneus 
         if str(p.get("veiculo_id")) == veiculo_id 
@@ -45,7 +43,6 @@ async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None
         or str(p.get("placa", "")).upper() == str(placa).upper()
     ]
 
-    # Filtra manutenções: por ID ou Placa
     manutencoes = [
         m for m in todas_manutencoes 
         if str(m.get("veiculo_id")) == veiculo_id 
@@ -53,7 +50,6 @@ async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None
         or str(m.get("placa", "")).upper() == str(placa).upper()
     ]
 
-    # Aplica filtro de mês/ano (se não for "Todos")
     if mes and mes != "0" and ano and ano != "0":
         prefixo = f"{ano}-{str(mes).zfill(2)}"
         abastecimentos = [a for a in abastecimentos if str(a.get("data", "")).startswith(prefixo) or str(a.get("data_abastecimento", "")).startswith(prefixo)]
@@ -61,6 +57,7 @@ async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None
     
     custo_abastecimento = sum(float(a.get("valor_total") or a.get("valor") or a.get("total") or 0) for a in abastecimentos)
     custo_manutencao = sum(float(m.get("valor") or m.get("valor_total") or 0) for m in manutencoes)
+    litros_total = sum(float(a.get("litros") or a.get("quantidade") or 0) for a in abastecimentos)
 
     consumo_medio = 0
     if len(abastecimentos) >= 2:
@@ -71,13 +68,23 @@ async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None
             if distancia > 0:
                 consumo_medio = distancia / litros
 
+    # Ordena manutenções pela data mais recente
+    manutencoes_ordenadas = sorted(
+        manutencoes, 
+        key=lambda x: str(x.get("data") or x.get("data_entrada") or ""), 
+        reverse=True
+    )
+    ultima_manutencao = manutencoes_ordenadas[0] if manutencoes_ordenadas else None
+
     return {
         "veiculo": veiculo,
         "abastecimentos": abastecimentos,
         "manutencoes": manutencoes,
         "pneus": pneus,
+        "ultima_manutencao": ultima_manutencao,
         "financeiro": {
             "custo_total": custo_abastecimento + custo_manutencao,
-            "consumo_medio": round(consumo_medio, 2) if consumo_medio > 0 else 0
+            "consumo_medio": round(consumo_medio, 2) if consumo_medio > 0 else 0,
+            "litros_total": round(litros_total, 2)
         }
     }

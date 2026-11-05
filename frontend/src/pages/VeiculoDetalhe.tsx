@@ -94,7 +94,7 @@ export default function VeiculoDetalhe() {
       </div>
 
       {/* KPIs do Veículo */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         <div className="glass p-4 rounded-xl border border-slate-800">
           <p className="text-[11px] uppercase tracking-widest text-slate-400">Custo Total</p>
           <p className="mt-2 font-mono text-xl font-bold text-slate-100">{brl(financeiro.custo_total || 0)}</p>
@@ -112,6 +112,19 @@ export default function VeiculoDetalhe() {
         <div className="glass p-4 rounded-xl border border-slate-800">
           <p className="text-[11px] uppercase tracking-widest text-slate-400">OS Realizadas</p>
           <p className="mt-2 font-mono text-xl font-bold text-slate-100">{manutencoes.length}</p>
+        </div>
+        <div className="glass p-4 rounded-xl border border-slate-800">
+          <p className="text-[11px] uppercase tracking-widest text-slate-400">Litros Abastecidos</p>
+          <p className="mt-2 font-mono text-xl font-bold text-sky-400">{num(financeiro.litros_total || 0, 1)} <span className="text-xs text-slate-500">L</span></p>
+        </div>
+        <div className="glass p-4 rounded-xl border border-slate-800">
+          <p className="text-[11px] uppercase tracking-widest text-slate-400">Última Manutenção</p>
+          <p className="mt-2 font-mono text-sm font-bold text-slate-100">
+            {detalhes?.ultima_manutencao ? (detalhes.ultima_manutencao.descricao || "OS") : "—"}
+          </p>
+          <p className="text-[10px] text-slate-500">
+            {detalhes?.ultima_manutencao ? getStr(detalhes.ultima_manutencao, "data", "data_entrada").split("T")[0].split("-").reverse().join("/") : ""}
+          </p>
         </div>
       </div>
 
@@ -148,7 +161,7 @@ export default function VeiculoDetalhe() {
                     <div key={`ab-${i}`} className="flex items-center gap-4 border-l-2 border-slate-700 pl-4 py-1">
                       <span className="font-mono text-xs text-slate-500 w-12">{(a.data_abastecimento || "").split("-").reverse().slice(0,2).join("/") || "—"}</span>
                       <div className="flex-1">
-                        <p className="text-sm text-slate-200">Abastecimento · {num(getVal(a, "litros", "quantidade", "volume"), 1)} L</p>
+                        <p className="text-sm text-slate-200">Abastecimento · {num(getVal(a, "litros", "quantidade", "volume"), 1)} L <span className="text-xs text-slate-500 ml-2">({getStr(a, "data", "data_abastecimento")})</span></p>
                         <p className="text-[11px] font-bold uppercase text-sky-400">Combustível</p>
                       </div>
                       <span className="font-mono text-sm text-slate-300">{brl(getVal(a, "valor_total", "valor", "total", "custo"))}</span>
@@ -158,7 +171,7 @@ export default function VeiculoDetalhe() {
                     <div key={`man-${i}`} className="flex items-center gap-4 border-l-2 border-slate-700 pl-4 py-1">
                       <span className="font-mono text-xs text-slate-500 w-12">OS</span>
                       <div className="flex-1">
-                        <p className="text-sm text-slate-200">{m.descricao || "Manutenção"}</p>
+                        <p className="text-sm text-slate-200">{m.descricao || "Manutenção"} <span className="text-xs text-slate-500 ml-2">({getStr(m, "data", "data_entrada")})</span></p>
                         <p className="text-[11px] font-bold uppercase text-amber-400">Manutenção</p>
                       </div>
                       <span className="font-mono text-sm text-slate-300">{brl(getVal(m, "valor", "valor_total", "custo"))}</span>
