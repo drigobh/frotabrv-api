@@ -47,7 +47,7 @@ const parseDate = (val: any): string => {
 
 export default function Pneus() {
   const qc = useQueryClient();
-  const [abaAtiva, setAbaAtiva] = useState<"cadastrados" | "movimentacao" | "estoque" | "dashboard" | "manutencao" | "sucata">("cadastrados");
+  const [abaAtiva, setAbaAtiva] = useState<"cadastrados" | "movimentacao" | "estoque" | "dashboard" | "manutencao">("cadastrados");
   
   const [open, setOpen] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
@@ -701,18 +701,19 @@ export default function Pneus() {
 
       {/* Aba 3: Manutenção */}
       
+      
       {abaAtiva === "estoque" && (
-        <div>
+        <div className="space-y-6">
           <div className="glass p-6 rounded-2xl">
             <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
-              <RefreshCw className="size-5 text-sky-400" /> Pneus em Estoque (Prontos)
+              <RefreshCw className="size-5 text-sky-400" /> Pneus em Estoque
             </h3>
             
-            {pneus.filter((p: any) => p.status === "Estoque").length === 0 ? (
+            {stats.emEstoque.length === 0 ? (
               <div className="text-center py-8 text-slate-500">Nenhum pneu em estoque no momento.</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {pneus.filter((p: any) => p.status === "Estoque").map((p: any) => (
+                {stats.emEstoque.map((p: any) => (
                   <div key={p.id} className="glass p-4 rounded-xl border border-sky-500/30">
                     <div className="flex justify-between items-start">
                       <div>
@@ -723,9 +724,33 @@ export default function Pneus() {
                       <span className="text-xs font-mono text-amber-400">{brl(p.custo_aquisicao)}</span>
                     </div>
                     <div className="mt-3 flex gap-2">
-                      <Button size="sm" variant="outline" className="flex-1 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10" onClick={() => { setPneuChecklist(p); setFormChecklist({ tipo: "RECAPAGEM", avaliacao_carcaca: "APROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" }); setChecklistOpen(true); }}>
+                      <Button size="sm" variant="outline" className="w-full text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10" onClick={() => { setPneuChecklist(p); setFormChecklist({ tipo: "RECAPAGEM", avaliacao_carcaca: "APROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" }); setChecklistOpen(true); }}>
                         <Wrench className="size-3 mr-1" /> Enviar p/ Manutenção
                       </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="glass p-6 rounded-2xl border border-rose-500/20">
+            <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+              <Trash2 className="size-5 text-rose-400" /> Histórico de Sucatas
+            </h3>
+            {pneus.filter((p: any) => p.status === "Sucateado").length === 0 ? (
+              <div className="text-center py-8 text-slate-500">Nenhum pneu sucateado.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pneus.filter((p: any) => p.status === "Sucateado").map((p: any) => (
+                  <div key={p.id} className="glass p-4 rounded-xl border border-rose-500/30 bg-rose-950/10 opacity-80">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-bold text-rose-400 line-through">{p.numero_fogo}</p>
+                        <p className="text-xs text-slate-400">{p.marca} - {p.medida}</p>
+                        <p className="text-[10px] text-slate-500">Motivo: {p.uso_atual || "Não informado"}</p>
+                      </div>
+                      <span className="text-xs font-mono text-slate-500">{brl(p.custo_aquisicao)}</span>
                     </div>
                   </div>
                 ))}
@@ -739,7 +764,7 @@ export default function Pneus() {
         <div>
           <div className="glass p-6 rounded-2xl border border-amber-500/30">
             <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
-              <Wrench className="size-5 text-amber-400" /> Oficina / Manutenção
+              <Wrench className="size-5 text-amber-400" /> Pneus na Oficina
             </h3>
             
             {pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).length === 0 ? (
@@ -761,33 +786,20 @@ export default function Pneus() {
                         setFormChecklist({ tipo: "RETORNO", avaliacao_carcaca: "APROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" });
                         setChecklistOpen(true);
                       }}>
-                        <CheckCircle2 className="size-3 mr-1" /> Retornar ao Estoque
+                        <CheckCircle2 className="size-3 mr-1" /> Aprovar e Retornar
                       </Button>
                       <Button size="sm" variant="outline" className="w-full text-xs border-rose-500/40 text-rose-400 hover:bg-rose-500/10" onClick={() => {
                         setPneuChecklist(p);
                         setFormChecklist({ tipo: "DESCARTE", avaliacao_carcaca: "REPROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" });
                         setChecklistOpen(true);
                       }}>
-                        <Trash2 className="size-3 mr-1" /> Reprovar (Sucatear)
+                        <Trash2 className="size-3 mr-1" /> Reprovar e Sucatear
                       </Button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {abaAtiva === "sucata" && (
-        <div>
-          <div className="glass p-6 rounded-2xl border border-rose-500/30">
-            <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
-              <Trash2 className="size-5 text-rose-400" /> Pneus Sucateados
-            </h3>
-            <div className="text-center py-8 text-slate-500 text-sm">
-              Os pneus que são reprovados na manutenção ou descartados aparecerão aqui com o histórico completo.
-            </div>
           </div>
         </div>
       )}
