@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from lib.security import require
 from lib.db import db
 from lib.security import verify_password, create_token, current_user, COOKIE_NAME, TOKEN_TTL_HOURS
 from models.auth import LoginIn, LoginOut
