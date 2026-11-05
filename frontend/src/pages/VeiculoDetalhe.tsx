@@ -81,7 +81,7 @@ export default function VeiculoDetalhe() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="glass p-4 rounded-xl border border-slate-800">
           <p className="text-[11px] uppercase tracking-widest text-slate-400">Custo Total</p>
-          <p className="mt-2 font-mono text-xl font-bold text-slate-100">{brl(financeiro.custo_total)}</p>
+          <p className="mt-2 font-mono text-xl font-bold text-slate-100">{brl(Number(financeiro.custo_total) || 0)}</p>
         </div>
         <div className="glass p-4 rounded-xl border border-slate-800">
           <p className="text-[11px] uppercase tracking-widest text-slate-400">Consumo Médio</p>
@@ -130,12 +130,12 @@ export default function VeiculoDetalhe() {
                 <>
                   {abastecimentos.slice(0, 3).map((a: any, i: number) => (
                     <div key={`ab-${i}`} className="flex items-center gap-4 border-l-2 border-slate-700 pl-4 py-1">
-                      <span className="font-mono text-xs text-slate-500 w-12">{a.data_abastecimento?.split("-").reverse().slice(0,2).join("/")}</span>
+                      <span className="font-mono text-xs text-slate-500 w-12">{(a.data_abastecimento || "").split("-").reverse().slice(0,2).join("/") || "—"}</span>
                       <div className="flex-1">
-                        <p className="text-sm text-slate-200">Abastecimento · {num(a.litros, 1)} L</p>
+                        <p className="text-sm text-slate-200">Abastecimento · {num(Number(a.litros) || 0, 1)} L</p>
                         <p className="text-[11px] font-bold uppercase text-sky-400">Combustível</p>
                       </div>
-                      <span className="font-mono text-sm text-slate-300">{brl(a.valor_total)}</span>
+                      <span className="font-mono text-sm text-slate-300">{brl(Number(a.valor_total) || 0)}</span>
                     </div>
                   ))}
                   {manutencoes.slice(0, 3).map((m: any, i: number) => (
@@ -145,7 +145,7 @@ export default function VeiculoDetalhe() {
                         <p className="text-sm text-slate-200">{m.descricao || "Manutenção"}</p>
                         <p className="text-[11px] font-bold uppercase text-amber-400">Manutenção</p>
                       </div>
-                      <span className="font-mono text-sm text-slate-300">{brl(m.valor)}</span>
+                      <span className="font-mono text-sm text-slate-300">{brl(Number(m.valor) || 0)}</span>
                     </div>
                   ))}
                 </>
@@ -171,10 +171,10 @@ export default function VeiculoDetalhe() {
                 ) : (
                   abastecimentos.map((a: any) => (
                     <tr key={a.id} className="hover:bg-slate-800/30">
-                      <td className="px-5 py-3 font-mono">{a.data_abastecimento?.split("T")[0].split("-").reverse().join("/") || "—"}</td>
-                      <td className="px-3 py-3">{num(a.litros, 1)} L</td>
-                      <td className="px-3 py-3 font-mono">{brl(a.valor_total)}</td>
-                      <td className="px-3 py-3 text-right font-mono">{num(a.hodometro_km)} km</td>
+                      <td className="px-5 py-3 font-mono">{(a.data_abastecimento || "").split("T")[0].split("-").reverse().join("/") || "—"}</td>
+                      <td className="px-3 py-3">{num(Number(a.litros) || 0, 1)} L</td>
+                      <td className="px-3 py-3 font-mono">{brl(Number(a.valor_total) || 0)}</td>
+                      <td className="px-3 py-3 text-right font-mono">{num(Number(a.hodometro_km) || 0)} km</td>
                     </tr>
                   ))
                 )}
@@ -203,7 +203,7 @@ export default function VeiculoDetalhe() {
                       <td className="px-3 py-3">
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300 uppercase">{m.status}</span>
                       </td>
-                      <td className="px-3 py-3 text-right font-mono">{brl(m.valor)}</td>
+                      <td className="px-3 py-3 text-right font-mono">{brl(Number(m.valor) || 0)}</td>
                     </tr>
                   ))
                 )}
