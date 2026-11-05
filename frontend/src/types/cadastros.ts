@@ -1,5 +1,6 @@
 // Espelha backend/models/cadastros.py
 export interface Veiculo {
+  template_chassi_id?: string;
   id: string;
   placa: string;
   modelo: string;
