@@ -55,37 +55,37 @@ async def atualizar_usuario(id: str, body: dict, _u: dict = Depends(require("wri
 
 @router.post("/seed-perfis-padrao")
 async def seed_perfis_padrao():
-    """Cria os perfis base do sistema se ainda não existirem."""
+    """Cria ou atualiza os perfis base do sistema."""
     perfis = [
         {
             "id": "perfil-admin",
             "nome": "Administrador",
             "descricao": "Acesso total ao sistema, sem restrições.",
-            "permissoes": ["*:*"]
+            "permissoes": ["Dashboard:Ver", "Abastecimentos:Ver", "Abastecimentos:Criar", "Abastecimentos:Editar", "Abastecimentos:Excluir", "Pneus:Ver", "Pneus:Criar", "Pneus:Editar", "Pneus:Excluir", "Manutenção:Ver", "Manutenção:Criar", "Manutenção:Editar", "Manutenção:Aprovar", "Frota:Ver", "Frota:Criar", "Frota:Editar", "Frota:Excluir", "Financeiro:Ver", "Financeiro:Criar", "Financeiro:Editar", "Financeiro:Aprovar", "Relatórios:Ver", "Relatórios:Exportar", "Cadastros:Ver", "Cadastros:Criar", "Cadastros:Editar", "Cadastros:Excluir", "Administração:Ver", "Administração:Criar", "Administração:Editar", "Administração:Excluir"]
         },
         {
             "id": "perfil-gestor",
             "nome": "Gestor",
             "descricao": "Gestão de frotas, aprovações e relatórios.",
-            "permissoes": ["Frota:Ver", "Frota:Criar", "Frota:Editar", "Manutenção:Aprovar", "Relatórios:Ver"]
+            "permissoes": ["Dashboard:Ver", "Frota:Ver", "Frota:Criar", "Frota:Editar", "Manutenção:Ver", "Manutenção:Aprovar", "Relatórios:Ver", "Relatórios:Exportar", "Financeiro:Ver"]
         },
         {
             "id": "perfil-operador",
             "nome": "Operador",
             "descricao": "Operação diária de abastecimento e pneus.",
-            "permissoes": ["Abastecimentos:Ver", "Abastecimentos:Criar", "Pneus:Ver", "Pneus:Criar"]
+            "permissoes": ["Dashboard:Ver", "Abastecimentos:Ver", "Abastecimentos:Criar", "Pneus:Ver", "Pneus:Criar"]
         },
         {
             "id": "perfil-manutencao",
             "nome": "Manutenção",
             "descricao": "Acesso à oficina e checklist de pneus.",
-            "permissoes": ["Pneus:Ver", "Pneus:Editar", "Manutenção:Ver", "Manutenção:Criar"]
+            "permissoes": ["Dashboard:Ver", "Pneus:Ver", "Pneus:Editar", "Manutenção:Ver", "Manutenção:Criar", "Manutenção:Editar"]
         },
         {
             "id": "perfil-financeiro",
             "nome": "Financeiro",
             "descricao": "Controle de custos, abastecimentos e aprovações.",
-            "permissoes": ["Financeiro:Ver", "Financeiro:Editar", "Abastecimentos:Ver", "Relatórios:Ver"]
+            "permissoes": ["Dashboard:Ver", "Financeiro:Ver", "Financeiro:Editar", "Financeiro:Aprovar", "Abastecimentos:Ver", "Relatórios:Ver"]
         },
         {
             "id": "perfil-motorista",
@@ -96,4 +96,4 @@ async def seed_perfis_padrao():
     ]
     for p in perfis:
         await db.perfis.update_one({"id": p["id"]}, {"$set": p}, upsert=True)
-    return {"status": "ok", "message": "Perfis padrão criados."}
+    return {"status": "ok", "message": "Perfis padrão atualizados."}

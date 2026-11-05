@@ -60,7 +60,7 @@ export default function Perfis() {
 
   const abrirEdicao = (p: any) => {
     setEditando(p);
-    setForm({ nome: p.nome, descricao: p.descricao || "", permissoes: p.permissoes || [] });
+    setForm({ nome: p.nome, descricao: p.descricao || "", permissoes: Array.isArray(p.permissoes) ? p.permissoes : [] });
     setModalOpen(true);
   };
 
@@ -68,7 +68,7 @@ export default function Perfis() {
     const chave = `${modulo}:${acao}`;
     setForm((s: any) => ({
       ...s,
-      permissoes: s.permissoes.includes(chave)
+      permissoes: (Array.isArray(s.permissoes) ? s.permissoes : []).includes(chave)
         ? s.permissoes.filter((p: string) => p !== chave)
         : [...s.permissoes, chave]
     }));
