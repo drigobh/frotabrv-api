@@ -1,12 +1,10 @@
 import os
+import re
 
 path = os.path.join(os.getcwd(), "frontend", "src", "pages", "Usuarios.tsx")
 
 with open(path, "r", encoding="utf-8") as f:
     c = f.read()
-
-# 1. Substituir o modal antigo pelo novo modal premium
-modal_antigo = r'\{/\* Modal de Cadastro/Edição \*/\}[\s\S]*?\{modalOpen && \([\s\S]*?</div>\n    </div>\n  \)\;\n\}'
 
 novo_modal = r'''{/* Modal de Cadastro/Edição Premium */}
       {modalOpen && (
