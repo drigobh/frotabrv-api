@@ -18,7 +18,7 @@ const MENUS = [
       { label: "Avisos", icon: Bell, path: "/admin/avisos" },
       { label: "Auditoria", icon: FileBox, path: "/admin/auditoria" },
       { label: "Base (Limpeza)", icon: FileText, path: "/admin/base" },
-      { label: "Kanban Manutenção", icon: Wrench, path: "/admin/kanban" },
+      { label: "Gestão de Manutenção", icon: Wrench, path: "/admin/manutencoes" },
       { label: "Empresa", icon: Building, path: "/admin/empresa" },
       { label: "Parametrização", icon: Settings, path: "/admin/parametrizacao" },
       { label: "Segurança", icon: Shield, path: "/admin/seguranca" },

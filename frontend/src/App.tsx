@@ -91,7 +91,7 @@ export default function App() {
               <Route path="/admin/empresa" element={<Empresa />} />
               <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
               <Route path="/admin/base" element={<Base />} />
-              <Route path="/admin/kanban" element={<Manutencoes />} />
+              <Route path="/admin/manutencoes" element={<Manutencoes />} />
           <Route path="/admin/usuarios" element={<Usuarios />} />
               <Route path="/admin/auditoria" element={<Auditoria />} />
               <Route path="/admin/avisos" element={<Avisos />} />
