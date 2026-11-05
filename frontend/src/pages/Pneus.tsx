@@ -47,7 +47,7 @@ const parseDate = (val: any): string => {
 
 export default function Pneus() {
   const qc = useQueryClient();
-  const [abaAtiva, setAbaAtiva] = useState<"cadastrados" | "movimentacao" | "estoque" | "dashboard" | "manutencao">("cadastrados");
+  const [abaAtiva, setAbaAtiva] = useState<"cadastrados" | "movimentacao" | "estoque" | "dashboard" | "manutencao" | "sucata">("cadastrados");
   
   const [open, setOpen] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
@@ -700,70 +700,32 @@ export default function Pneus() {
       )}
 
       {/* Aba 3: Manutenção */}
-      {abaAtiva === "manutencao" && (
-        <div>
-          <div className="glass overflow-hidden rounded-2xl">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-slate-800">
-                  <TableHead className="text-xs uppercase text-slate-500">Nº Fogo</TableHead>
-                  <TableHead className="text-xs uppercase text-slate-500">Marca / Medida</TableHead>
-                  <TableHead className="text-xs uppercase text-slate-500">Status</TableHead>
-                  <TableHead className="text-xs uppercase text-slate-500">Custo Compra</TableHead>
-                  <TableHead className="text-xs uppercase text-slate-500 text-center">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-slate-500">Nenhum pneu em manutenção.</TableCell></TableRow>
-                ) : (
-                  pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).map((p: any) => (
-                    <TableRow key={p.id} className="border-slate-800 hover:bg-slate-800/30">
-                      <TableCell className="font-bold text-slate-100">
-                        <StatusIcon status={p.status} /> {p.numero_fogo}
-                      </TableCell>
-                      <TableCell className="text-slate-300">{p.marca} - {p.medida}</TableCell>
-                      <TableCell><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span></TableCell>
-                      <TableCell className="text-amber-400 font-mono">{brl(p.custo_aquisicao)}</TableCell>
-                      <TableCell className="text-center">
-                        <Button size="sm" variant="outline" className="text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10" onClick={() => { setEditingId(p.id); setForm({ ...p, status: "Estoque", custo_aquisicao: String(p.custo_aquisicao || "") }); setOpen(true); }}>
-                          <CheckCircle2 className="size-3 mr-1" /> Retornar ao Estoque
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      )}
-
-      {/* Aba 4: Estoque / Sucata */}
+      
       {abaAtiva === "estoque" && (
         <div>
           <div className="glass p-6 rounded-2xl">
             <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
-              <RefreshCw className="size-5 text-sky-400" /> Pneus em Estoque
+              <RefreshCw className="size-5 text-sky-400" /> Pneus em Estoque (Prontos)
             </h3>
             
-            {stats.emEstoque.length === 0 ? (
+            {pneus.filter((p: any) => p.status === "Estoque").length === 0 ? (
               <div className="text-center py-8 text-slate-500">Nenhum pneu em estoque no momento.</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {stats.emEstoque.map((p: any) => (
+                {pneus.filter((p: any) => p.status === "Estoque").map((p: any) => (
                   <div key={p.id} className="glass p-4 rounded-xl border border-sky-500/30">
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="text-sm font-bold text-sky-400">{p.numero_fogo}</p>
                         <p className="text-xs text-slate-300">{p.marca} - {p.medida}</p>
-                        <p className="text-[10px] text-slate-500">DOT: {p.dot || "—"} | Sulco: {p.sulco_atual || "—"} mm</p>
+                        <p className="text-[10px] text-slate-500">DOT: {p.dot || "—"} | Sulco: {p.profundidade_atual || "—"} mm</p>
                       </div>
                       <span className="text-xs font-mono text-amber-400">{brl(p.custo_aquisicao)}</span>
                     </div>
                     <div className="mt-3 flex gap-2">
-                      <Button size="sm" variant="outline" className="flex-1 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10" onClick={() => { setPneuChecklist(p); setFormChecklist({ tipo: "RECAPAGEM", avaliacao_carcaca: "APROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" }); setChecklistOpen(true); }} disabled={movimentar.isPending}><RefreshCw className="size-3 mr-1" /> Manutenção</Button>
-                      <Button size="sm" variant="outline" className="flex-1 text-xs border-rose-500/40 text-rose-400 hover:bg-rose-500/10" onClick={() => { setPneuChecklist(p); setFormChecklist({ tipo: "DESCARTE", avaliacao_carcaca: "REPROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" }); setChecklistOpen(true); }} disabled={movimentar.isPending}><ShieldAlert className="size-3 mr-1" /> Sucatear</Button>
+                      <Button size="sm" variant="outline" className="flex-1 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10" onClick={() => { setPneuChecklist(p); setFormChecklist({ tipo: "RECAPAGEM", avaliacao_carcaca: "APROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" }); setChecklistOpen(true); }}>
+                        <Wrench className="size-3 mr-1" /> Enviar p/ Manutenção
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -773,7 +735,64 @@ export default function Pneus() {
         </div>
       )}
 
-      {/* Aba 5: Dashboard */}
+      {abaAtiva === "manutencao" && (
+        <div>
+          <div className="glass p-6 rounded-2xl border border-amber-500/30">
+            <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+              <Wrench className="size-5 text-amber-400" /> Oficina / Manutenção
+            </h3>
+            
+            {pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).length === 0 ? (
+              <div className="text-center py-8 text-slate-500">Nenhum pneu em manutenção no momento.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).map((p: any) => (
+                  <div key={p.id} className="glass p-4 rounded-xl border border-amber-500/40 bg-amber-950/20">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <p className="text-sm font-bold text-amber-400">{p.numero_fogo}</p>
+                        <p className="text-xs text-slate-300">{p.marca} - {p.medida}</p>
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-600 text-white">{p.status}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button size="sm" variant="outline" className="w-full text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10" onClick={() => {
+                        setPneuChecklist(p);
+                        setFormChecklist({ tipo: "RETORNO", avaliacao_carcaca: "APROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" });
+                        setChecklistOpen(true);
+                      }}>
+                        <CheckCircle2 className="size-3 mr-1" /> Retornar ao Estoque
+                      </Button>
+                      <Button size="sm" variant="outline" className="w-full text-xs border-rose-500/40 text-rose-400 hover:bg-rose-500/10" onClick={() => {
+                        setPneuChecklist(p);
+                        setFormChecklist({ tipo: "DESCARTE", avaliacao_carcaca: "REPROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" });
+                        setChecklistOpen(true);
+                      }}>
+                        <Trash2 className="size-3 mr-1" /> Reprovar (Sucatear)
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {abaAtiva === "sucata" && (
+        <div>
+          <div className="glass p-6 rounded-2xl border border-rose-500/30">
+            <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+              <Trash2 className="size-5 text-rose-400" /> Pneus Sucateados
+            </h3>
+            <div className="text-center py-8 text-slate-500 text-sm">
+              Os pneus que são reprovados na manutenção ou descartados aparecerão aqui com o histórico completo.
+            </div>
+          </div>
+        </div>
+      )}
+
+
       {abaAtiva === "dashboard" && (
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -962,6 +981,7 @@ export default function Pneus() {
         </div>
       )}
     
+      
       {/* Modal de Checklist Borracheiro */}
       {checklistOpen && pneuChecklist && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -973,11 +993,19 @@ export default function Pneus() {
             
             <div className="space-y-4">
               <div className="grid gap-1.5">
-                <Label className="text-xs text-slate-400">Tipo de Serviço</Label>
+                <Label className="text-xs text-slate-400">Ação</Label>
                 <select value={formChecklist.tipo} onChange={(e) => setFormChecklist(s => ({ ...s, tipo: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
-                  <option value="RECAPAGEM">Recapagem</option>
-                  <option value="CONSERTO">Conserto</option>
-                  <option value="DESCARTE">Descarte / Sucata</option>
+                  {pneuChecklist.status === "Estoque" ? (
+                    <>
+                      <option value="RECAPAGEM">Enviar para Recapagem</option>
+                      <option value="CONSERTO">Enviar para Conserto</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="RETORNO">Retornar ao Estoque (Aprovado)</option>
+                      <option value="DESCARTE">Sucatear (Reprovado)</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -991,7 +1019,7 @@ export default function Pneus() {
               </div>
 
               <div className="grid gap-1.5">
-                <Label className="text-xs text-slate-400">Nome do Borracheiro / Responsável</Label>
+                <Label className="text-xs text-slate-400">Nome do Borracheiro / Responsável *</Label>
                 <Input value={formChecklist.borracheiro} onChange={(e) => setFormChecklist(s => ({ ...s, borracheiro: e.target.value }))} placeholder="Ex: João da Silva" />
               </div>
 
@@ -1008,13 +1036,25 @@ export default function Pneus() {
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setChecklistOpen(false)}>Cancelar</Button>
-              <Button onClick={() => { movimentar.mutate({ pneu_id: pneuChecklist.id, tipo: formChecklist.tipo }); setChecklistOpen(false); }} disabled={movimentar.isPending || !formChecklist.borracheiro} className="bg-amber-600 hover:bg-amber-500 text-white">
+              <Button onClick={() => { 
+                if (formChecklist.tipo === "RETORNO") {
+                   apiPut(`/pneus/${pneuChecklist.id}`, { ...pneuChecklist, status: "Estoque" }).then(() => {
+                     toast.success("Pneu retornou ao estoque!");
+                     qc.invalidateQueries({ queryKey: ["pneus"] });
+                     setChecklistOpen(false);
+                   });
+                } else {
+                   movimentar.mutate({ pneu_id: pneuChecklist.id, tipo: formChecklist.tipo }); 
+                   setChecklistOpen(false); 
+                }
+              }} disabled={movimentar.isPending || !formChecklist.borracheiro} className="bg-amber-600 hover:bg-amber-500 text-white">
                 Confirmar Checklist
               </Button>
             </div>
           </div>
         </div>
       )}
+
 
 </div>
   );
