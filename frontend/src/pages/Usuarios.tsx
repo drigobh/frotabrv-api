@@ -163,16 +163,16 @@ export default function Usuarios() {
                   
                   <td className="px-3 py-3 text-center">
                     {u.two_factor_enabled ? (
-                      <span className="text-emerald-400" title="Ativo"><ShieldCheck className="size-4 mx-auto" /></span>
+                      <span className="text-emerald-500" title="Ativo"><ShieldCheck className="size-4 mx-auto" /></span>
                     ) : (
-                      <span className="text-slate-500" title="Inativo"><ShieldAlert className="size-4 mx-auto" /></span>
+                      <span className="text-rose-500" title="Inativo"><ShieldAlert className="size-4 mx-auto" /></span>
                     )}
                   </td>
                   <td className="px-3 py-3 text-xs text-slate-400 font-mono">
-                    {u.data_cadastro ? new Date(u.data_cadastro).toLocaleDateString('pt-BR') : "—"}
+                    {u.data_cadastro ? new Date(u.data_cadastro).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "—"}
                   </td>
                   <td className="px-3 py-3 text-xs text-slate-400 font-mono">
-                    {u.ultimo_acesso ? new Date(u.ultimo_acesso).toLocaleDateString('pt-BR') : "—"}
+                    {u.ultimo_acesso ? new Date(u.ultimo_acesso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "—"}
                   </td>
                   <td className="px-3 py-3">
                     <Badge tone={u.ativo ? "ativo" : "inativo"}>{u.ativo ? "Ativo" : "Inativo"}</Badge>
@@ -257,6 +257,16 @@ export default function Usuarios() {
                     <div className="grid gap-1.5">
                       <Label className="text-xs text-slate-400">Senha Inicial *</Label>
                       <Input type="password" value={form.senha} onChange={(e) => setForm((s: any) => ({ ...s, senha: e.target.value }))} />
+                    </div>
+                  )}
+                  {!editando && (
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-slate-400">Ativação (Automático)</Label>
+                      <Input 
+                        value={new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })} 
+                        disabled 
+                        className="bg-slate-900/50 border-slate-800 text-slate-400 font-mono" 
+                      />
                     </div>
                   )}
                 </div>
