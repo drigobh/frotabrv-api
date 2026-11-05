@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Power, RotateCcw, Search, Shield, X, Check, User, Key, Lock, Users, Bell } from "lucide-react";
+import { Plus, Pencil, Power, RotateCcw, Search, Shield, X, Check, User, Key, Lock, Users, Bell, UserCheck, ShieldAlert, ShieldCheck, UserX } from "lucide-react";
 import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,8 @@ export default function Usuarios() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState<any>({ 
-    nome: "", email: "", perfil_id: "", setor: "", cargo: "", telefone: "", whatsapp: "", foto_url: "", senha: "", notificacoes: { manutencao: true, documentos: true, pneus: true, resumo_semanal: false } 
+    nome: "", email: "", perfil_id: "", setor: "", cargo: "", telefone: "", whatsapp: "", foto_url: "", senha: "",
+    notificacoes: { manutencao: true, documentos: true, pneus: true, resumo_semanal: false }
   });
 
   const { data: perfis = [] } = useQuery({ queryKey: ["perfis"], queryFn: () => apiGet<any[]>("/perfis") });
@@ -46,24 +47,20 @@ export default function Usuarios() {
   const abrirEdicao = (u: any) => {
     setEditando(u);
     setForm({ 
-      nome: u.nome || "", 
-      email: u.email || "", 
-      perfil_id: u.perfil_id || "", 
-      setor: u.setor || "", 
-      cargo: u.cargo || "", 
-      telefone: u.telefone || "", 
-      whatsapp: u.whatsapp || "", 
-      foto_url: u.foto_url || "", 
-      senha: "",
-      notificacoes: u.notificacoes || { manutencao: true, documentos: true, pneus: true, resumo_semanal: false } 
+      nome: u.nome || "", email: u.email || "", perfil_id: u.perfil_id || "", setor: u.setor || "", cargo: u.cargo || "", 
+      telefone: u.telefone || "", whatsapp: u.whatsapp || "", foto_url: u.foto_url || "", senha: "",
+      notificacoes: u.notificacoes || { manutencao: true, documentos: true, pneus: true, resumo_semanal: false }
     });
     setModalOpen(true);
   };
 
-  const totalUsuarios = usuarios.length;
+  // KPIs
+  const total = usuarios.length;
   const ativos = usuarios.filter((u: any) => u.ativo).length;
-  const inativos = usuarios.filter((u: any) => !u.ativo).length;
+  const inativos = total - ativos;
   const admins = usuarios.filter((u: any) => u.perfil_id === "perfil-admin").length;
+  const com2FA = usuarios.filter((u: any) => u.two_factor_enabled).length;
+  const semFoto = usuarios.filter((u: any) => !u.foto_url).length;
 
   const filtrados = usuarios.filter((u: any) => 
     (u.nome || "").toLowerCase().includes(busca.toLowerCase()) ||
@@ -89,36 +86,33 @@ export default function Usuarios() {
         }
       />
 
-      
       {/* Cards de KPI */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between hover:border-sky-500/30 transition-colors">
-          <div>
-            <p className="text-[11px] uppercase tracking-widest text-slate-400 font-medium">Total de Usuários</p>
-            <p className="text-2xl font-bold text-slate-100 mt-1">{totalUsuarios}</p>
-          </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Total</p><p className="text-2xl font-bold text-slate-100 mt-1">{total}</p></div>
           <div className="p-2 bg-sky-500/10 rounded-lg"><Users className="size-5 text-sky-400" /></div>
         </div>
-        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between hover:border-emerald-500/30 transition-colors">
-          <div>
-            <p className="text-[11px] uppercase tracking-widest text-slate-400 font-medium">Usuários Ativos</p>
-            <p className="text-2xl font-bold text-emerald-400 mt-1">{ativos}</p>
-          </div>
-          <div className="p-2 bg-emerald-500/10 rounded-lg"><Check className="size-5 text-emerald-400" /></div>
+        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Ativos</p><p className="text-2xl font-bold text-emerald-400 mt-1">{ativos}</p></div>
+          <div className="p-2 bg-emerald-500/10 rounded-lg"><UserCheck className="size-5 text-emerald-400" /></div>
         </div>
-        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between hover:border-rose-500/30 transition-colors">
-          <div>
-            <p className="text-[11px] uppercase tracking-widest text-slate-400 font-medium">Inativos</p>
-            <p className="text-2xl font-bold text-rose-400 mt-1">{inativos}</p>
-          </div>
-          <div className="p-2 bg-rose-500/10 rounded-lg"><X className="size-5 text-rose-400" /></div>
+        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Inativos</p><p className="text-2xl font-bold text-rose-400 mt-1">{inativos}</p></div>
+          <div className="p-2 bg-rose-500/10 rounded-lg"><UserX className="size-5 text-rose-400" /></div>
         </div>
-        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between hover:border-amber-500/30 transition-colors">
-          <div>
-            <p className="text-[11px] uppercase tracking-widest text-slate-400 font-medium">Administradores</p>
-            <p className="text-2xl font-bold text-amber-400 mt-1">{admins}</p>
-          </div>
-          <div className="p-2 bg-amber-500/10 rounded-lg"><Shield className="size-5 text-amber-400" /></div>
+        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Admins</p><p className="text-2xl font-bold text-amber-400 mt-1">{admins}</p></div>
+          <div className="p-2 bg-amber-500/10 rounded-lg"><ShieldAlert className="size-5 text-amber-400" /></div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-2 gap-3 mb-6">
+        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Com 2FA Ativo</p><p className="text-2xl font-bold text-sky-400 mt-1">{com2FA}</p></div>
+          <div className="p-2 bg-sky-500/10 rounded-lg"><ShieldCheck className="size-5 text-sky-400" /></div>
+        </div>
+        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Sem Foto de Perfil</p><p className="text-2xl font-bold text-slate-400 mt-1">{semFoto}</p></div>
+          <div className="p-2 bg-slate-700/50 rounded-lg"><User className="size-5 text-slate-400" /></div>
         </div>
       </div>
 
@@ -165,9 +159,7 @@ export default function Usuarios() {
                     <Badge tone={u.ativo ? "ativo" : "inativo"}>{u.ativo ? "Ativo" : "Inativo"}</Badge>
                   </td>
                   <td className="px-3 py-3 text-right flex justify-end gap-1">
-                    <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(u)}>
-                      <Pencil className="size-4 text-sky-400" />
-                    </Button>
+                    <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(u)}><Pencil className="size-4 text-sky-400" /></Button>
                     <Button size="icon-sm" variant="ghost" onClick={() => toggleStatus.mutate({ id: u.id, ativo: !u.ativo })} className={u.ativo ? "text-amber-400" : "text-emerald-400"}>
                       {u.ativo ? <Power className="size-4" /> : <RotateCcw className="size-4" />}
                     </Button>
@@ -182,8 +174,8 @@ export default function Usuarios() {
       {/* Modal Completo */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col">
-            <div className="flex justify-between items-center border-b border-slate-800 px-6 py-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center border-b border-slate-800 px-6 py-4 shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-slate-100">{editando ? "Editar Usuário" : "Novo Usuário"}</h2>
                 <p className="text-xs text-slate-400 mt-1">Preencha as informações e defina o perfil de acesso.</p>
@@ -191,8 +183,8 @@ export default function Usuarios() {
               <Button variant="ghost" size="icon" onClick={() => setModalOpen(false)}><X className="size-5" /></Button>
             </div>
 
-            <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-              {/* Seção: Dados Pessoais */}
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              {/* Dados Pessoais */}
               <div>
                 <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
                   <User className="size-4 text-sky-400" /> Dados Pessoais
@@ -200,7 +192,7 @@ export default function Usuarios() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="grid gap-1.5 md:col-span-2">
                     <Label className="text-xs text-slate-400">Nome Completo *</Label>
-                    <Input value={form.nome} onChange={(e) => setForm((s: any) => ({ ...s, nome: e.target.value }))} placeholder="João da Silva" />
+                    <Input value={form.nome} onChange={(e) => setForm((s: any) => ({ ...s, nome: e.target.value }))} />
                   </div>
                   <div className="grid gap-1.5">
                     <Label className="text-xs text-slate-400">Foto (URL)</Label>
@@ -208,28 +200,28 @@ export default function Usuarios() {
                   </div>
                   <div className="grid gap-1.5 md:col-span-2">
                     <Label className="text-xs text-slate-400">E-mail *</Label>
-                    <Input type="email" value={form.email} onChange={(e) => setForm((s: any) => ({ ...s, email: e.target.value }))} placeholder="joao@frotabrv.com" />
+                    <Input type="email" value={form.email} onChange={(e) => setForm((s: any) => ({ ...s, email: e.target.value }))} />
                   </div>
                   <div className="grid gap-1.5">
                     <Label className="text-xs text-slate-400">Telefone</Label>
-                    <Input value={form.telefone} onChange={(e) => setForm((s: any) => ({ ...s, telefone: e.target.value }))} placeholder="(11) 99999-9999" />
+                    <Input value={form.telefone} onChange={(e) => setForm((s: any) => ({ ...s, telefone: e.target.value }))} />
                   </div>
                   <div className="grid gap-1.5">
                     <Label className="text-xs text-slate-400">Setor</Label>
-                    <Input value={form.setor} onChange={(e) => setForm((s: any) => ({ ...s, setor: e.target.value }))} placeholder="Operações" />
+                    <Input value={form.setor} onChange={(e) => setForm((s: any) => ({ ...s, setor: e.target.value }))} />
                   </div>
                   <div className="grid gap-1.5">
                     <Label className="text-xs text-slate-400">Cargo</Label>
-                    <Input value={form.cargo} onChange={(e) => setForm((s: any) => ({ ...s, cargo: e.target.value }))} placeholder="Gerente de Frota" />
+                    <Input value={form.cargo} onChange={(e) => setForm((s: any) => ({ ...s, cargo: e.target.value }))} />
                   </div>
                   <div className="grid gap-1.5">
                     <Label className="text-xs text-slate-400">WhatsApp</Label>
-                    <Input value={form.whatsapp} onChange={(e) => setForm((s: any) => ({ ...s, whatsapp: e.target.value }))} placeholder="(11) 99999-9999" />
+                    <Input value={form.whatsapp} onChange={(e) => setForm((s: any) => ({ ...s, whatsapp: e.target.value }))} />
                   </div>
                 </div>
               </div>
 
-              {/* Seção: Segurança */}
+              {/* Segurança */}
               <div>
                 <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
                   <Lock className="size-4 text-amber-400" /> Segurança e Acesso
@@ -239,29 +231,48 @@ export default function Usuarios() {
                     <Label className="text-xs text-slate-400">Perfil de Acesso (RBAC) *</Label>
                     <select value={form.perfil_id} onChange={(e) => setForm((s: any) => ({ ...s, perfil_id: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
                       <option value="">Selecione um perfil...</option>
-                      {perfis.map((p: any) => (
-                        <option key={p.id} value={p.id}>{p.nome}</option>
-                      ))}
+                      {perfis.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
                     </select>
                   </div>
                   {!editando && (
                     <div className="grid gap-1.5">
                       <Label className="text-xs text-slate-400">Senha Inicial *</Label>
-                      <Input type="password" value={form.senha} onChange={(e) => setForm((s: any) => ({ ...s, senha: e.target.value }))} placeholder="••••••••" />
+                      <Input type="password" value={form.senha} onChange={(e) => setForm((s: any) => ({ ...s, senha: e.target.value }))} />
                     </div>
                   )}
                 </div>
-                <div className="mt-4 p-3 rounded-lg border border-slate-800 bg-slate-900/50 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-slate-300">Autenticação em Dois Fatores (2FA)</p>
-                    <p className="text-xs text-slate-500">Camada extra de segurança ao fazer login.</p>
-                  </div>
-                  <Button variant="outline" className="border-slate-700 text-slate-300" onClick={() => toast.info("Funcionalidade em desenvolvimento.")}>Configurar 2FA</Button>
+              </div>
+
+              {/* Notificações */}
+              <div>
+                <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                  <Bell className="size-4 text-sky-400" /> Notificações
+                </h3>
+                <div className="space-y-3">
+                  {[
+                    { key: "manutencao", label: "Alertas de Manutenção", desc: "Quando uma OS for aberta." },
+                    { key: "documentos", label: "Vencimento de Documentos", desc: "CRLV e CNH a vencer." },
+                    { key: "pneus", label: "Pneus Críticos", desc: "Sulco abaixo de 3mm." },
+                    { key: "resumo_semanal", label: "Resumo Semanal", desc: "Relatório de custos toda segunda." },
+                  ].map((n) => (
+                    <label key={n.key} className="flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-slate-900/30 cursor-pointer">
+                      <div>
+                        <p className="text-sm font-medium text-slate-200">{n.label}</p>
+                        <p className="text-xs text-slate-500">{n.desc}</p>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        checked={form.notificacoes?.[n.key] || false} 
+                        onChange={(e) => setForm((s: any) => ({ ...s, notificacoes: { ...s.notificacoes, [n.key]: e.target.checked } }))}
+                        className="size-4 rounded border-slate-600 text-sky-500 focus:ring-sky-500/20"
+                      />
+                    </label>
+                  ))}
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-800 px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-slate-800 px-6 py-4 shrink-0">
               <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
               <Button onClick={() => salvar.mutate(form)} disabled={salvar.isPending || !form.nome || !form.email || !form.perfil_id} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6">
                 <Check className="size-4 mr-2" /> Salvar Usuário
