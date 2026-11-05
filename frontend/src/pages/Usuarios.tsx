@@ -1,14 +1,14 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Power, RotateCcw, Search, Shield, X, Check, User, Key, Lock, Upload } from "lucide-react";
-import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
-import { PageHeader } from "@/components/common/PageHeader";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { Users, useState } from "react";
+import { Users, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Users, Plus, Pencil, Power, RotateCcw, Search, Shield, X, Check, User, Key, Lock, Upload } from "lucide-react";
+import { Users, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
+import { Users, PageHeader } from "@/components/common/PageHeader";
+import { Users, Button } from "@/components/ui/button";
+import { Users, Input } from "@/components/ui/input";
+import { Users, Label } from "@/components/ui/label";
+import { Users, Badge } from "@/components/ui/badge";
+import { Users, toast } from "sonner";
+import { Users, cn } from "@/lib/utils";
 
 export default function Usuarios() {
   const qc = useQueryClient();
@@ -59,6 +59,11 @@ export default function Usuarios() {
     setModalOpen(true);
   };
 
+  const totalUsuarios = usuarios.length;
+  const ativos = usuarios.filter((u: any) => u.ativo).length;
+  const inativos = usuarios.filter((u: any) => !u.ativo).length;
+  const admins = usuarios.filter((u: any) => u.perfil_id === "perfil-admin").length;
+
   const filtrados = usuarios.filter((u: any) => 
     (u.nome || "").toLowerCase().includes(busca.toLowerCase()) ||
     (u.email || "").toLowerCase().includes(busca.toLowerCase())
@@ -82,6 +87,39 @@ export default function Usuarios() {
           </div>
         }
       />
+
+      
+      {/* Cards de KPI */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between hover:border-sky-500/30 transition-colors">
+          <div>
+            <p className="text-[11px] uppercase tracking-widest text-slate-400 font-medium">Total de Usuários</p>
+            <p className="text-2xl font-bold text-slate-100 mt-1">{totalUsuarios}</p>
+          </div>
+          <div className="p-2 bg-sky-500/10 rounded-lg"><Users className="size-5 text-sky-400" /></div>
+        </div>
+        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between hover:border-emerald-500/30 transition-colors">
+          <div>
+            <p className="text-[11px] uppercase tracking-widest text-slate-400 font-medium">Usuários Ativos</p>
+            <p className="text-2xl font-bold text-emerald-400 mt-1">{ativos}</p>
+          </div>
+          <div className="p-2 bg-emerald-500/10 rounded-lg"><Check className="size-5 text-emerald-400" /></div>
+        </div>
+        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between hover:border-rose-500/30 transition-colors">
+          <div>
+            <p className="text-[11px] uppercase tracking-widest text-slate-400 font-medium">Inativos</p>
+            <p className="text-2xl font-bold text-rose-400 mt-1">{inativos}</p>
+          </div>
+          <div className="p-2 bg-rose-500/10 rounded-lg"><X className="size-5 text-rose-400" /></div>
+        </div>
+        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between hover:border-amber-500/30 transition-colors">
+          <div>
+            <p className="text-[11px] uppercase tracking-widest text-slate-400 font-medium">Administradores</p>
+            <p className="text-2xl font-bold text-amber-400 mt-1">{admins}</p>
+          </div>
+          <div className="p-2 bg-amber-500/10 rounded-lg"><Shield className="size-5 text-amber-400" /></div>
+        </div>
+      </div>
 
       <div className="glass rounded-2xl overflow-hidden border border-slate-800">
         <table className="w-full text-left text-sm">
