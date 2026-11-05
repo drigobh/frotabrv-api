@@ -87,32 +87,34 @@ export default function Usuarios() {
       />
 
       {/* Cards de KPI */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
-          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Total</p><p className="text-2xl font-bold text-slate-100 mt-1">{total}</p></div>
-          <div className="p-2 bg-sky-500/10 rounded-lg"><Users className="size-5 text-sky-400" /></div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div className="glass p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">Total</p>
+            <p className="text-lg font-bold text-slate-100">{total}</p>
+          </div>
+          <Users className="size-5 text-sky-400" />
         </div>
-        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
-          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Ativos</p><p className="text-2xl font-bold text-emerald-400 mt-1">{ativos}</p></div>
-          <div className="p-2 bg-emerald-500/10 rounded-lg"><UserCheck className="size-5 text-emerald-400" /></div>
+        <div className="glass p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">Ativos</p>
+            <p className="text-lg font-bold text-emerald-400">{ativos}</p>
+          </div>
+          <UserCheck className="size-5 text-emerald-400" />
         </div>
-        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
-          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Inativos</p><p className="text-2xl font-bold text-rose-400 mt-1">{inativos}</p></div>
-          <div className="p-2 bg-rose-500/10 rounded-lg"><UserX className="size-5 text-rose-400" /></div>
+        <div className="glass p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">Inativos</p>
+            <p className="text-lg font-bold text-rose-400">{inativos}</p>
+          </div>
+          <UserX className="size-5 text-rose-400" />
         </div>
-        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
-          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Admins</p><p className="text-2xl font-bold text-amber-400 mt-1">{admins}</p></div>
-          <div className="p-2 bg-amber-500/10 rounded-lg"><ShieldAlert className="size-5 text-amber-400" /></div>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-2 gap-3 mb-6">
-        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
-          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Com 2FA Ativo</p><p className="text-2xl font-bold text-sky-400 mt-1">{com2FA}</p></div>
-          <div className="p-2 bg-sky-500/10 rounded-lg"><ShieldCheck className="size-5 text-sky-400" /></div>
-        </div>
-        <div className="glass p-4 rounded-xl border border-slate-800 flex items-center justify-between">
-          <div><p className="text-[11px] uppercase tracking-widest text-slate-400">Sem Foto de Perfil</p><p className="text-2xl font-bold text-slate-400 mt-1">{semFoto}</p></div>
-          <div className="p-2 bg-slate-700/50 rounded-lg"><User className="size-5 text-slate-400" /></div>
+        <div className="glass p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">Administradores</p>
+            <p className="text-lg font-bold text-amber-400">{admins}</p>
+          </div>
+          <ShieldAlert className="size-5 text-amber-400" />
         </div>
       </div>
 
