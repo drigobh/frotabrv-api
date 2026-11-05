@@ -13,23 +13,29 @@ router = build_cadastro_router(
 
 
 
+
 @router.get("/detalhes/{veiculo_id}")
 async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None, _u: dict = Depends(require("read"))):
     veiculo = await db.veiculos.find_one({"id": veiculo_id}, {"_id": 0})
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado.")
 
+    placa = veiculo.get("placa")
+    
     # Filtro de data
     filtro_data = {}
     if mes and mes != "0" and ano and ano != "0":
         filtro_data = {"data_abastecimento": {"$regex": f"^{ano}-{mes.zfill(2)}"}}
 
-    # Busca os dados
-    abastecimentos = await db.abastecimentos.find({"veiculo_id": veiculo_id, **filtro_data}, {"_id": 0}).sort("data_abastecimento", -1).to_list(100)
-    manutencoes = await db.manutencoes.find({"veiculo_id": veiculo_id}, {"_id": 0}).to_list(100)
-    pneus = await db.pneus.find({"veiculo_id": veiculo_id}, {"_id": 0}).to_list(100)
+    # BUSCA INTELIGENTE: por ID ou por Placa (para abastecimentos e pneus)
+    filtro_abast = {"$or": [{"veiculo_id": veiculo_id}, {"placa": placa}]}
+    filtro_pneus = {"$or": [{"veiculo_id": veiculo_id}, {"equipamento": placa}, {"placa": placa}]}
+    filtro_manut = {"veiculo_id": veiculo_id} # Manutenção já usa ID
 
-    # Cálculos
+    abastecimentos = await db.abastecimentos.find({**filtro_abast, **filtro_data}, {"_id": 0}).sort("data_abastecimento", -1).to_list(100)
+    manutencoes = await db.manutencoes.find(filtro_manut, {"_id": 0}).to_list(100)
+    pneus = await db.pneus.find(filtro_pneus, {"_id": 0}).to_list(100)
+
     custo_abastecimento = sum(a.get("valor_total", 0) for a in abastecimentos)
     custo_manutencao = sum(m.get("valor", 0) for m in manutencoes)
 
