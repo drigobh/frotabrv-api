@@ -124,7 +124,7 @@ function FieldInput<T>({ col, value, onChange, testId }: { col: ColumnDef<T>; va
   );
 }
 
-export function CadastroTable<T extends CadastroRow>({ title, description, endpoint, queryKey, entityLabel, testPrefix, columns, searchKeys }: Props<T>) {
+export function CadastroTable<T extends CadastroRow>({ title, description, endpoint, queryKey, entityLabel, testPrefix, columns, searchKeys, extraActions }: Props<T>) {
   const qc = useQueryClient();
   const [inativos, setInativos] = useState(false);
   const [busca, setBusca] = useState("");
@@ -296,6 +296,7 @@ export function CadastroTable<T extends CadastroRow>({ title, description, endpo
                       </div>
                     ) : (
                       <div className="flex justify-end gap-1">
+                        {extraActions && extraActions(row)}
                         <Button
                           size="icon-sm"
                           variant="ghost"
