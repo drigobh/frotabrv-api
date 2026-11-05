@@ -51,3 +51,49 @@ async def atualizar_usuario(id: str, body: dict, _u: dict = Depends(require("wri
     update = {"nome": body.get("nome"), "email": body.get("email"), "perfil": body.get("perfil")}
     await db.usuarios.update_one({"id": id}, {"$set": update})
     return {"status": "ok"}
+
+
+@router.post("/seed-perfis-padrao")
+async def seed_perfis_padrao():
+    """Cria os perfis base do sistema se ainda não existirem."""
+    perfis = [
+        {
+            "id": "perfil-admin",
+            "nome": "Administrador",
+            "descricao": "Acesso total ao sistema, sem restrições.",
+            "permissoes": ["*:*"]
+        },
+        {
+            "id": "perfil-gestor",
+            "nome": "Gestor",
+            "descricao": "Gestão de frotas, aprovações e relatórios.",
+            "permissoes": ["Frota:Ver", "Frota:Criar", "Frota:Editar", "Manutenção:Aprovar", "Relatórios:Ver"]
+        },
+        {
+            "id": "perfil-operador",
+            "nome": "Operador",
+            "descricao": "Operação diária de abastecimento e pneus.",
+            "permissoes": ["Abastecimentos:Ver", "Abastecimentos:Criar", "Pneus:Ver", "Pneus:Criar"]
+        },
+        {
+            "id": "perfil-manutencao",
+            "nome": "Manutenção",
+            "descricao": "Acesso à oficina e checklist de pneus.",
+            "permissoes": ["Pneus:Ver", "Pneus:Editar", "Manutenção:Ver", "Manutenção:Criar"]
+        },
+        {
+            "id": "perfil-financeiro",
+            "nome": "Financeiro",
+            "descricao": "Controle de custos, abastecimentos e aprovações.",
+            "permissoes": ["Financeiro:Ver", "Financeiro:Editar", "Abastecimentos:Ver", "Relatórios:Ver"]
+        },
+        {
+            "id": "perfil-motorista",
+            "nome": "Motorista",
+            "descricao": "Acesso apenas ao painel e lançamento de abastecimento.",
+            "permissoes": ["Dashboard:Ver", "Abastecimentos:Criar"]
+        }
+    ]
+    for p in perfis:
+        await db.perfis.update_one({"id": p["id"]}, {"$set": p}, upsert=True)
+    return {"status": "ok", "message": "Perfis padrão criados."}

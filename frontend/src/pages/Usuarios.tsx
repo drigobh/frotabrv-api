@@ -15,8 +15,9 @@ export default function Usuarios() {
   const [busca, setBusca] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState<any>(null);
-  const [form, setForm] = useState({ nome: "", email: "", perfil: "Operador", senha: "" });
+  const [form, setForm] = useState({ nome: "", email: "", perfil_id: "", senha: "" });
 
+  const { data: perfis = [] } = useQuery({ queryKey: ["perfis"], queryFn: () => apiGet<any[]>("/perfis") });
   const { data: usuarios = [], isLoading } = useQuery({ 
     queryKey: ["usuarios"], 
     queryFn: () => apiGet<any[]>("/usuarios") 
@@ -46,13 +47,13 @@ export default function Usuarios() {
 
   const abrirNovo = () => {
     setEditando(null);
-    setForm({ nome: "", email: "", perfil: "Operador", senha: "" });
+    setForm({ nome: "", email: "", perfil_id: "", senha: "" });
     setModalOpen(true);
   };
 
   const abrirEdicao = (u: any) => {
     setEditando(u);
-    setForm({ nome: u.nome, email: u.email, perfil: u.perfil || "Operador", senha: "" });
+    setForm({ nome: u.nome, email: u.email, perfil_id: u.perfil_id || "", senha: "" });
     setModalOpen(true);
   };
 
@@ -108,7 +109,7 @@ export default function Usuarios() {
                   <td className="px-3 py-3 text-slate-400">{u.email}</td>
                   <td className="px-3 py-3">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-500/10 text-sky-400">
-                      <Shield className="size-3" /> {u.perfil || "Operador"}
+                      <Shield className="size-3" /> {perfis.find((p: any) => p.id === u.perfil_id)?.nome || "Sem perfil"}
                     </span>
                   </td>
                   <td className="px-3 py-3">
@@ -168,13 +169,11 @@ export default function Usuarios() {
                   </div>
                   <div className="grid gap-1.5">
                     <Label className="text-xs text-slate-400">Perfil de Acesso</Label>
-                    <select value={form.perfil} onChange={(e) => setForm(s => ({ ...s, perfil: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
-                      <option value="Administrador">Administrador</option>
-                      <option value="Gestor">Gestor</option>
-                      <option value="Operador">Operador</option>
-                      <option value="Manutenção">Manutenção</option>
-                      <option value="Financeiro">Financeiro</option>
-                      <option value="Motorista">Motorista</option>
+                    <select value={form.perfil_id || ""} onChange={(e) => setForm(s => ({ ...s, perfil_id: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+                      <option value="">Selecione um perfil...</option>
+                      {perfis.map((p: any) => (
+                        <option key={p.id} value={p.id}>{p.nome}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
