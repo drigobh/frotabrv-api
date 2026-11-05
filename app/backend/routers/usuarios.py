@@ -32,7 +32,12 @@ async def criar_usuario(body: dict, _u: dict = Depends(require("write"))):
         "id": str(uuid.uuid4()),
         "nome": body.get("nome"),
         "email": body.get("email"),
-        "perfil": body.get("perfil", "Operador"),
+        "perfil_id": body.get("perfil_id"),
+        "setor": body.get("setor", ""),
+        "cargo": body.get("cargo", ""),
+        "telefone": body.get("telefone", ""),
+        "whatsapp": body.get("whatsapp", ""),
+        "foto_url": body.get("foto_url", ""),
         "senha": senha_hash,
         "ativo": True
     }

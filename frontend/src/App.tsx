@@ -40,6 +40,7 @@ import BuscaVeiculo360 from "@/pages/BuscaVeiculo360";
 import RelatoriosPneus from "@/pages/RelatoriosPneus";
 import Monitoramento from "@/pages/Monitoramento";
 import Usuarios from "@/pages/Usuarios";
+import Perfis from "@/pages/Perfis";
 import Auditoria from "@/pages/Auditoria";
 import Avisos from "@/pages/Avisos";
 import Seguranca from "@/pages/Seguranca";
@@ -100,6 +101,7 @@ export default function App() {
           <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
               <Route path="/admin/base" element={<Base />} />
               <Route path="/admin/manutencoes" element={<Manutencoes />} />
+          <Route path="/admin/perfis" element={<Perfis />} />
           <Route path="/admin/usuarios" element={<Usuarios />} />
               <Route path="/admin/auditoria" element={<Auditoria />} />
               <Route path="/admin/avisos" element={<Avisos />} />
