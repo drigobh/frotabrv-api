@@ -50,7 +50,6 @@ const MENUS = [
       { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
       { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
       { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
-      { label: "Relatórios Pneus", icon: BarChart3, path: "/operacao/relatorios-pneus" },
     ]
   },
   {
@@ -61,7 +60,12 @@ const MENUS = [
       { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
     ]
   },
-  { id: "relatorios-gerais", label: "Relatórios Gerais", icon: FileText, path: "/relatorios-gerais", items: [] },
+  {
+    id: "relatorios-gerais", label: "Relatórios Gerais", icon: FileText,
+    items: [
+      { label: "Relatórios Pneus", icon: BarChart3, path: "/operacao/relatorios-pneus" },
+    ]
+  },
 ];
 
 export function Sidebar() {
