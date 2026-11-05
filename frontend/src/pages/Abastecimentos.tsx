@@ -1086,7 +1086,8 @@ Posto: ${resumo.menor.posto || resumo.menor.fornecedor || "—"}` : "Nenhum regi
           <Button variant="outline" onClick={() => xlsInputRef.current?.click()}><Upload className="size-4 mr-2" /> Importar BSOFT</Button>
           <Button variant="outline" onClick={() => edenredInputRef.current?.click()}><Upload className="size-4 mr-2" /> Importar Edenred</Button>
           
-          <Button onClick={abrirNovo}><Plus className="size-4 mr-2" /> Novo</Button>
+          <Button onClick={() => { setEtapaImport(1); setImportOpen2Steps(true); }} className="bg-emerald-600 hover:bg-emerald-500 h-9"><Upload className="size-4 mr-2" /> Importar Dados</Button>
+        <Button className="h-9"><Plus className="size-4 mr-2" /> Novo</Button>
         </div>
       }/>
 
