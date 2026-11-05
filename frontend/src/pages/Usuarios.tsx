@@ -1,14 +1,14 @@
-import { Users, useState } from "react";
-import { Users, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Pencil, Power, RotateCcw, Search, Shield, X, Check, User, Key, Lock, Upload } from "lucide-react";
-import { Users, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
-import { Users, PageHeader } from "@/components/common/PageHeader";
-import { Users, Button } from "@/components/ui/button";
-import { Users, Input } from "@/components/ui/input";
-import { Users, Label } from "@/components/ui/label";
-import { Users, Badge } from "@/components/ui/badge";
-import { Users, toast } from "sonner";
-import { Users, cn } from "@/lib/utils";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Pencil, Power, RotateCcw, Search, Shield, X, Check, User, Key, Lock, Users } from "lucide-react";
+import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function Usuarios() {
   const qc = useQueryClient();
