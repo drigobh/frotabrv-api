@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from lib.cadastro_base import build_cadastro_router
 from models.cadastros import VeiculoCreate, Veiculo
+from app.backend.lib.security import require
 
 router = build_cadastro_router(
     prefix="/veiculos", collection="veiculos", entidade="Veículo",
