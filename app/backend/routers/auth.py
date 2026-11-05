@@ -31,9 +31,11 @@ async def login(body: LoginIn, response: Response):
     return LoginOut(requires_2fa=False, user=user, token=token)
 
 @router.get("/me")
-async def me(user: dict = Depends(current_user)):
-    # Retorna os dados do usuário logado
-    return user
+async def me(_u: dict = Depends(require("read"))):
+    usuario = await db.usuarios.find_one({"id": _u["id"]}, {"_id": 0, "senha": 0})
+    if not usuario:
+        raise HTTPException(404, "Usuário não encontrado.")
+    return usuario
 
 @router.post("/logout")
 async def logout(response: Response):
