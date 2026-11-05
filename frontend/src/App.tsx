@@ -16,6 +16,7 @@ import PlanosManutencao from "@/pages/PlanosManutencao";
 import RelatorioManutencao from "@/pages/RelatorioManutencao";
 import Agendamento from "@/pages/Agendamento";
 import Manutencoes from "@/pages/Manutencoes";
+import CentralAlertas from "@/pages/CentralAlertas";
 import TiposFornecedores from "@/pages/TiposFornecedores";
 import Fornecedores from "@/pages/Fornecedores";
 import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
@@ -68,6 +69,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
+          <Route path="/alertas" element={<CentralAlertas />} />
               <Route path="/cadastros/pneu-medidas" element={<PneuMedidas />} />
               <Route path="/cadastros/pneu-marcas" element={<PneuMarcas />} />
               <Route path="/cadastros/chassi-templates" element={<ChassiTemplates />} />
