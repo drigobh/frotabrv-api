@@ -50,6 +50,9 @@ export default function Pneus() {
   const [abaAtiva, setAbaAtiva] = useState<"cadastrados" | "movimentacao" | "estoque" | "dashboard" | "manutencao">("cadastrados");
   
   const [open, setOpen] = useState(false);
+  const [checklistOpen, setChecklistOpen] = useState(false);
+  const [pneuChecklist, setPneuChecklist] = useState<any>(null);
+  const [formChecklist, setFormChecklist] = useState({ tipo: 'RECAPAGEM', avaliacao_carcaca: 'APROVADA', borracheiro: '', motivo: '', observacoes: '', km_manutencao: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -759,8 +762,8 @@ export default function Pneus() {
                       <span className="text-xs font-mono text-amber-400">{brl(p.custo_aquisicao)}</span>
                     </div>
                     <div className="mt-3 flex gap-2">
-                      <Button size="sm" variant="outline" className="flex-1 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10" onClick={() => movimentar.mutate({ pneu_id: p.id, tipo: "RECAPAGEM" })} disabled={movimentar.isPending}><RefreshCw className="size-3 mr-1" /> Manutenção</Button>
-                      <Button size="sm" variant="outline" className="flex-1 text-xs border-rose-500/40 text-rose-400 hover:bg-rose-500/10" onClick={() => { if (confirm("Descartar este pneu como sucata?")) movimentar.mutate({ pneu_id: p.id, tipo: "DESCARTE" }); }} disabled={movimentar.isPending}><ShieldAlert className="size-3 mr-1" /> Sucatear</Button>
+                      <Button size="sm" variant="outline" className="flex-1 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10" onClick={() => { setPneuChecklist(p); setFormChecklist({ tipo: "RECAPAGEM", avaliacao_carcaca: "APROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" }); setChecklistOpen(true); }} disabled={movimentar.isPending}><RefreshCw className="size-3 mr-1" /> Manutenção</Button>
+                      <Button size="sm" variant="outline" className="flex-1 text-xs border-rose-500/40 text-rose-400 hover:bg-rose-500/10" onClick={() => { setPneuChecklist(p); setFormChecklist({ tipo: "DESCARTE", avaliacao_carcaca: "REPROVADA", borracheiro: "", motivo: "", observacoes: "", km_manutencao: "" }); setChecklistOpen(true); }} disabled={movimentar.isPending}><ShieldAlert className="size-3 mr-1" /> Sucatear</Button>
                     </div>
                   </div>
                 ))}
@@ -958,6 +961,61 @@ export default function Pneus() {
           </div>
         </div>
       )}
-    </div>
+    
+      {/* Modal de Checklist Borracheiro */}
+      {checklistOpen && pneuChecklist && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-slate-100 mb-1 flex items-center gap-2">
+              <Wrench className="size-5 text-amber-400" /> Checklist Borracheiro
+            </h2>
+            <p className="text-sm text-slate-400 mb-4">Pneu Nº Fogo: <strong className="text-amber-400">{pneuChecklist.numero_fogo}</strong></p>
+            
+            <div className="space-y-4">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">Tipo de Serviço</Label>
+                <select value={formChecklist.tipo} onChange={(e) => setFormChecklist(s => ({ ...s, tipo: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+                  <option value="RECAPAGEM">Recapagem</option>
+                  <option value="CONSERTO">Conserto</option>
+                  <option value="DESCARTE">Descarte / Sucata</option>
+                </select>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">Avaliação da Carcaça</Label>
+                <select value={formChecklist.avaliacao_carcaca} onChange={(e) => setFormChecklist(s => ({ ...s, avaliacao_carcaca: e.target.value }))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+                  <option value="APROVADA">Aprovada (Boa para uso)</option>
+                  <option value="REPROVADA">Reprovada (Inviável)</option>
+                  <option value="RECUSADA">Recusada pelo Fornecedor</option>
+                </select>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">Nome do Borracheiro / Responsável</Label>
+                <Input value={formChecklist.borracheiro} onChange={(e) => setFormChecklist(s => ({ ...s, borracheiro: e.target.value }))} placeholder="Ex: João da Silva" />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">KM Atual do Veículo (Opcional)</Label>
+                <Input type="number" value={formChecklist.km_manutencao} onChange={(e) => setFormChecklist(s => ({ ...s, km_manutencao: e.target.value }))} placeholder="Ex: 150000" />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">Observações Técnicas</Label>
+                <Input value={formChecklist.observacoes} onChange={(e) => setFormChecklist(s => ({ ...s, observacoes: e.target.value }))} placeholder="Ex: Furo no ombro, carcaça íntegra." />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={() => setChecklistOpen(false)}>Cancelar</Button>
+              <Button onClick={() => { movimentar.mutate({ pneu_id: pneuChecklist.id, tipo: formChecklist.tipo }); setChecklistOpen(false); }} disabled={movimentar.isPending || !formChecklist.borracheiro} className="bg-amber-600 hover:bg-amber-500 text-white">
+                Confirmar Checklist
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+</div>
   );
 }
