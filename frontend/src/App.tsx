@@ -79,7 +79,7 @@ export default function App() {
               <Route path="/cadastros/planos-manutencao" element={<PlanosManutencao />} />
               <Route path="/relatorio-manutencao" element={<RelatorioManutencao />} />
               <Route path="/agendamento" element={<Agendamento />} />
-              <Route path="/manutencoes" element={<Manutencoes />} />
+              
               <Route path="/financeiro" element={<Financeiro />} />
               <Route path="/cadastros/veiculos" element={<Veiculos />} />
               <Route path="/cadastros/carretas" element={<Carretas />} />
@@ -91,7 +91,8 @@ export default function App() {
               <Route path="/admin/empresa" element={<Empresa />} />
               <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
               <Route path="/admin/base" element={<Base />} />
-              <Route path="/admin/usuarios" element={<Usuarios />} />
+              <Route path="/admin/kanban" element={<Manutencoes />} />
+          <Route path="/admin/usuarios" element={<Usuarios />} />
               <Route path="/admin/auditoria" element={<Auditoria />} />
               <Route path="/admin/avisos" element={<Avisos />} />
               <Route path="/admin/seguranca" element={<Seguranca />} />

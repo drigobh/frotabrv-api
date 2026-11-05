@@ -18,6 +18,7 @@ const MENUS = [
       { label: "Avisos", icon: Bell, path: "/admin/avisos" },
       { label: "Auditoria", icon: FileBox, path: "/admin/auditoria" },
       { label: "Base (Limpeza)", icon: FileText, path: "/admin/base" },
+      { label: "Kanban Manutenção", icon: Wrench, path: "/admin/kanban" },
       { label: "Empresa", icon: Building, path: "/admin/empresa" },
       { label: "Parametrização", icon: Settings, path: "/admin/parametrizacao" },
       { label: "Segurança", icon: Shield, path: "/admin/seguranca" },
@@ -47,7 +48,7 @@ const MENUS = [
       { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
       { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
       { label: "Estoque", icon: Package, path: "/operacao/estoque" },
-      { label: "Manutenções", icon: Wrench, path: "/manutencoes" },
+      
       { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
       { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
     ]
