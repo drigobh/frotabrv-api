@@ -304,6 +304,9 @@ export default function Pneus() {
 
   return (
     <div>
+
+      
+
       <PageHeader
         eyebrow="Operação"
         title="Controle de Pneus"
@@ -345,8 +348,8 @@ export default function Pneus() {
       <div className="flex gap-2 mb-4 border-b border-slate-800 pb-2 overflow-x-auto">
         <button className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${abaAtiva === 'cadastrados' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => setAbaAtiva('cadastrados')}><Disc className="size-4 inline mr-2" /> Cadastrados</button>
         <button className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${abaAtiva === 'movimentacao' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => setAbaAtiva('movimentacao')}><ArrowRightLeft className="size-4 inline mr-2" /> Movimentação (Chassi)</button>
-        <button className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${abaAtiva === 'manutencao' ? 'bg-slate-800 text-amber-400' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => setAbaAtiva('manutencao')}><Wrench className="size-4 inline mr-2" /> Manutenção</button>
-        <button className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${abaAtiva === 'estoque' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => setAbaAtiva('estoque')}><RefreshCw className="size-4 inline mr-2" /> Estoque / Sucata</button>
+        <button className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${abaAtiva === 'manutencao' ? 'bg-slate-800 text-amber-400' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => setAbaAtiva('manutencao')}><Wrench className="size-4 inline mr-2" /> Borracharia</button>
+        <button className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${abaAtiva === 'estoque' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => setAbaAtiva('estoque')}><RefreshCw className="size-4 inline mr-2" /> Estoque x Envio</button>
         <button className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${abaAtiva === 'dashboard' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => setAbaAtiva('dashboard')}><BarChart3 className="size-4 inline mr-2" /> Indicadores</button>
       </div>
 
@@ -428,7 +431,7 @@ export default function Pneus() {
         <div className="space-y-6">
           <div className="glass p-6 rounded-2xl border border-amber-500/30 bg-amber-950/10">
             <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
-              <Wrench className="size-5 text-amber-400" /> Pneus na Oficina (Manutenção)
+              <Wrench className="size-5 text-amber-400" /> Pneus na Borracharia
             </h3>
             {pneus.filter((p: any) => ["Recapagem", "Conserto"].includes(p.status)).length === 0 ? (
               <div className="text-center py-12 text-slate-500 flex flex-col items-center"><CheckCircle2 className="size-12 text-slate-700 mb-4" /><p>Nenhum pneu na oficina no momento.</p></div>
@@ -461,7 +464,7 @@ export default function Pneus() {
         <div className="space-y-8">
           <div className="glass p-6 rounded-2xl border border-sky-500/20">
             <h3 className="text-lg font-bold text-slate-100 mb-6 flex items-center gap-2">
-              <RefreshCw className="size-5 text-sky-400" /> Pneus Disponíveis (Estoque)
+              <RefreshCw className="size-5 text-sky-400" /> Pneus Disponíveis (Estoque x Envio)
             </h3>
             {stats.emEstoque.length === 0 ? (
               <div className="text-center py-8 text-slate-500">Nenhum pneu em estoque no momento.</div>
