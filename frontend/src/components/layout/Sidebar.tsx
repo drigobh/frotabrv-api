@@ -168,8 +168,12 @@ export function Sidebar() {
 
       <div className="p-3 border-t border-slate-800 shrink-0">
         <Link to="/perfil" className={cn("flex items-center gap-3 px-2 py-2 rounded-lg bg-slate-900/50 mb-2 transition-colors hover:bg-slate-800", isCollapsed && "justify-center")}>
-          <div className="size-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
-            {me?.nome?.charAt(0).toUpperCase() || "R"}
+          <div className="size-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0 overflow-hidden">
+            {me?.foto_url ? (
+              <img src={me.foto_url} alt={me.nome} className="size-full object-cover" />
+            ) : (
+              me?.nome?.charAt(0).toUpperCase() || "U"
+            )}
           </div>
           {!isCollapsed && (
             <div className="flex-1 min-w-0">

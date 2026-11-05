@@ -47,6 +47,7 @@ async def criar_usuario(body: dict, _u: dict = Depends(require("write"))):
         "ultimo_acesso": None,
         "two_factor_enabled": False,
         "two_factor_secret": None,
+        "notificacoes": body.get("notificacoes", {"manutencao": True, "documentos": True, "pneus": True, "resumo_semanal": False}),
     }
     await db.usuarios.insert_one(novo)
     novo.pop("_id", None)
