@@ -19,10 +19,16 @@ export default function VeiculoDetalhe() {
   const [abaAtiva, setAbaAtiva] = useState<Aba>("Visão Geral");
 
   // Buscando dados (num sistema real, seria uma rota /veiculos/{id} que traz tudo)
-  const { data: veiculo } = useQuery({ queryKey: ["veiculo", id], queryFn: () => apiGet<any>(`/veiculos/${id}`) });
-  const { data: abastecimentos = [] } = useQuery({ queryKey: ["abastecimentos", id], queryFn: () => apiGet<any[]>(`/abastecimentos?veiculo_id=${id}`) });
-  const { data: manutencoes = [] } = useQuery({ queryKey: ["manutencoes", id], queryFn: () => apiGet<any[]>(`/manutencoes?veiculo_id=${id}`) });
-  const { data: pneus = [] } = useQuery({ queryKey: ["pneus", id], queryFn: () => apiGet<any[]>(`/pneus?veiculo_id=${id}`) });
+  const { data: detalhes, isLoading } = useQuery({ queryKey: ["veiculo-detalhes", id], queryFn: () => apiGet<any>(`/veiculos/detalhes/${id}`) });
+
+  const veiculo = detalhes?.veiculo;
+  const abastecimentos = detalhes?.abastecimentos || [];
+  const manutencoes = detalhes?.manutencoes || [];
+  const pneus = detalhes?.pneus || [];
+
+  
+  
+  
 
   // Cálculos
   const custoTotal = abastecimentos.reduce((a: number, b: any) => a + (b.valor_total || 0), 0) + manutencoes.reduce((a: number, b: any) => a + (b.valor || 0), 0);
@@ -33,8 +39,8 @@ export default function VeiculoDetalhe() {
     <div>
       <PageHeader
         eyebrow="Frota"
-        title={veiculo ? `${veiculo.placa} · ${veiculo.modelo}` : "Carregando..."}
-        description="Visão 360º do veículo: custo, consumo, manutenção e pneus."
+        title={veiculo ? `${veiculo.placa} · ${veiculo.modelo}` : "Visão 360º do Veículo"}
+        description={veiculo ? `Placa: ${veiculo.placa} · Ano: ${veiculo.ano || "—"} · Chassi: ${veiculo.template_chassi_id || "—"}` : "Buscando histórico completo no banco de dados..."}
         actions={
           <div className="flex gap-2">
             <Link to="/cadastros/veiculos">
