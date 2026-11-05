@@ -12,25 +12,27 @@ router = build_cadastro_router(
 
 
 
+
 @router.get("/detalhes/{veiculo_id}")
 async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None, _u: dict = Depends(require("read"))):
     veiculo = await db.veiculos.find_one({"id": veiculo_id}, {"_id": 0})
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado.")
 
-    # Filtro de data (se fornecido)
+    # Filtro de data
     filtro_data = {}
-    if mes and ano:
+    if mes and mes != "0" and ano and ano != "0":
         filtro_data = {"data_abastecimento": {"$regex": f"^{ano}-{mes.zfill(2)}"}}
 
+    # Busca os dados
     abastecimentos = await db.abastecimentos.find({"veiculo_id": veiculo_id, **filtro_data}, {"_id": 0}).sort("data_abastecimento", -1).to_list(100)
     manutencoes = await db.manutencoes.find({"veiculo_id": veiculo_id}, {"_id": 0}).to_list(100)
     pneus = await db.pneus.find({"veiculo_id": veiculo_id}, {"_id": 0}).to_list(100)
 
+    # Cálculos
     custo_abastecimento = sum(a.get("valor_total", 0) for a in abastecimentos)
     custo_manutencao = sum(m.get("valor", 0) for m in manutencoes)
 
-    # Cálculo de consumo seguro (evita NaN)
     consumo_medio = 0
     if len(abastecimentos) >= 2:
         kms = [a.get("hodometro_km", 0) for a in abastecimentos if a.get("hodometro_km")]

@@ -19,7 +19,7 @@ export default function VeiculoDetalhe() {
   const [abaAtiva, setAbaAtiva] = useState<Aba>("Visão Geral");
   
   // Filtro de Mês/Ano
-  const [mesFiltro, setMesFiltro] = useState(new Date().getMonth() + 1);
+  const [mesFiltro, setMesFiltro] = useState(0);
   const [anoFiltro, setAnoFiltro] = useState(new Date().getFullYear());
 
   const { data: detalhes, isLoading } = useQuery({ 
@@ -65,6 +65,7 @@ export default function VeiculoDetalhe() {
           onChange={(e) => setMesFiltro(Number(e.target.value))}
           className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3"
         >
+          <option value={0}>Todos os Meses</option>
           {meses.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
         </select>
         <select 
