@@ -5,7 +5,7 @@ import {
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox
-, Tag , Building , FolderOpen , Layers} from "lucide-react";
+, Tag , Building , FolderOpen , Layers, BellRing } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
