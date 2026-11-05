@@ -14,6 +14,7 @@ router = build_cadastro_router(
 
 
 
+
 @router.get("/detalhes/{veiculo_id}")
 async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None, _u: dict = Depends(require("read"))):
     veiculo = await db.veiculos.find_one({"id": veiculo_id}, {"_id": 0})
@@ -22,19 +23,31 @@ async def detalhes_veiculo_360(veiculo_id: str, mes: str = None, ano: str = None
 
     placa = veiculo.get("placa")
     
-    # Filtro de data
-    filtro_data = {}
+    # Busca TODOS os abastecimentos e pneus (sem filtro no banco para não errar o campo)
+    # O filtro será feito aqui no Python
+    todos_abastecimentos = await db.abastecimentos.find({}, {"_id": 0}).sort("data_abastecimento", -1).to_list(1000)
+    todos_pneus = await db.pneus.find({}, {"_id": 0}).to_list(1000)
+    
+    # Filtra no Python: se o ID for o veiculo_id OU a placa estiver em qualquer campo de texto
+    abastecimentos = [
+        a for a in todos_abastecimentos 
+        if str(a.get("veiculo_id")) == veiculo_id 
+        or str(a.get("placa", "")).upper() == str(placa).upper()
+        or str(a.get("equipamento", "")).upper() == str(placa).upper()
+    ]
+    
+    pneus = [
+        p for p in todos_pneus 
+        if str(p.get("veiculo_id")) == veiculo_id 
+        or str(p.get("equipamento", "")).upper() == str(placa).upper()
+        or str(p.get("placa", "")).upper() == str(placa).upper()
+    ]
+
+    # Filtro de data (se aplicável)
     if mes and mes != "0" and ano and ano != "0":
-        filtro_data = {"data_abastecimento": {"$regex": f"^{ano}-{mes.zfill(2)}"}}
+        abastecimentos = [a for a in abastecimentos if str(a.get("data_abastecimento", "")).startswith(f"{ano}-{str(mes).zfill(2)}")]
 
-    # BUSCA INTELIGENTE: por ID ou por Placa (para abastecimentos e pneus)
-    filtro_abast = {"$or": [{"veiculo_id": veiculo_id}, {"placa": placa}]}
-    filtro_pneus = {"$or": [{"veiculo_id": veiculo_id}, {"equipamento": placa}, {"placa": placa}]}
-    filtro_manut = {"veiculo_id": veiculo_id} # Manutenção já usa ID
-
-    abastecimentos = await db.abastecimentos.find({**filtro_abast, **filtro_data}, {"_id": 0}).sort("data_abastecimento", -1).to_list(100)
-    manutencoes = await db.manutencoes.find(filtro_manut, {"_id": 0}).to_list(100)
-    pneus = await db.pneus.find(filtro_pneus, {"_id": 0}).to_list(100)
+    manutencoes = await db.manutencoes.find({"veiculo_id": veiculo_id}, {"_id": 0}).to_list(100)
 
     custo_abastecimento = sum(a.get("valor_total", 0) for a in abastecimentos)
     custo_manutencao = sum(m.get("valor", 0) for m in manutencoes)
