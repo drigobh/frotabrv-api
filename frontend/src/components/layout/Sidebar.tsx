@@ -204,7 +204,7 @@ export function Sidebar() {
             </div>
           )}
         </Link>
-        <Button variant="ghost" className={cn("w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 h-9", isCollapsed ? "justify-center px-0" : "justify-start px-3")} onClick={() => { localStorage.removeItem("token"); window.location.href = "/login"; }}>
+        <Button variant="ghost" className={cn("w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 h-9", isCollapsed ? "justify-center px-0" : "justify-start px-3")} onClick={() => { localStorage.clear(); window.location.href = "/login"; }}>
           <LogOut className={cn("size-4", !isCollapsed && "mr-2")} /> 
           {!isCollapsed && "Sair"}
         </Button>
