@@ -125,15 +125,18 @@ export default function Usuarios() {
               <th className="px-5 py-3 font-medium">Usuário</th>
               <th className="px-3 py-3 font-medium">Setor / Cargo</th>
               <th className="px-3 py-3 font-medium">Perfil</th>
+              <th className="px-3 py-3 font-medium text-center">2FA</th>
+              <th className="px-3 py-3 font-medium">Cadastro</th>
+              <th className="px-3 py-3 font-medium">Último Acesso</th>
               <th className="px-3 py-3 font-medium">Status</th>
               <th className="px-3 py-3 text-right font-medium">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
             {isLoading ? (
-              <tr><td colSpan={5} className="p-8 text-center text-slate-500">Carregando...</td></tr>
+              <tr><td colSpan={8} className="p-8 text-center text-slate-500">Carregando...</td></tr>
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={5} className="p-8 text-center text-slate-500">Nenhum usuário encontrado.</td></tr>
+              <tr><td colSpan={8} className="p-8 text-center text-slate-500">Nenhum usuário encontrado.</td></tr>
             ) : (
               filtrados.map((u: any) => (
                 <tr key={u.id} className={cn("hover:bg-slate-800/30 transition-colors", !u.ativo && "opacity-60")}>
@@ -156,6 +159,20 @@ export default function Usuarios() {
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-500/10 text-sky-400">
                       <Shield className="size-3" /> {perfis.find((p: any) => p.id === u.perfil_id)?.nome || "Sem perfil"}
                     </span>
+                  </td>
+                  
+                  <td className="px-3 py-3 text-center">
+                    {u.two_factor_enabled ? (
+                      <span className="text-emerald-400" title="Ativo"><ShieldCheck className="size-4 mx-auto" /></span>
+                    ) : (
+                      <span className="text-slate-500" title="Inativo"><ShieldAlert className="size-4 mx-auto" /></span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-xs text-slate-400 font-mono">
+                    {u.data_cadastro ? new Date(u.data_cadastro).toLocaleDateString('pt-BR') : "—"}
+                  </td>
+                  <td className="px-3 py-3 text-xs text-slate-400 font-mono">
+                    {u.ultimo_acesso ? new Date(u.ultimo_acesso).toLocaleDateString('pt-BR') : "—"}
                   </td>
                   <td className="px-3 py-3">
                     <Badge tone={u.ativo ? "ativo" : "inativo"}>{u.ativo ? "Ativo" : "Inativo"}</Badge>
