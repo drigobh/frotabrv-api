@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from fastapi import APIRouter, Depends, HTTPException
 from lib.db import db
 
@@ -25,8 +26,10 @@ async def alterar_status(id: str, body: dict):
 
 @router.post("")
 async def criar_usuario(body: dict, _u: dict = Depends(require("write"))):
-    import uuid
     import bcrypt
+    import uuid
+    from datetime import datetime
+    
     senha_hash = bcrypt.hashpw(body.get("senha", "").encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     novo = {
         "id": str(uuid.uuid4()),
@@ -39,7 +42,11 @@ async def criar_usuario(body: dict, _u: dict = Depends(require("write"))):
         "whatsapp": body.get("whatsapp", ""),
         "foto_url": body.get("foto_url", ""),
         "senha": senha_hash,
-        "ativo": True
+        "ativo": True,
+        "data_cadastro": datetime.now().isoformat(),
+        "ultimo_acesso": None,
+        "two_factor_enabled": False,
+        "two_factor_secret": None,
     }
     await db.usuarios.insert_one(novo)
     novo.pop("_id", None)
@@ -48,10 +55,14 @@ async def criar_usuario(body: dict, _u: dict = Depends(require("write"))):
 
 @router.put("/{id}")
 async def atualizar_usuario(id: str, body: dict, _u: dict = Depends(require("write"))):
-    update = {"nome": body.get("nome"), "email": body.get("email"), "perfil": body.get("perfil")}
-    await db.usuarios.update_one({"id": id}, {"$set": update})
+    update = {}
+    for campo in ["nome", "email", "perfil_id", "setor", "cargo", "telefone", "whatsapp", "foto_url"]:
+        if campo in body:
+            update[campo] = body[campo]
+    
+    if update:
+        await db.usuarios.update_one({"id": id}, {"$set": update})
     return {"status": "ok"}
-
 
 @router.post("/seed-perfis-padrao")
 async def seed_perfis_padrao():
@@ -97,3 +108,20 @@ async def seed_perfis_padrao():
     for p in perfis:
         await db.perfis.update_one({"id": p["id"]}, {"$set": p}, upsert=True)
     return {"status": "ok", "message": "Perfis padrão atualizados."}
+
+
+@router.patch("/{id}/senha")
+async def alterar_senha(id: str, body: dict, _u: dict = Depends(require("write"))):
+    import bcrypt
+    nova_senha = body.get("nova_senha", "")
+    if len(nova_senha) < 6:
+        raise HTTPException(400, "Senha muito curta.")
+    senha_hash = bcrypt.hashpw(nova_senha.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    await db.usuarios.update_one({"id": id}, {"$set": {"senha": senha_hash}})
+    return {"status": "ok", "message": "Senha atualizada."}
+
+@router.patch("/{id}/2fa")
+async def alternar_2fa(id: str, body: dict, _u: dict = Depends(require("write"))):
+    ativo = body.get("ativo", False)
+    await db.usuarios.update_one({"id": id}, {"$set": {"two_factor_enabled": ativo}})
+    return {"status": "ok", "two_factor_enabled": ativo}
