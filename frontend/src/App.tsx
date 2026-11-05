@@ -33,6 +33,7 @@ import RelatorioEstoque from "@/pages/RelatorioEstoque";
 import Estoque from "@/pages/Estoque";
 import ModelosPneus from "@/pages/ModelosPneus";
 import Pneus from "@/pages/Pneus";
+import RelatoriosPneus from "@/pages/RelatoriosPneus";
 import Monitoramento from "@/pages/Monitoramento";
 import Usuarios from "@/pages/Usuarios";
 import Auditoria from "@/pages/Auditoria";
@@ -100,6 +101,7 @@ export default function App() {
               <Route path="/operacao/estoque" element={<Estoque />} />
               <Route path="/cadastros/pneu-modelos" element={<ModelosPneus />} />
               <Route path="/operacao/pneus" element={<Pneus />} />
+          <Route path="/operacao/relatorios-pneus" element={<RelatoriosPneus />} />
               <Route path="/operacao/monitoramento" element={<Monitoramento />} />
             </Route>
           </Route>
