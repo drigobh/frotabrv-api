@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api";
 import { CadastroTable, type ColumnDef } from "@/components/cadastros/CadastroTable";
+import { Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { num } from "@/lib/format";
 import type { Veiculo } from "@/types/cadastros";
 
@@ -14,6 +16,7 @@ const columns: ColumnDef<Veiculo>[] = [
 ];
 
 export default function Veiculos() {
+  const navigate = useNavigate();
   const { data: templates = [] } = useQuery({
     queryKey: ["chassi-templates"],
     queryFn: () => apiGet<any[]>("/chassi-templates"),
@@ -42,6 +45,11 @@ export default function Veiculos() {
       testPrefix="veiculo"
       columns={colunasComTemplate}
       searchKeys={["placa", "modelo"]}
+      extraActions={(v) => (
+        <Button size="icon-sm" variant="ghost" onClick={() => navigate(`/cadastros/veiculos/${v.id}`)} title="Visão 360º">
+          <Eye className="size-4 text-emerald-400" />
+        </Button>
+      )}
     />
   );
 }

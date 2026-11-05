@@ -35,6 +35,7 @@ export interface ColumnDef<T> {
 }
 
 interface Props<T extends CadastroRow> {
+  extraActions?: (row: T) => React.ReactNode;
   title: string;
   description: string;
   endpoint: string;
