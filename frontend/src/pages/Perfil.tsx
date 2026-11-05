@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShieldCheck, User, Bell, Key, Save } from "lucide-react";
+import { apiPut } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,22 @@ const abas = ["Meus Dados", "Segurança", "Notificações"] as const;
 export default function Perfil() {
   const { data: me } = useMe();
   const [abaAtiva, setAbaAtiva] = useState<typeof abas[number]>("Meus Dados");
+  const [nome, setNome] = useState(me?.nome || "");
+  const [telefone, setTelefone] = useState("(11) 99999-9999");
+  const [senhaAtual, setSenhaAtual] = useState("");
+  const [novaSenha, setNovaSenha] = useState("");
+  
+  const salvarPerfil = async () => {
+    try {
+      const payload: any = { nome, telefone };
+      if (novaSenha && novaSenha === senhaAtual) payload.nova_senha = novaSenha;
+      
+      await apiPut("/auth/perfil", payload);
+      toast.success("Perfil atualizado com sucesso!");
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao salvar perfil");
+    }
+  };
 
   return (
     <div>
@@ -21,7 +38,7 @@ export default function Perfil() {
         title="Perfil do Usuário"
         description="Gerencie suas informações pessoais, senha e preferências de notificação."
         actions={
-          <Button className="bg-emerald-600 hover:bg-emerald-500 h-9" onClick={() => toast.success("Alterações salvas com sucesso!")}>
+          <Button className="bg-emerald-600 hover:bg-emerald-500 h-9" onClick={salvarPerfil}>
             <Save className="size-4 mr-2" /> Salvar Alterações
           </Button>
         }
@@ -69,7 +86,7 @@ export default function Perfil() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label className="text-xs text-slate-400">Nome Completo</Label>
-                    <Input defaultValue={me?.nome || "Rodrigo Admin"} className="bg-slate-950 border-slate-700 h-10" />
+                    <Input value={nome} onChange={(e) => setNome(e.target.value)} className="bg-slate-950 border-slate-700 h-10" />
                   </div>
                   <div className="grid gap-2">
                     <Label className="text-xs text-slate-400">E-mail de Acesso</Label>
@@ -77,7 +94,7 @@ export default function Perfil() {
                   </div>
                   <div className="grid gap-2">
                     <Label className="text-xs text-slate-400">Telefone / WhatsApp</Label>
-                    <Input defaultValue="(11) 99999-9999" className="bg-slate-950 border-slate-700 h-10" />
+                    <Input value={telefone} onChange={(e) => setTelefone(e.target.value)} className="bg-slate-950 border-slate-700 h-10" />
                   </div>
                   <div className="grid gap-2">
                     <Label className="text-xs text-slate-400">Cargo / Função</Label>

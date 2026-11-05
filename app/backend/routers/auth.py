@@ -42,3 +42,26 @@ async def logout(response: Response):
 async def logout_get(response: Response):
     response.delete_cookie(COOKIE_NAME, path="/")
     return {"ok": True, "msg": "Sessão encerrada."}
+
+
+@router.put("/perfil")
+async def atualizar_perfil(body: dict, _u: dict = Depends(require("read"))):
+    # Atualiza nome e telefone
+    update_data = {}
+    if "nome" in body: update_data["nome"] = body["nome"]
+    if "telefone" in body: update_data["telefone"] = body["telefone"]
+    
+    if update_data:
+        await db.usuarios.update_one({"id": _u["id"]}, {"$set": update_data})
+    
+    # Atualiza senha (se fornecida)
+    if body.get("nova_senha"):
+        import bcrypt
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(body["nova_senha"].encode('utf-8'), salt)
+        await db.usuarios.update_one(
+            {"id": _u["id"]}, 
+            {"$set": {"senha": hashed.decode('utf-8')}}
+        )
+    
+    return {"status": "ok", "message": "Perfil atualizado com sucesso!"}
