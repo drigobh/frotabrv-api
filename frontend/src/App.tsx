@@ -60,10 +60,6 @@ function ProtectedRoute() {
 export default function App() {
   return (
 
-      <div style={{ background: 'red', color: 'white', padding: '20px', textAlign: 'center', fontSize: '24px', fontWeight: 'bold', zIndex: 99999, position: 'relative' }}>
-        🔥 O CÓDIGO NOVO ESTÁ AQUI! DEPLOY FUNCIONOU! 🔥
-      </div>
-
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
