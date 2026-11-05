@@ -66,3 +66,9 @@ async def atualizar_perfil(body: dict, _u: dict = Depends(require("read"))):
         )
     
     return {"status": "ok", "message": "Perfil atualizado com sucesso!"}
+
+
+@router.get("/usuarios")
+async def listar_usuarios(_u: dict = Depends(require("read"))):
+    usuarios = await db.usuarios.find({}, {"_id": 0, "senha": 0}).to_list(1000)
+    return usuarios
