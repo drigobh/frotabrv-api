@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from lib.db import db
 
 router = APIRouter()
+from lib.security import require
 
 @router.get("")
 async def listar_usuarios():
