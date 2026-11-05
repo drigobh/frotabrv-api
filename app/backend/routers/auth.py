@@ -35,6 +35,14 @@ async def me(_u: dict = Depends(require("read"))):
     usuario = await db.usuarios.find_one({"id": _u["id"]}, {"_id": 0, "senha": 0})
     if not usuario:
         raise HTTPException(404, "Usuário não encontrado.")
+    
+    # Busca as permissões do perfil
+    if usuario.get("perfil_id"):
+        perfil = await db.perfis.find_one({"id": usuario["perfil_id"]}, {"_id": 0})
+        if perfil:
+            usuario["permissoes"] = perfil.get("permissoes", [])
+            usuario["perfil_nome"] = perfil.get("nome", "")
+    
     return usuario
 
 @router.post("/logout")

@@ -8,6 +8,7 @@ import {
 , Tag , Building , FolderOpen , Layers, BellRing , Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 
 const MENUS = [
@@ -79,6 +80,7 @@ const MENUS = [
 export function Sidebar() {
   const { pathname } = useLocation();
   const { data: me } = useMe();
+  const { podeVer } = usePermissions();
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem("sidebar_collapsed") === "true");
   const [expandedMenu, setExpandedMenu] = useState<string | null>("operacao");
 
@@ -109,7 +111,19 @@ export function Sidebar() {
       </div>
 
       <div className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
-        {MENUS.map((menu) => {
+        {MENUS.filter(menu => {
+            if (menu.isDashboard) return true; // Dashboard é livre
+            const modulo = {
+              "administracao": "Administração",
+              "cadastros": "Cadastros",
+              "frota": "Frota",
+              "manutencao": "Manutenção",
+              "financeiro": "Financeiro",
+              "gestao": "Relatórios",
+              "relatorios-gerais": "Relatórios",
+            }[menu.id];
+            return modulo ? podeVer(modulo) : true;
+          }).map((menu) => {
           if (menu.isDashboard) {
             const isActive = pathname === menu.path;
             return (
@@ -139,7 +153,11 @@ export function Sidebar() {
 
               {!isCollapsed && isExpanded && (
                 <div className="mt-1 mb-2 space-y-1 pl-9 pr-1">
-                  {menu.items.map((item) => (
+                  {menu.items.filter(item => {
+                    // Lógica básica: se o usuário tem permissão no módulo pai, vê todos os filhos.
+                    // Para refinamento, mapearíamos cada item para uma ação específica.
+                    return true; 
+                  }).map((item) => (
                     <Link key={item.path} to={item.path} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-md text-xs transition-colors", pathname === item.path ? "bg-sky-500/10 text-sky-400 font-medium" : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50")}>
                       <item.icon className="size-3.5 shrink-0" />
                       <span className="truncate">{item.label}</span>
@@ -152,7 +170,11 @@ export function Sidebar() {
                 <div className="absolute left-full top-0 ml-2 w-56 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-auto">
                   <div className="p-2">
                     <p className="text-[10px] font-bold uppercase text-sky-400 px-2 py-1 mb-1 border-b border-slate-800 pb-2">{menu.label}</p>
-                    {menu.items.map((item) => (
+                    {menu.items.filter(item => {
+                    // Lógica básica: se o usuário tem permissão no módulo pai, vê todos os filhos.
+                    // Para refinamento, mapearíamos cada item para uma ação específica.
+                    return true; 
+                  }).map((item) => (
                       <Link key={item.path} to={item.path} className={cn("flex items-center gap-2 px-2 py-2 rounded-md text-xs transition-colors", pathname === item.path ? "bg-sky-500/10 text-sky-400 font-medium" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800")}>
                         <item.icon className="size-3.5 shrink-0" />
                         <span className="truncate">{item.label}</span>
