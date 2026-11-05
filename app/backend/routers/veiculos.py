@@ -1,3 +1,4 @@
+from fastapi import APIRouter, Depends, HTTPException
 from lib.cadastro_base import build_cadastro_router
 from models.cadastros import VeiculoCreate, Veiculo
 
