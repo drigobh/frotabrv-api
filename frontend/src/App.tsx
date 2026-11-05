@@ -34,6 +34,7 @@ import RelatorioEstoque from "@/pages/RelatorioEstoque";
 import Estoque from "@/pages/Estoque";
 import ModelosPneus from "@/pages/ModelosPneus";
 import Pneus from "@/pages/Pneus";
+import VeiculoDetalhe from "@/pages/VeiculoDetalhe";
 import RelatoriosPneus from "@/pages/RelatoriosPneus";
 import Monitoramento from "@/pages/Monitoramento";
 import Usuarios from "@/pages/Usuarios";
@@ -83,7 +84,8 @@ export default function App() {
               <Route path="/agendamento" element={<Agendamento />} />
               
               <Route path="/financeiro" element={<Financeiro />} />
-              <Route path="/cadastros/veiculos" element={<Veiculos />} />
+              <Route path="/cadastros/veiculos/:id" element={<VeiculoDetalhe />} />
+          <Route path="/cadastros/veiculos" element={<Veiculos />} />
               <Route path="/cadastros/carretas" element={<Carretas />} />
               <Route path="/cadastros/motoristas" element={<Motoristas />} />
               <Route path="/cadastros/combustiveis" element={<Combustiveis />} />
