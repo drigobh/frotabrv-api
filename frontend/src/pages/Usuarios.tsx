@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Power, RotateCcw, Search, Shield } from "lucide-react";
-import { apiGet, apiPatch } from "@/lib/api";
+import { Plus, Pencil, Power, RotateCcw, Search, Shield, X, Check } from "lucide-react";
+import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -12,6 +13,10 @@ import { cn } from "@/lib/utils";
 export default function Usuarios() {
   const qc = useQueryClient();
   const [busca, setBusca] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editando, setEditando] = useState<any>(null);
+  const [form, setForm] = useState({ nome: "", email: "", perfil: "Operador", senha: "" });
+
   const { data: usuarios = [], isLoading } = useQuery({ 
     queryKey: ["usuarios"], 
     queryFn: () => apiGet<any[]>("/usuarios") 
@@ -21,10 +26,35 @@ export default function Usuarios() {
     mutationFn: ({ id, ativo }: { id: string, ativo: boolean }) => 
       apiPatch(`/usuarios/${id}/status`, { ativo }),
     onSuccess: () => {
-      toast.success("Status alterado com sucesso!");
+      toast.success("Status alterado!");
       qc.invalidateQueries({ queryKey: ["usuarios"] });
     }
   });
+
+  const salvar = useMutation({
+    mutationFn: (payload: any) => {
+      if (editando) return apiPut(`/usuarios/${editando.id}`, payload);
+      return apiPost("/usuarios", payload);
+    },
+    onSuccess: () => {
+      toast.success(editando ? "Usuário atualizado!" : "Usuário criado!");
+      setModalOpen(false);
+      qc.invalidateQueries({ queryKey: ["usuarios"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao salvar.")
+  });
+
+  const abrirNovo = () => {
+    setEditando(null);
+    setForm({ nome: "", email: "", perfil: "Operador", senha: "" });
+    setModalOpen(true);
+  };
+
+  const abrirEdicao = (u: any) => {
+    setEditando(u);
+    setForm({ nome: u.nome, email: u.email, perfil: u.perfil || "Operador", senha: "" });
+    setModalOpen(true);
+  };
 
   const filtrados = usuarios.filter((u: any) => 
     (u.nome || "").toLowerCase().includes(busca.toLowerCase()) ||
@@ -48,7 +78,7 @@ export default function Usuarios() {
                 className="pl-9 h-9 w-64" 
               />
             </div>
-            <Button className="bg-sky-600 hover:bg-sky-500 h-9">
+            <Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500 h-9">
               <Plus className="size-4 mr-2" /> Novo Usuário
             </Button>
           </div>
@@ -85,7 +115,7 @@ export default function Usuarios() {
                     <Badge tone={u.ativo ? "ativo" : "inativo"}>{u.ativo ? "Ativo" : "Inativo"}</Badge>
                   </td>
                   <td className="px-3 py-3 text-right flex justify-end gap-1">
-                    <Button size="icon-sm" variant="ghost">
+                    <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(u)}>
                       <Pencil className="size-4 text-sky-400" />
                     </Button>
                     <Button 
@@ -103,6 +133,63 @@ export default function Usuarios() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal de Cadastro/Edição */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-slate-100">{editando ? "Editar Usuário" : "Novo Usuário"}</h2>
+              <Button variant="ghost" size="icon" onClick={() => setModalOpen(false)}>
+                <X className="size-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">Nome Completo *</Label>
+                <Input value={form.nome} onChange={(e) => setForm(s => ({ ...s, nome: e.target.value }))} placeholder="Ex: João da Silva" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">E-mail *</Label>
+                <Input type="email" value={form.email} onChange={(e) => setForm(s => ({ ...s, email: e.target.value }))} placeholder="joao@frotabrv.com" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-slate-400">Perfil de Acesso</Label>
+                <select 
+                  value={form.perfil} 
+                  onChange={(e) => setForm(s => ({ ...s, perfil: e.target.value }))}
+                  className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3"
+                >
+                  <option value="Administrador">Administrador</option>
+                  <option value="Gestor">Gestor</option>
+                  <option value="Operador">Operador</option>
+                  <option value="Manutenção">Manutenção</option>
+                  <option value="Financeiro">Financeiro</option>
+                  <option value="Motorista">Motorista</option>
+                </select>
+              </div>
+              {!editando && (
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-slate-400">Senha Inicial *</Label>
+                  <Input type="password" value={form.senha} onChange={(e) => setForm(s => ({ ...s, senha: e.target.value }))} placeholder="••••••••" />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
+              <Button 
+                onClick={() => salvar.mutate(form)} 
+                disabled={salvar.isPending || !form.nome || !form.email}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white"
+              >
+                <Check className="size-4 mr-2" /> Salvar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
