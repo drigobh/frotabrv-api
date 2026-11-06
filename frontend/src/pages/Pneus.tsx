@@ -383,7 +383,7 @@ export default function Pneus() {
                       <TableRow key={p.id} className="border-slate-800 hover:bg-slate-800/30">
                         <TableCell className="font-bold text-slate-100"><StatusIcon status={p.status} /> {p.numero_fogo}</TableCell>
                         <TableCell className="text-slate-300">{p.marca} {p.modelo && `/ ${p.modelo}`}</TableCell>
-                        <TableCell className="text-slate-400 font-mono">{p.medida}</TableCell>
+                        <TableCell className="text-white font-mono font-bold">{p.medida}</TableCell>
                         <TableCell className="text-slate-400">{p.dot || "—"}</TableCell>
                         <TableCell className="text-slate-400">{p.tipo}</TableCell>
                         <TableCell><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${statusColor(p.status)}`}>{p.status}</span></TableCell>

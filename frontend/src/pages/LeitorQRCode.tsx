@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { QrCode, ArrowLeft, Search, CheckCircle2, AlertTriangle, Truck, Disc, MapPin } from "lucide-react";
-import { PageHeader } from "@/components/common/PageHeader";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { apiGet, apiPost } from "@/lib/api";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { Eye, useState, useEffect } from "react";
+import { Eye, useNavigate } from "react-router-dom";
+import { Eye, QrCode, ArrowLeft, Search, CheckCircle2, AlertTriangle, Truck, Disc, MapPin } from "lucide-react";
+import { Eye, PageHeader } from "@/components/common/PageHeader";
+import { Eye, Button } from "@/components/ui/button";
+import { Eye, Input } from "@/components/ui/input";
+import { Eye, Label } from "@/components/ui/label";
+import { Eye, apiGet, apiPost } from "@/lib/api";
+import { Eye, toast } from "sonner";
+import { Eye, cn } from "@/lib/utils";
 
 export default function LeitorQRCode() {
   const navigate = useNavigate();
@@ -18,6 +18,7 @@ export default function LeitorQRCode() {
   const [sulco, setSulco] = useState("");
   const [odometro, setOdometro] = useState("");
   const [naoConformidade, setNaoConformidade] = useState(false);
+  const [mostrarMapa, setMostrarMapa] = useState(false);
   const [veiculo, setVeiculo] = useState<any>(null);
   const [ultimoKm, setUltimoKm] = useState<number | null>(null);
 
@@ -133,6 +134,11 @@ export default function LeitorQRCode() {
             {veiculo && (
               <div className="mt-4 p-3 bg-slate-900 rounded-lg border border-slate-800 flex flex-col items-center">
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Mapa do Chassi</p>
+                <div className="flex gap-2 mb-2">
+                  <Button size="sm" variant="outline" onClick={() => setMostrarMapa(!mostrarMapa)}>
+                    <Eye className="size-4 mr-1" /> Visualizar Mapa
+                  </Button>
+                </div>
                 <div className="flex gap-2">
                   <Truck className="size-6 text-sky-400" />
                   <span className="text-xs text-slate-400">Posição: {pneu.posicao?.split(' ')[0] || "—"}</span>
