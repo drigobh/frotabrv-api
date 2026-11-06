@@ -15,7 +15,7 @@ export default function CadastrosFinanceiros() {
   
   // Estados para Bancos
   const [modalBancoOpen, setModalBancoOpen] = useState(false);
-  const [formBanco, setFormBanco] = useState({ nome: "", agencia: "", conta: "", saldo_inicial: "" });
+  const [formBanco, setFormBanco] = useState({ nome: "", agencia: "", numero_agencia: "", conta: "", telefone: "", contato: "", whatsapp: "" });
   
   // Estados para Categorias
   const [modalCatOpen, setModalCatOpen] = useState(false);
@@ -62,7 +62,7 @@ export default function CadastrosFinanceiros() {
       {abaAtiva === "Bancos" && (
         <div>
           <div className="flex justify-end mb-4">
-            <Button onClick={() => { setFormBanco({ nome: "", agencia: "", conta: "", saldo_inicial: "" }); setModalBancoOpen(true); }} className="bg-sky-600 hover:bg-sky-500 h-9">
+            <Button onClick={() => { setFormBanco({ nome: "", agencia: "", numero_agencia: "", conta: "", telefone: "", contato: "", whatsapp: "" }); setModalBancoOpen(true); }} className="bg-sky-600 hover:bg-sky-500 h-9">
               <Plus className="size-4 mr-2" /> Novo Banco
             </Button>
           </div>
@@ -117,6 +117,7 @@ export default function CadastrosFinanceiros() {
         </div>
       )}
 
+      
       {/* Modal de Banco */}
       {modalBancoOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -124,10 +125,20 @@ export default function CadastrosFinanceiros() {
             <h2 className="text-lg font-bold text-slate-100 mb-4">Novo Banco</h2>
             <div className="space-y-4">
               <div className="grid gap-1.5"><Label>Nome do Banco *</Label><Input value={formBanco.nome} onChange={(e) => setFormBanco(s => ({ ...s, nome: e.target.value }))} /></div>
+              
               <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-1.5"><Label>Número da Agência</Label><Input value={formBanco.agencia} onChange={(e) => setFormBanco(s => ({ ...s, agencia: e.target.value }))} /></div>
-                <div className="grid gap-1.5"><Label>Número da Conta</Label><Input value={formBanco.conta} onChange={(e) => setFormBanco(s => ({ ...s, conta: e.target.value }))} /></div>
+                <div className="grid gap-1.5"><Label>Agência</Label><Input value={formBanco.agencia} onChange={(e) => setFormBanco(s => ({ ...s, agencia: e.target.value }))} /></div>
+                <div className="grid gap-1.5"><Label>Nº da Agência</Label><Input value={formBanco.numero_agencia} onChange={(e) => setFormBanco(s => ({ ...s, numero_agencia: e.target.value }))} /></div>
               </div>
+              
+              <div className="grid gap-1.5"><Label>Conta</Label><Input value={formBanco.conta} onChange={(e) => setFormBanco(s => ({ ...s, conta: e.target.value }))} /></div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-1.5"><Label>Telefone</Label><Input value={formBanco.telefone} onChange={(e) => setFormBanco(s => ({ ...s, telefone: e.target.value }))} /></div>
+                <div className="grid gap-1.5"><Label>WhatsApp</Label><Input value={formBanco.whatsapp} onChange={(e) => setFormBanco(s => ({ ...s, whatsapp: e.target.value }))} /></div>
+              </div>
+              
+              <div className="grid gap-1.5"><Label>Contato</Label><Input value={formBanco.contato} onChange={(e) => setFormBanco(s => ({ ...s, contato: e.target.value }))} /></div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setModalBancoOpen(false)}>Cancelar</Button>
@@ -138,6 +149,7 @@ export default function CadastrosFinanceiros() {
       )}
 
       {/* Modal de Categoria */}
+
       {modalCatOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">

@@ -17,14 +17,17 @@ async def criar_banco(body: dict, _u: dict = Depends(require("write"))):
         "id": str(uuid.uuid4()),
         "nome": body.get("nome"),
         "agencia": body.get("agencia", ""),
+        "numero_agencia": body.get("numero_agencia", ""),
         "conta": body.get("conta", ""),
+        "telefone": body.get("telefone", ""),
+        "contato": body.get("contato", ""),
+        "whatsapp": body.get("whatsapp", ""),
         "saldo_inicial": float(body.get("saldo_inicial", 0))
     }
     await db.bancos.insert_one(novo)
     novo.pop("_id", None)
     return novo
 
-# --- CATEGORIAS FINANCEIRAS ---
 @router.get("/categorias")
 async def listar_categorias(tipo: str = None, _u: dict = Depends(require("read"))):
     filtro = {}
