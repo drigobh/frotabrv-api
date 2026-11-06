@@ -23,9 +23,9 @@ export default defineConfig({
       // CORREÇÃO: Inclui o Leaflet para ser otimizado corretamente
       'leaflet',
       'react-leaflet',
-      'jsbarcode',
     ],
     noDiscovery: true,
+    exclude: ['jsbarcode'],
     // REMOVIDO: O exclude do Leaflet (não é mais necessário)
   },
   server: {

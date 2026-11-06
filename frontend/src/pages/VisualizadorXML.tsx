@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { brl } from "@/lib/format";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import JsBarcode from "jsbarcode/bin/JsBarcode.js";
+import * as JsBarcodeNamespace from 'jsbarcode';
+const JsBarcode = (JsBarcodeNamespace as any).default || JsBarcodeNamespace;
 
 // ============================================================
 // PARSER: NF-e
