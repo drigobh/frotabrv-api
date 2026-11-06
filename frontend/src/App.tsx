@@ -104,7 +104,7 @@ export default function App() {
               <Route path="/cadastros/pneu-modelos" element={<ModelosPneus />} />
               <Route path="/cadastros/tipos-fornecedores" element={<TiposFornecedores />} />
               <Route path="/multas" element={<Multas />} />
-              <Route path="/financeiro" element={<Financeiro />} />
+              
               <Route path="/operacao/estoque" element={<Estoque />} />
               <Route path="/relatorio-manutencao" element={<RelatorioManutencao />} />
               <Route path="/relatorios/estoque" element={<RelatorioEstoque />} />
@@ -128,6 +128,7 @@ export default function App() {
             </Route>
           </Route>
 
+          <Route path="/financeiro" element={<Financeiro />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
