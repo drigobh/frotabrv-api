@@ -25,7 +25,13 @@ export default function Perfis() {
   const qc = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState<any>(null);
-  const [form, setForm] = useState<any>({ nome: "", descricao: "", permissoes: [] });
+  const [form, setForm] = useState<any>({ 
+    nome: "", 
+    descricao: "", 
+    permissoes: [], 
+    timeout_minutos: 30, 
+    tentativas_login: "5" 
+  });
 
   const { data: perfis = [], isLoading } = useQuery({ 
     queryKey: ["perfis"], 
@@ -38,10 +44,10 @@ export default function Perfis() {
       return apiPost("/perfis", payload);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["me"] });
       toast.success(editando ? "Perfil atualizado!" : "Perfil criado!");
-      setModalOpen(false);
       qc.invalidateQueries({ queryKey: ["perfis"] });
+      qc.invalidateQueries({ queryKey: ["me"] }); // Atualiza o timer do usuário logado
+      setModalOpen(false);
     }
   });
 
@@ -55,13 +61,25 @@ export default function Perfis() {
 
   const abrirNovo = () => {
     setEditando(null);
-    setForm({ nome: "", descricao: "", permissoes: [] });
+    setForm({ 
+      nome: "", 
+      descricao: "", 
+      permissoes: [], 
+      timeout_minutos: 30, 
+      tentativas_login: "5" 
+    });
     setModalOpen(true);
   };
 
   const abrirEdicao = (p: any) => {
     setEditando(p);
-    setForm({ nome: p.nome, descricao: p.descricao || "", permissoes: Array.isArray(p.permissoes) ? p.permissoes : [] });
+    setForm({ 
+      nome: p.nome || "", 
+      descricao: p.descricao || "", 
+      permissoes: p.permissoes || [], 
+      timeout_minutos: p.timeout_minutos !== undefined ? p.timeout_minutos : 30, 
+      tentativas_login: p.tentativas_login || "5" 
+    });
     setModalOpen(true);
   };
 
@@ -69,7 +87,7 @@ export default function Perfis() {
     const chave = `${modulo}:${acao}`;
     setForm((s: any) => ({
       ...s,
-      permissoes: (Array.isArray(s.permissoes) ? s.permissoes : []).includes(chave)
+      permissoes: s.permissoes.includes(chave)
         ? s.permissoes.filter((p: string) => p !== chave)
         : [...s.permissoes, chave]
     }));
@@ -111,6 +129,8 @@ export default function Perfis() {
                 </div>
               </div>
               <p className="text-xs text-slate-400 mb-4 line-clamp-2">{p.descricao || "Sem descrição."}</p>
+              
+              {/* Cards de Resumo (Timeout e Tentativas) */}
               <div className="flex flex-wrap gap-1 mt-auto">
                 <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400 font-medium">
                   {p.permissoes?.length || 0} permissões
@@ -127,53 +147,65 @@ export default function Perfis() {
         )}
       </div>
 
+      {/* Modal de Cadastro/Edição */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col">
-            <div className="flex justify-between items-center border-b border-slate-800 px-6 py-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center border-b border-slate-800 px-6 py-4 shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-slate-100">{editando ? "Editar Perfil" : "Novo Perfil"}</h2>
-                <p className="text-xs text-slate-400 mt-1">Defina o nome e as permissões do perfil.</p>
+                <p className="text-xs text-slate-400 mt-1">Defina o nome, segurança e permissões.</p>
               </div>
               <Button variant="ghost" size="icon" onClick={() => setModalOpen(false)}>
                 <X className="size-5" />
               </Button>
             </div>
 
-            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              {/* Nome e Descrição */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="grid gap-1.5">
-                    <Label className="text-xs text-slate-400">Nome do Perfil *</Label>
-                    <Input value={form.nome} onChange={(e) => setForm((s: any) => ({ ...s, nome: e.target.value }))} placeholder="Ex: Gestor de Frota" />
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label className="text-xs text-slate-400">Descrição</Label>
-                    <Input value={form.descricao} onChange={(e) => setForm((s: any) => ({ ...s, descricao: e.target.value }))} placeholder="Ex: Acesso total ao módulo de frotas" />
-                  </div>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-slate-400">Nome do Perfil *</Label>
+                  <Input value={form.nome} onChange={(e) => setForm((s: any) => ({ ...s, nome: e.target.value }))} placeholder="Ex: Gestor de Frota" />
                 </div>
-                
-                {/* Segurança */}
-                <div>
-                  <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-                    <Lock className="size-4 text-amber-400" /> Segurança
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="grid gap-1.5">
-                      <Label className="text-xs text-slate-400">Timeout de Sessão (minutos)</Label>
-                      <Input type="number" value={form.timeout_minutos === 0 ? 0 : (form.timeout_minutos || 30)} onChange={(e) => setForm((s: any) => ({ ...s, timeout_minutos: Number(e.target.value) }))} />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label className="text-xs text-slate-400">Tentativas de Login Permitidas</Label>
-                      <select value={form.tentativas_login || 5} onChange={(e) => setForm((s: any) => ({ ...s, tentativas_login: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
-                        <option value="3">3 tentativas</option>
-                        <option value="5">5 tentativas</option>
-                        <option value="7">7 tentativas</option>
-                        <option value="liberado">Liberado (apenas avisa)</option>
-                      </select>
-                    </div>
-                  </div>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-slate-400">Descrição</Label>
+                  <Input value={form.descricao} onChange={(e) => setForm((s: any) => ({ ...s, descricao: e.target.value }))} placeholder="Ex: Acesso total ao módulo de frotas" />
                 </div>
+              </div>
 
+              {/* Segurança */}
+              <div>
+                <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                  <Lock className="size-4 text-amber-400" /> Segurança
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-slate-400">Timeout de Sessão (minutos)</Label>
+                    <Input 
+                      type="number" 
+                      value={form.timeout_minutos} 
+                      onChange={(e) => setForm((s: any) => ({ ...s, timeout_minutos: Number(e.target.value) }))} 
+                    />
+                    <p className="text-[10px] text-slate-500">Coloque 0 para desativar o timer.</p>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-slate-400">Tentativas de Login Permitidas</Label>
+                    <select 
+                      value={form.tentativas_login} 
+                      onChange={(e) => setForm((s: any) => ({ ...s, tentativas_login: e.target.value }))} 
+                      className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3"
+                    >
+                      <option value="3">3 tentativas</option>
+                      <option value="5">5 tentativas</option>
+                      <option value="7">7 tentativas</option>
+                      <option value="liberado">Liberado (apenas avisa)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Permissões */}
               <div>
                 <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
                   <Lock className="size-4 text-amber-400" /> Matriz de Permissões
@@ -206,16 +238,10 @@ export default function Perfis() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-800 px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-slate-800 px-6 py-4 shrink-0">
               <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
               <Button 
-                onClick={() => salvar.mutate({
-                    nome: form.nome,
-                    descricao: form.descricao,
-                    permissoes: form.permissoes,
-                    timeout_minutos: Number(form.timeout_minutos) || 0,
-                    tentativas_login: form.tentativas_login || "5"
-                  })} 
+                onClick={() => salvar.mutate(form)} 
                 disabled={!form.nome}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white px-6"
               >
