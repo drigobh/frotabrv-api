@@ -134,6 +134,7 @@ export default function VisualizadorXML() {
       const cnpjEmitente = dados.emitente.cnpj.replace(/\D/g, "");
       const valorReal = Number(dados.valorTotal) || 0;
 
+      // 1. Verifica duplicidade
       const contasExistentes = await apiGet<any[]>("/financeiro/contas");
       const jaImportada = contasExistentes.find(c => c.documento_vinculo === dados.chave);
       if (jaImportada) {
@@ -144,8 +145,8 @@ export default function VisualizadorXML() {
 
       if (tipoConta === "Pagar") {
         const fornecedores = await apiGet<any[]>("/fornecedores");
-        const fornecedorExistente = fornecedores.find(f => (f.documento || "").replace(/\D/g, "") === cnpjEmitente);
-        
+        let fornecedorExistente = fornecedores.find(f => (f.documento || "").replace(/\D/g, "") === cnpjEmitente);
+
         if (!fornecedorExistente) {
           toast.error("Fornecedor não cadastrado! Cadastre o CNPJ " + dados.emitente.cnpj + " antes de importar.");
           setLoadingImport(false);
@@ -179,6 +180,7 @@ export default function VisualizadorXML() {
       toast.success("Importado com sucesso!");
       qc.invalidateQueries({ queryKey: ["contas"] });
       qc.invalidateQueries({ queryKey: ["resumo-financeiro"] });
+      qc.invalidateQueries({ queryKey: ["fornecedores"] });
       setModalOpen(false);
       navigate("/financeiro");
     } catch (e: any) {
