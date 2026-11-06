@@ -128,7 +128,7 @@ async def alternar_2fa(id: str, body: dict, _u: dict = Depends(require("write"))
     return {"status": "ok", "two_factor_enabled": ativo}
 
 @router.post("/fix-datas-cadastro")
-async def fix_datas_cadastro(_u: dict = Depends(require("write"))):
+async def fix_datas_cadastro():
     from datetime import datetime
     usuarios = await db.usuarios.find({"data_cadastro": {"$exists": False}}).to_list(1000)
     for u in usuarios:
