@@ -171,14 +171,14 @@ export default function CadastrosFinanceiros() {
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-800/50">
                 <tr className="text-[11px] uppercase tracking-wider text-slate-400">
-                  <th className="px-5 py-3 font-medium">Nome</th>
-                  <th className="px-3 py-3 font-medium">Tipo</th>
+                  <th className="px-5 py-3 font-medium text-slate-200">Nome</th>
+                  <th className="px-3 py-3 font-medium text-slate-200">Tipo</th>
                   <th className="px-3 py-3 text-right font-medium">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {categoriasFiltradas.length === 0 ? (
-                  <tr><td colSpan={3} className="p-8 text-center text-slate-400">Nenhuma categoria encontrada.</td></tr>
+                  <tr><td colSpan={3} className="p-8 text-center text-slate-300">Nenhuma categoria encontrada.</td></tr>
                 ) : (
                   categoriasFiltradas.map((c: any) => (
                     <tr key={c.id} className={cn("hover:bg-slate-800/30 transition-colors", !c.ativo && "opacity-50")}>
