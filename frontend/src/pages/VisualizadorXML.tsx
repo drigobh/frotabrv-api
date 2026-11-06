@@ -177,6 +177,7 @@ export default function VisualizadorXML() {
   const [erro, setErro] = useState("");
   const [modalImportOpen, setModalImportOpen] = useState(false);
   const [tipoConta, setTipoConta] = useState<"Pagar" | "Receber">("Pagar");
+  const [loadingImport, setLoadingImport] = useState(false);
   const [formForn, setFormForn] = useState<any>({});
   const qc = useQueryClient();
 
@@ -267,6 +268,8 @@ export default function VisualizadorXML() {
 
 
   const executarImportacao = async () => {
+    if (loadingImport) return; // Trava de duplo clique
+    setLoadingImport(true);
     try {
       const cnpjEmitente = dados.emitente.cnpj.replace(/\D/g, "");
       
@@ -293,6 +296,14 @@ export default function VisualizadorXML() {
         }
 
         // 3. Cria a Conta a Pagar
+        const contasExistentes = await apiGet<any[]>("/financeiro/contas");
+        const jaImportada = contasExistentes.find(c => c.documento_vinculo === dados.chave);
+        if (jaImportada) {
+          toast.error("Este XML já foi importado para o Financeiro!");
+          setLoadingImport(false);
+          return;
+        }
+
         await apiPost("/financeiro/contas", {
           tipo: "Pagar",
           descricao: `NF-e ${dados.numero} - ${dados.emitente.nome}`,
@@ -305,6 +316,14 @@ export default function VisualizadorXML() {
         });
       } else {
         // Contas a Receber (Destinatário é o cliente)
+        const contasExistentes = await apiGet<any[]>("/financeiro/contas");
+        const jaImportada = contasExistentes.find(c => c.documento_vinculo === dados.chave);
+        if (jaImportada) {
+          toast.error("Este XML já foi importado para o Financeiro!");
+          setLoadingImport(false);
+          return;
+        }
+
         await apiPost("/financeiro/contas", {
           tipo: "Receber",
           descricao: `NF-e ${dados.numero} - ${dados.destinatario.nome}`,
@@ -321,6 +340,8 @@ export default function VisualizadorXML() {
       navigate("/financeiro");
     } catch (e: any) {
       toast.error("Erro ao importar: " + (e.message || "Verifique os dados"));
+    } finally {
+      setLoadingImport(false);
     }
   };
 
@@ -472,7 +493,9 @@ export default function VisualizadorXML() {
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setModalImportOpen(false)}>Cancelar</Button>
-              <Button onClick={executarImportacao} className="bg-emerald-600 hover:bg-emerald-500">Confirmar Importação</Button>
+              <Button onClick={executarImportacao} disabled={loadingImport} className="bg-emerald-600 hover:bg-emerald-500">
+                {loadingImport ? "Importando..." : "Confirmar Importação"}
+              </Button>
             </div>
           </div>
         </div>

@@ -113,3 +113,23 @@ async def conciliacao(mes: str = None, ano: str = None, _u: dict = Depends(requi
         "contas": contas
     }
 
+
+
+@router.patch("/contas/{id}/estornar")
+async def estornar_conta(id: str, _u: dict = Depends(require("write"))):
+    conta = await db.contas.find_one({"id": id})
+    if not conta: raise HTTPException(404, "Conta não encontrada")
+    
+    historico = conta.get("historico", [])
+    historico.append({
+        "acao": "Estorno",
+        "data": datetime.datetime.now().isoformat(),
+        "usuario": _u.get("nome", "Sistema"),
+        "valor": conta.get("valor")
+    })
+    
+    await db.contas.update_one(
+        {"id": id}, 
+        {"$set": {"status": "Pendente", "historico": historico}, "$unset": {"data_pagamento": ""}}
+    )
+    return {"ok": True}

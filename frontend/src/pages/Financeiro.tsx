@@ -27,6 +27,8 @@ export default function Financeiro() {
   const [buscaFornecedor, setBuscaFornecedor] = useState("");
   const [mostrarSugestoesFornecedor, setMostrarSugestoesFornecedor] = useState(false);
   
+  const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
+  const [contaHistorico, setContaHistorico] = useState<any>(null);
   const [form, setForm] = useState<any>({
     tipo: "Pagar", descricao: "", categoria: "Outros", valor: "", vencimento: "", status: "Pendente", 
     fornecedor_id: "", veiculo_id: "", documento_vinculo: "", observacoes: ""
@@ -68,6 +70,16 @@ export default function Financeiro() {
       qc.invalidateQueries({ queryKey: ["contas"] });
       qc.invalidateQueries({ queryKey: ["resumo-financeiro"] });
       qc.invalidateQueries({ queryKey: ["conciliacao"] });
+    }
+  });
+
+  const estornar = useMutation({
+    mutationFn: (id: string) => apiPatch(`/financeiro/contas/${id}/estornar`, {}),
+    onSuccess: () => {
+      toast.success("Conta estornada com sucesso!");
+      setModalHistoricoOpen(false);
+      qc.invalidateQueries({ queryKey: ["contas"] });
+      qc.invalidateQueries({ queryKey: ["resumo-financeiro"] });
     }
   });
 
@@ -223,7 +235,7 @@ export default function Financeiro() {
                       {c.documento_vinculo && <div className="flex items-center gap-1"><FileText className="size-3" /> {c.documento_vinculo}</div>}
                     </td>
                     <td className={cn("px-3 py-3 font-mono font-bold", c.tipo === "Pagar" ? "text-rose-400" : "text-emerald-400")}>
-                      {c.tipo === "Pagar" ? "-" : "+"}{brl(c.valor)}
+                      {c.tipo === "Pagar" ? "-" : "+"}{brl(Number(c.valor) || 0)}
                     </td>
                     <td className="px-3 py-3">
                       <span className={cn(
@@ -235,12 +247,22 @@ export default function Financeiro() {
                         {c.status}
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-right">
-                      {c.status !== "Pago" && (
-                        <Button size="sm" variant="ghost" className="text-emerald-400 hover:bg-emerald-500/10" onClick={() => marcarPago.mutate(c.id)}>
+                    <td className="px-3 py-3 text-right flex justify-end gap-1">
+                      {c.status !== "Pago" ? (
+                        <Button size="sm" variant="ghost" className="text-emerald-400 hover:bg-emerald-500/10 h-8 px-2" onClick={() => marcarPago.mutate(c.id)}>
                           <CheckCircle2 className="size-4 mr-1" /> Quitar
                         </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" className="text-sky-400 hover:bg-sky-500/10 h-8 px-2" onClick={() => { setContaHistorico(c); setModalHistoricoOpen(true); }}>
+                          <Eye className="size-4 mr-1" /> Histórico
+                        </Button>
                       )}
+                      <Button size="sm" variant="ghost" className="text-amber-400 hover:bg-amber-500/10 h-8 px-2" onClick={() => abrirEdicao(c)}>
+                        <Edit className="size-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-rose-400 hover:bg-rose-500/10 h-8 px-2" onClick={() => { if(confirm("Excluir conta?")) { /* falta rota de delete */ } }}>
+                        <Trash2 className="size-4" />
+                      </Button>
                     </td>
                   </tr>
                 ))
@@ -352,6 +374,51 @@ export default function Financeiro() {
           </div>
         </div>
       )}
+
+      {/* MODAL DE HISTÓRICO */}
+      {modalHistoricoOpen && contaHistorico && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-slate-100">Histórico da Conta</h2>
+              <Button variant="ghost" size="icon" onClick={() => setModalHistoricoOpen(false)}><X className="size-5" /></Button>
+            </div>
+            
+            <div className="space-y-4 mb-6">
+              <div className="bg-slate-800/50 p-3 rounded-lg">
+                <p className="text-xs text-slate-400">Descrição</p>
+                <p className="text-sm font-bold text-slate-200">{contaHistorico.descricao}</p>
+                <p className="text-xs text-slate-400 mt-1">Valor Original: {brl(contaHistorico.valor)}</p>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Linha do Tempo</p>
+                {(contaHistorico.historico || []).length === 0 ? (
+                  <p className="text-sm text-slate-500 italic">Nenhum histórico registrado.</p>
+                ) : (
+                  [...(contaHistorico.historico || [])].reverse().map((h: any, i: number) => (
+                    <div key={i} className="flex gap-3 items-start border-l-2 border-slate-700 pl-3 py-1">
+                      <div className={cn("mt-1 size-2 rounded-full shrink-0", h.acao === "Baixa" ? "bg-emerald-500" : h.acao === "Estorno" ? "bg-amber-500" : "bg-sky-500")} />
+                      <div>
+                        <p className="text-sm font-medium text-slate-200">{h.acao} por {h.usuario}</p>
+                        <p className="text-xs text-slate-400">{new Date(h.data).toLocaleString("pt-BR")}</p>
+                        <p className="text-xs text-slate-400">Valor: {brl(h.valor)}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {contaHistorico.status === "Pago" && (
+              <Button onClick={() => estornar.mutate(contaHistorico.id)} disabled={estornar.isPending} className="w-full bg-amber-600 hover:bg-amber-500 text-white">
+                <RotateCcw className="size-4 mr-2" /> Estornar Baixa (Voltar para Pendente)
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
