@@ -89,7 +89,10 @@ function parseNFe(xmlDoc: Document) {
       valorIpi: parseFloat(get("vIPI", total)) || 0,
       valorPis: parseFloat(get("vPIS", total)) || 0,
       valorCofins: parseFloat(get("vCOFINS", total)) || 0,
-      valorTotal: parseFloat(get("vNF", total)) || 0,
+      valorTotal: (() => {
+      const icmsTot = total?.getElementsByTagName("ICMSTot")[0];
+      return parseFloat(get("vNF", icmsTot || total)) || 0;
+    })(),
     },
     transporte: {
       modFrete: get("modFrete", transp),
@@ -344,7 +347,9 @@ export default function VisualizadorXML() {
 
           <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex justify-between items-center">
             <span className="text-sm font-medium text-emerald-400">Valor Total</span>
-            <span className="text-2xl font-bold text-emerald-400 font-mono">{brl(dados.valorTotal)}</span>
+            <span className="text-2xl font-bold text-emerald-400 font-mono">
+              {brl(dados.valorTotal || dados.itens?.reduce((acc: number, it: any) => acc + (it.valorTotal || 0), 0) || 0)}
+            </span>
           </div>
 
           {tipo === "NF-e" && dados.itens?.length > 0 && (
