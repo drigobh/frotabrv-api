@@ -1,0 +1,119 @@
+import os
+
+# ==========================================
+# 1. REESCREVER O APPLAYOUT COM BARRA SUPERIOR
+# ==========================================
+path_layout = os.path.join(os.getcwd(), "frontend", "src", "components", "layout", "AppLayout.tsx")
+
+conteudo_layout = r'''import { useMe } from "@/hooks/useSession";
+import { useState } from "react";
+import { Navigate, Outlet } from "react-router-dom";
+import { Menu, Truck, Bell, User } from "lucide-react";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Sidebar } from "./Sidebar";
+import { SessionTimer } from "./SessionTimer";
+import { realizarLogoff } from "@/lib/logoff";
+
+export default function AppLayout() {
+  const { data: user, isPending, isError } = useMe();
+  const [open, setOpen] = useState(false);
+
+  if (isPending) {
+    return (
+      <div className="grid min-h-screen place-items-center" data-testid="app-loading">
+        <div className="flex items-center gap-3 text-slate-400">
+          <Truck className="size-5 animate-pulse text-sky-400" /> Carregando Bravus Frota…
+        </div>
+      </div>
+    );
+  }
+  if (isError || !user) return <Navigate to="/login" replace />;
+
+  return (
+    <div className="min-h-screen">
+      {/* Sidebar Desktop */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border md:block">
+        <Sidebar />
+      </aside>
+
+      {/* Barra Superior Mobile */}
+      <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-800 bg-[#080C14]/90 px-4 py-3 backdrop-blur md:hidden">
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger render={<Button variant="ghost" size="icon" data-testid="mobile-menu-button" />}>
+            <Menu className="size-5" />
+          </SheetTrigger>
+          <SheetContent side="left" className="w-72 border-sidebar-border p-0">
+            <SheetTitle className="sr-only">Menu</SheetTitle>
+            <Sidebar onNavigate={() => setOpen(false)} />
+          </SheetContent>
+        </Sheet>
+        <span className="font-heading font-semibold">Bravus Frota</span>
+      </div>
+
+      {/* Barra Superior Desktop (com Timer, Notificações e Perfil) */}
+      <div className="sticky top-0 z-20 hidden h-16 items-center justify-between border-b border-slate-800 bg-[#080C14]/90 px-8 backdrop-blur md:ml-64 md:flex">
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-medium text-slate-400">Bem-vindo, {user.nome}</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <SessionTimer timeoutMinutos={30} onTimeout={realizarLogoff} />
+          <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-100">
+            <Bell className="size-5" />
+          </Button>
+          <div className="flex items-center gap-2">
+            <div className="size-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 overflow-hidden">
+              {user.foto_url ? (
+                <img src={user.foto_url} alt={user.nome} className="size-full object-cover" />
+              ) : (
+                user.nome?.charAt(0).toUpperCase() || "U"
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Conteúdo Principal */}
+      <main className="px-4 py-6 md:ml-64 md:px-8 md:py-8 lg:px-10">
+        <div className="mx-auto max-w-[1400px]">
+          <Outlet />
+        </div>
+      </main>
+    </div>
+  );
+}
+'''
+
+with open(path_layout, "w", encoding="utf-8") as f:
+    f.write(conteudo_layout)
+print("✅ AppLayout.tsx reescrito com barra superior desktop (timer, notificações e perfil).")
+
+# ==========================================
+# 2. CORRIGIR A PROP user NO SIDEBAR
+# ==========================================
+path_sidebar = os.path.join(os.getcwd(), "frontend", "src", "components", "layout", "Sidebar.tsx")
+
+with open(path_sidebar, "r", encoding="utf-8") as f:
+    s_c = f.read()
+
+# Remove a prop user da assinatura do componente
+s_c = s_c.replace(
+    'export function Sidebar({ user, onNavigate }: { user?: any, onNavigate?: () => void })',
+    'export function Sidebar({ onNavigate }: { onNavigate?: () => void })'
+)
+s_c = s_c.replace(
+    'export function Sidebar({ onNavigate }: { onNavigate?: () => void })',
+    'export function Sidebar({ onNavigate }: { onNavigate?: () => void })'
+)
+
+# Se a assinatura for diferente, tenta uma versão mais genérica
+s_c = s_c.replace(
+    'export function Sidebar({ user, onNavigate }: { user: any, onNavigate?: () => void })',
+    'export function Sidebar({ onNavigate }: { onNavigate?: () => void })'
+)
+
+with open(path_sidebar, "w", encoding="utf-8") as f:
+    f.write(s_c)
+print("✅ Sidebar.tsx: prop 'user' removida da assinatura.")
+
+print("✅ Tudo pronto! Faça o git push.")
