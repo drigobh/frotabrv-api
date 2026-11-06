@@ -1,20 +1,17 @@
-import { QrCode, useState, useMemo, useRef } from "react";
-import { QrCode, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { QrCode, BarChart3, Plus, Pencil, Trash2, Disc, Search, AlertTriangle, RefreshCw, ArrowRightLeft, ShieldAlert, CheckCircle2, Activity, X, Wrench, FileDown, FileSpreadsheet, Truck, Container, Upload, Loader2, ArrowLeftRight } from "lucide-react";
-import { QrCode, toast } from "sonner";
-import { QrCode, apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
-import { QrCode, PageHeader } from "@/components/common/PageHeader";
-import { QrCode, Button } from "@/components/ui/button";
-import { QrCode, Input } from "@/components/ui/input";
-import { QrCode, Label } from "@/components/ui/label";
-import { QrCode, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { QrCode, FieldSelect } from "@/components/common/FieldSelect";
-import { QrCode, ChassiMapa } from "@/components/ChassiMapa";
-import { QrCode, brl } from "@/lib/format";
+import { useState, useMemo, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { BarChart3, Plus, Pencil, Trash2, Disc, Search, AlertTriangle, RefreshCw, ArrowRightLeft, ShieldAlert, CheckCircle2, Activity, X, Wrench, FileDown, FileSpreadsheet, Truck, Container, Upload, Loader2, ArrowLeftRight, QrCode } from "lucide-react";
+import { toast } from "sonner";
+import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { FieldSelect } from "@/components/common/FieldSelect";
+import { ChassiMapa } from "@/components/ChassiMapa";
+import { brl } from "@/lib/format";
 import * as XLSX from "xlsx";
-
-const STATUS_PNEU = ["Estoque", "Aplicado", "Recapagem", "Conserto", "Sucateado"];
-const TIPOS_PNEU = ["Direcional", "Tração", "Misto", "Banda", "Liso", "Borrachudo"];
 
 const parseDate = (val: any): string => {
   if (!val) return "";
