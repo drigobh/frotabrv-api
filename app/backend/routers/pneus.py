@@ -257,13 +257,30 @@ async def buscar_pneu_qrcode(codigo: str, _u: dict = Depends(require("read"))):
 
 @router.post("/qrcode/{codigo}/atualizar")
 async def atualizar_pneu_qrcode(codigo: str, body: dict, _u: dict = Depends(require("write"))):
+    from datetime import datetime
+    import uuid
+    
     update_data = {}
     if "profundidade_atual" in body: update_data["profundidade_atual"] = float(body["profundidade_atual"])
-    if "posicao" in body: update_data["posicao"] = body["posicao"]
-    if "veiculo_id" in body: update_data["veiculo_id"] = body["veiculo_id"]
     
     if not update_data:
         raise HTTPException(400, "Nenhum dado válido para atualizar.")
 
     await db.pneus.update_one({"numero_fogo": codigo}, {"$set": update_data})
-    return {"status": "ok", "message": "Pneu atualizado via QR Code."}
+    
+    # Se marcou não conformidade, gera alerta
+    if body.get("nao_conformidade"):
+        pneu = await db.pneus.find_one({"numero_fogo": codigo})
+        alerta = {
+            "id": str(uuid.uuid4()),
+            "tipo": "Pneu",
+            "severidade": "Crítico",
+            "titulo": f"Pneu {codigo} em Não Conformidade",
+            "detalhe": f"O pneu foi marcado como não pertencente ou fora de posição no veículo.",
+            "data": datetime.now().isoformat(),
+            "resolvido": False
+        }
+        await db.alertas.insert_one(alerta)
+    
+    return {"status": "ok", "message": "Pneu atualizado."}
+
