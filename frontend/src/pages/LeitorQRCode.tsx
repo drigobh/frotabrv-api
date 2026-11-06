@@ -1,14 +1,14 @@
-import { X, useState, useEffect } from "react";
-import { X, useNavigate } from "react-router-dom";
-import { X, QrCode, ArrowLeft, Search, CheckCircle2, AlertTriangle, Truck, Disc, MapPin, Eye } from "lucide-react";
-import { X, PageHeader } from "@/components/common/PageHeader";
-import { X, Button } from "@/components/ui/button";
-import { X, Input } from "@/components/ui/input";
-import { X, Label } from "@/components/ui/label";
-import { X, apiGet, apiPost } from "@/lib/api";
-import { X, ChassiMapa } from "@/components/ChassiMapa";
-import { X, toast } from "sonner";
-import { X, cn } from "@/lib/utils";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { QrCode, ArrowLeft, Search, CheckCircle2, AlertTriangle, Truck, Eye, X } from "lucide-react";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { apiGet, apiPost } from "@/lib/api";
+import { ChassiMapa } from "@/components/ChassiMapa";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function LeitorQRCode() {
   const navigate = useNavigate();
@@ -19,9 +19,9 @@ export default function LeitorQRCode() {
   const [sulco, setSulco] = useState("");
   const [odometro, setOdometro] = useState("");
   const [naoConformidade, setNaoConformidade] = useState(false);
-  const [mostrarMapa, setMostrarMapa] = useState(false);
   const [veiculo, setVeiculo] = useState<any>(null);
   const [ultimoKm, setUltimoKm] = useState<number | null>(null);
+  const [mostrarMapa, setMostrarMapa] = useState(false);
 
   // Buscar Pneu
   const buscarPneu = async () => {
@@ -31,13 +31,11 @@ export default function LeitorQRCode() {
       setPneu(res);
       setSulco(String(res.profundidade_atual || ""));
       
-      // Se o pneu tem veículo, busca os dados do veículo e o último abastecimento
       if (res.veiculo_id) {
         const v = await apiGet<any>(`/veiculos/detalhes/${res.veiculo_id}`);
         setVeiculo(v.veiculo || v);
-        setOdometro(String(v.hodometro_km || ""));
+        setOdometro(String(v.veiculo?.hodometro_km || v.hodometro_km || ""));
         
-        // Verifica o último KM do abastecimento
         const abast = await apiGet<any[]>(`/abastecimentos?veiculo_id=${res.veiculo_id}&limit=1`);
         if (abast && abast.length > 0) {
           setUltimoKm(abast[0].hodometro_km);
@@ -53,8 +51,6 @@ export default function LeitorQRCode() {
   // Salvar Alterações
   const salvar = async () => {
     if (!pneu) return;
-    
-    // Validação de Odômetro
     if (odometro && ultimoKm && Number(odometro) < ultimoKm) {
       return toast.error(`O odômetro não pode ser menor que o último abastecimento (${ultimoKm} km).`);
     }
@@ -73,7 +69,7 @@ export default function LeitorQRCode() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       <PageHeader
         eyebrow="Mobilidade"
         title="Leitor de QR Code"
@@ -117,7 +113,7 @@ export default function LeitorQRCode() {
             <div className="space-y-3 text-sm border-t border-slate-800 pt-3">
               <div className="flex justify-between">
                 <span className="text-slate-400">Posição:</span>
-                <span className="text-slate-200 font-medium">{pneu.posicao || "Não informada"}</span>
+                <span className="text-sky-300 font-bold">{pneu.posicao || "Não informada"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Sulco Atual:</span>
@@ -127,22 +123,20 @@ export default function LeitorQRCode() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Veículo:</span>
-                <span className="text-slate-200 font-medium">{veiculo ? veiculo.placa : "Não alocado"}</span>
+                <span className="text-sky-300 font-bold">{veiculo ? veiculo.placa : "Não alocado"}</span>
               </div>
             </div>
 
-            {/* Mini Mapa (Ilustrativo) */}
+            {/* Mini Mapa com Botão Visualizar */}
             {veiculo && (
               <div className="mt-4 p-3 bg-slate-900 rounded-lg border border-slate-800 flex flex-col items-center">
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Mapa do Chassi</p>
-                <div className="flex gap-2 mb-2">
-                  <Button size="sm" variant="outline" onClick={() => setMostrarMapa(!mostrarMapa)}>
-                    <Eye className="size-4 mr-1" /> Visualizar Mapa
-                  </Button>
-                </div>
-                <div className="flex gap-2">
-                  <Truck className="size-6 text-sky-400" />
-                  <span className="text-xs text-slate-400">Posição: {pneu.posicao?.split(' ')[0] || "—"}</span>
+                <Button size="sm" variant="outline" onClick={() => setMostrarMapa(true)} className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10">
+                  <Eye className="size-4 mr-2" /> Visualizar Mapa
+                </Button>
+                <div className="flex gap-2 mt-2">
+                  <Truck className="size-4 text-sky-400" />
+                  <span className="text-xs text-slate-400">Posição: {pneu.posicao || "—"}</span>
                 </div>
               </div>
             )}
@@ -173,7 +167,7 @@ export default function LeitorQRCode() {
                 />
                 <div>
                   <p className="text-sm font-medium text-slate-200">Pneu em Não Conformidade</p>
-                  <p className="text-[10px] text-slate-500">Marque se o pneu não pertence a este veículo ou está na posição errada. Um alerta será gerado.</p>
+                  <p className="text-[10px] text-slate-500">Marque se o pneu não pertence a este veículo ou está na posição errada.</p>
                 </div>
               </div>
 
@@ -190,7 +184,7 @@ export default function LeitorQRCode() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-4xl p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-slate-100">Mapa do Chassi</h2>
+              <h2 className="text-lg font-bold text-slate-100">Mapa do Chassi - {veiculo?.placa}</h2>
               <Button variant="ghost" size="icon" onClick={() => setMostrarMapa(false)}>
                 <X className="size-5" />
               </Button>
@@ -206,6 +200,6 @@ export default function LeitorQRCode() {
           </div>
         </div>
       )}
-        </div>
+    </div>
   );
 }
