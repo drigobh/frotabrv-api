@@ -1,11 +1,12 @@
 import os
+import re
 
 path = os.path.join(os.getcwd(), "frontend", "src", "pages", "CadastrosFinanceiros.tsx")
 
 with open(path, "r", encoding="utf-8") as f:
     c = f.read()
 
-# 1. Substitui a tabela de Categorias inteira pela versão com cores vibrantes e padrão bancos
+# Substitui a tabela de Categorias inteira pela versão com cores vibrantes e padrão bancos
 padrao_tabela = r'\{/\* ABA CATEGORIAS \*/\}[\s\S]*?(?=\{/\* MODAL BANCO \*/\})'
 
 nova_tabela = '''

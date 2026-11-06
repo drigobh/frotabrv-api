@@ -173,7 +173,7 @@ export default function CadastrosFinanceiros() {
                 <tr className="text-[11px] uppercase tracking-wider text-slate-400">
                   <th className="px-5 py-3 font-medium text-slate-200">Nome</th>
                   <th className="px-3 py-3 font-medium text-slate-200">Tipo</th>
-                  <th className="px-3 py-3 text-right font-medium">Ações</th>
+                  <th className="px-3 py-3 text-right font-medium text-slate-200">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -184,14 +184,14 @@ export default function CadastrosFinanceiros() {
                     <tr key={c.id} className={cn("hover:bg-slate-800/30 transition-colors", !c.ativo && "opacity-50")}>
                       <td className="px-5 py-3 text-slate-200 font-medium">{c.nome}</td>
                       <td className="px-3 py-3">
-                        <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase",
-                          c.tipo === "Pagar" ? "bg-rose-500/10 text-rose-400" :
-                          c.tipo === "Receber" ? "bg-emerald-500/10 text-emerald-400" :
-                          "bg-sky-500/10 text-sky-400"
+                        <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide",
+                          c.tipo === "Pagar" ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" :
+                          c.tipo === "Receber" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
+                          "bg-sky-500/20 text-sky-400 border border-sky-500/30"
                         )}>
-                          {c.tipo === "Pagar" && <ArrowUpCircle className="size-3" />}
-                          {c.tipo === "Receber" && <ArrowDownCircle className="size-3" />}
-                          {c.tipo === "Ambos" && <CircleDot className="size-3" />}
+                          {c.tipo === "Pagar" && <ArrowUpCircle className="size-3.5" />}
+                          {c.tipo === "Receber" && <ArrowDownCircle className="size-3.5" />}
+                          {c.tipo === "Ambos" && <CircleDot className="size-3.5" />}
                           {c.tipo}
                         </span>
                       </td>
@@ -209,9 +209,7 @@ export default function CadastrosFinanceiros() {
             </table>
           </div>
         </div>
-      )}
-
-      {/* MODAL BANCO */}
+      )}{/* MODAL BANCO */}
       {modalBancoOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
