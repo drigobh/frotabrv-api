@@ -22,25 +22,31 @@ async def listar_contas(tipo: str = None, mes: str = None, ano: str = None, _u: 
     
     return await db.contas.find(filtro, {"_id": 0}).sort("vencimento", 1).to_list(1000)
 
-@router.post("/contas")
-async def criar_conta(body: dict, _u: dict = Depends(require("write"))):
-    novo = {
-        "id": str(uuid.uuid4()),
-        "tipo": body.get("tipo", "Pagar"),
-        "descricao": body.get("descricao", ""),
-        "categoria": body.get("categoria", "Outros"),
-        "valor": float(body.get("valor", 0)),
-        "vencimento": body.get("vencimento"),
-        "status": body.get("status", "Pendente"),
-        "fornecedor_id": body.get("fornecedor_id"),
-        "veiculo_id": body.get("veiculo_id"),
-        "documento_vinculo": body.get("documento_vinculo", ""),
-        "observacoes": body.get("observacoes", ""),
-        "created_at": datetime.datetime.now().isoformat()
-    }
-    await db.contas.insert_one(novo)
-    novo.pop("_id", None)
-    return novo
+@router.post("/contas", response_model=dict)
+async def criar_conta(payload: dict, _u: dict = Depends(require("write"))):
+    try:
+        doc = {
+            "id": str(__import__("uuid").uuid4()),
+            "tipo": payload.get("tipo", "Pagar"),
+            "descricao": payload.get("descricao", ""),
+            "categoria": payload.get("categoria", "Outros"),
+            "valor": float(payload.get("valor", 0) or 0),
+            "vencimento": payload.get("vencimento", ""),
+            "status": payload.get("status", "Pendente"),
+            "fornecedor_id": payload.get("fornecedor_id") or None,
+            "veiculo_id": payload.get("veiculo_id") or None,
+            "documento_vinculo": payload.get("documento_vinculo") or "",
+            "observacoes": payload.get("observacoes", ""),
+            "origem": payload.get("origem") or "Manual",
+            "criado_por": _u.get("nome", _u.get("email", "Sistema")),
+            "criado_em": datetime.datetime.now().isoformat(),
+            "historico": []
+        }
+        await db.contas.insert_one(doc)
+        doc.pop("_id", None)
+        return doc
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao criar conta: {str(e)}")
 
 @router.put("/contas/{id}")
 async def atualizar_conta(id: str, body: dict, _u: dict = Depends(require("write"))):
