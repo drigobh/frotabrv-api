@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
+import { realizarLogoff } from "@/lib/auth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 
@@ -93,11 +94,7 @@ export function Sidebar() {
     else setExpandedMenu(id);
   };
 
-  const handleLogoff = () => {
-    localStorage.clear();
-    sessionStorage.clear();
-    window.location.replace("/login");
-  };
+  
 
   return (
     <aside className={cn("border-r border-slate-800 bg-slate-950 flex flex-col h-screen transition-all duration-300 relative z-40 shrink-0", isCollapsed ? "w-20" : "w-64")}>
@@ -205,7 +202,7 @@ export function Sidebar() {
         <Button 
           variant="ghost" 
           className={cn("w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 h-9", isCollapsed ? "justify-center px-0" : "justify-start px-3")} 
-          onClick={handleLogoff}
+          onClick={realizarLogoff}
         >
           <LogOut className={cn("size-4", !isCollapsed && "mr-2")} /> 
           {!isCollapsed && "Encerrar Sessão"}
