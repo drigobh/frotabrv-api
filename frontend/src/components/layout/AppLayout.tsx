@@ -49,7 +49,7 @@ export default function AppLayout() {
           <span className="text-sm font-medium text-slate-400">Bem-vindo, {user.nome}</span>
         </div>
         <div className="flex items-center gap-4">
-          <SessionTimer key={user.timeout_minutos} timeoutMinutos={user.timeout_minutos || 30} onTimeout={realizarLogoff} />
+          <SessionTimer key={user.timeout_minutos} timeoutMinutos={user.timeout_minutos !== undefined && user.timeout_minutos !== null ? user.timeout_minutos : 30} onTimeout={realizarLogoff} />
           <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-100">
             <Bell className="size-5" />
           </Button>

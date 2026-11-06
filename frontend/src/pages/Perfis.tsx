@@ -136,10 +136,10 @@ export default function Perfis() {
                   {p.permissoes?.length || 0} permissões
                 </span>
                 <span className="px-2 py-0.5 rounded bg-sky-500/10 text-[10px] text-sky-400 font-medium">
-                  ⏱️ {p.timeout_minutos === 0 ? "Sem timer" : `${p.timeout_minutos} min`}
+                  ⏱️ {p.timeout_minutos !== undefined ? (p.timeout_minutos === 0 ? "Sem timer" : `${p.timeout_minutos} min`) : "30 min"}
                 </span>
                 <span className="px-2 py-0.5 rounded bg-amber-500/10 text-[10px] text-amber-400 font-medium">
-                  🔒 {p.tentativas_login === "liberado" ? "Liberado" : `${p.tentativas_login} tent.`}
+                  🔒 {p.tentativas_login !== undefined ? (p.tentativas_login === "liberado" ? "Liberado" : `${p.tentativas_login} tent.`) : "5 tent."}
                 </span>
               </div>
             </div>

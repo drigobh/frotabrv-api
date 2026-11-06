@@ -43,21 +43,17 @@ async def excluir_perfil(id: str, _u: dict = Depends(require("write"))):
 
 @router.post("/migrar-seguranca")
 async def migrar_seguranca():
-    """Força todos os perfis a terem os campos de segurança. Admin fica com 2 min."""
+    """Força todos os perfis a terem os campos de segurança."""
     perfis = await db.perfis.find({}).to_list(100)
     for p in perfis:
         update = {}
-        if "timeout_minutos" not in p:
+        if "timeout_minutos" not in p or p.get("timeout_minutos") is None:
             update["timeout_minutos"] = 30
-        if "tentativas_login" not in p:
+        if "tentativas_login" not in p or p.get("tentativas_login") is None:
             update["tentativas_login"] = "5"
         
-        # Força o admin para 2 minutos e 3 tentativas (para teste)
-        if p.get("id") == "perfil-admin":
-            update["timeout_minutos"] = 2
-            update["tentativas_login"] = "3"
-            
         if update:
             await db.perfis.update_one({"id": p["id"]}, {"$set": update})
     
-    return {"status": "ok", "message": "Perfis migrados com sucesso. Admin com 2min/3tentativas."}
+    return {"status": "ok", "message": "Perfis migrados com sucesso."}
+
