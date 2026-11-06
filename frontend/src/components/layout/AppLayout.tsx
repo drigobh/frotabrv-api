@@ -1,12 +1,11 @@
+import { useMe } from "@/hooks/useSession";
 import { useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { Menu, Truck } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { useMe } from "@/hooks/useSession";
 import { Sidebar } from "./Sidebar";
 import { SessionTimer } from "./SessionTimer";
-import { useMe } from "@/hooks/useSession";
 import { realizarLogoff } from "@/lib/logoff";
 
 export default function AppLayout() {
