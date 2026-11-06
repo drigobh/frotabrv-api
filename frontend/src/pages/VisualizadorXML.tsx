@@ -1,11 +1,11 @@
-import { useState , useEffect} from "react";
+import { useState } from "react";
 import { FileText, Upload, Building2, CheckCircle2, ShieldAlert, DollarSign } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { brl } from "@/lib/format";
 import { toast } from "sonner";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api";
 
@@ -94,18 +94,6 @@ function parseXML(xmlString: string) {
 
 export default function VisualizadorXML() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const chaveUrl = searchParams.get("key");
-
-  // Efeito para carregar automaticamente quando vier da tela do financeiro
-  useEffect(() => {
-    if (chaveUrl && !dados) {
-      // Aqui buscaria o XML do banco. Como não temos rota de busca por chave,
-      // apenas exibimos um aviso. Se tiver a rota de GET /contas/{id}, pode usar.
-      toast.info("Para imprimir o DANFE, faça o upload do XML correspondente.");
-    }
-  }, [chaveUrl, dados]);
-
   const qc = useQueryClient();
   const [xmlString, setXmlString] = useState("");
   const [dados, setDados] = useState<any>(null);
