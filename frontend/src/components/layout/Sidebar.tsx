@@ -5,7 +5,7 @@ import {
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox, Tag, Building, FolderOpen, Layers, BellRing
-} from "lucide-react";
+, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
 import { usePermissions } from "@/hooks/usePermissions";
