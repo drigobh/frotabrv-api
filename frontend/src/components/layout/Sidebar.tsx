@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
-import { realizarLogoff } from "@/lib/auth";
 import { usePermissions } from "@/hooks/usePermissions";
+import { realizarLogoff } from "@/lib/logoff";
 import { Button } from "@/components/ui/button";
 
 const MENUS = [
@@ -78,7 +78,7 @@ const MENUS = [
   },
 ];
 
-export function Sidebar({ onNavigate }: { onNavigate?: () => void }) => void }) {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { pathname } = useLocation();
   const { data: me } = useMe();
   const { podeVer } = usePermissions();
@@ -93,8 +93,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) => void }) 
     if (expandedMenu === id) setExpandedMenu(null);
     else setExpandedMenu(id);
   };
-
-  
 
   return (
     <aside className={cn("border-r border-slate-800 bg-slate-950 flex flex-col h-screen transition-all duration-300 relative z-40 shrink-0", isCollapsed ? "w-20" : "w-64")}>
@@ -131,7 +129,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) => void }) 
             const isActive = pathname === menu.path;
             return (
               <div key={menu.id} className="px-3 mb-2">
-                <Link to={menu.path!} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors group", isActive ? "bg-sky-500/10 text-sky-400 font-medium" : "text-slate-400 hover:bg-slate-900 hover:text-slate-200", isCollapsed && "justify-center px-0")} title={isCollapsed ? menu.label : undefined}>
+                <Link to={menu.path!} onClick={onNavigate} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors group", isActive ? "bg-sky-500/10 text-sky-400 font-medium" : "text-slate-400 hover:bg-slate-900 hover:text-slate-200", isCollapsed && "justify-center px-0")} title={isCollapsed ? menu.label : undefined}>
                   <menu.icon className={cn("size-5", isActive ? "text-sky-400" : "text-slate-500 group-hover:text-slate-300")} />
                   {!isCollapsed && <span>{menu.label}</span>}
                 </Link>
