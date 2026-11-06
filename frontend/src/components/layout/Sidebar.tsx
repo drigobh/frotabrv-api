@@ -51,6 +51,7 @@ const MENUS = [
       { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
       { label: "Estoque", icon: Package, path: "/operacao/estoque" },
       { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
+      { label: "Multas e Infrações", icon: AlertTriangle, path: "/multas" },
     ]
   },
   {
@@ -64,7 +65,6 @@ const MENUS = [
     id: "gestao", label: "Gestão", icon: BarChart3,
     items: [
       { label: "Central de Alertas", icon: BellRing, path: "/alertas" },
-      { label: "Multas e Infrações", icon: AlertTriangle, path: "/multas" },
       { label: "Performance de Fornecedores", icon: BarChart3, path: "/relatorios/fornecedores" },
       { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },
       { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
