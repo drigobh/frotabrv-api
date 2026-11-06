@@ -28,6 +28,8 @@ export default function Financeiro() {
   const [mostrarSugestoesFornecedor, setMostrarSugestoesFornecedor] = useState(false);
   
   const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
+  const [modalNotaOpen, setModalNotaOpen] = useState(false);
+  const [notaAtual, setNotaAtual] = useState<any>(null);
   const [contaHistorico, setContaHistorico] = useState<any>(null);
   const [form, setForm] = useState<any>({
     tipo: "Pagar", descricao: "", categoria: "Outros", valor: "", vencimento: "", status: "Pendente", 
@@ -269,6 +271,16 @@ export default function Financeiro() {
                           <Eye className="size-4 mr-1" /> Histórico
                         </Button>
                       )}
+                      {c.origem === "Importado XML" && (
+                        <>
+                          <Button size="sm" variant="ghost" className="text-purple-400 hover:bg-purple-500/10 h-8 px-2" onClick={() => navigate(`/financeiro/xml?key=${c.documento_vinculo}`)} title="Imprimir DANFE">
+                            <Printer className="size-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-sky-400 hover:bg-sky-500/10 h-8 px-2" onClick={() => { setNotaAtual(c); setModalNotaOpen(true); }} title="Visualizar Nota">
+                            <FileText className="size-4" />
+                          </Button>
+                        </>
+                      )}
                       <Button size="sm" variant="ghost" className="text-amber-400 hover:bg-amber-500/10 h-8 px-2" onClick={() => abrirEdicao(c)}>
                         <Edit className="size-4" />
                       </Button>
@@ -427,6 +439,56 @@ export default function Financeiro() {
                 <RotateCcw className="size-4 mr-2" /> Estornar Baixa (Voltar para Pendente)
               </Button>
             )}
+          </div>
+        </div>
+      )}
+
+
+      {/* MODAL DE VISUALIZAÇÃO DA NOTA (XML) */}
+      {modalNotaOpen && notaAtual && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-slate-100">Detalhes da Nota Fiscal</h2>
+              <Button variant="ghost" size="icon" onClick={() => setModalNotaOpen(false)}><X className="size-5" /></Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="bg-slate-800/50 p-4 rounded-lg">
+                <p className="text-xs text-slate-400 mb-1">Chave de Acesso</p>
+                <p className="text-xs font-mono text-slate-200 break-all">{notaAtual.documento_vinculo}</p>
+              </div>
+              <div className="bg-slate-800/50 p-4 rounded-lg">
+                <p className="text-xs text-slate-400 mb-1">Valor Total</p>
+                <p className="text-lg font-bold text-emerald-400">{brl(notaAtual.valor)}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <p className="text-xs text-slate-400">Descrição</p>
+                <p className="text-sm text-slate-200">{notaAtual.descricao}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Vencimento</p>
+                <p className="text-sm text-slate-200">{notaAtual.vencimento ? notaAtual.vencimento.split("-").reverse().join("/") : "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Fornecedor</p>
+                <p className="text-sm text-slate-200">{getFornecedorNome(notaAtual.fornecedor_id)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Origem</p>
+                <p className="text-sm text-slate-200">{notaAtual.origem || "Manual"}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={() => setModalNotaOpen(false)}>Fechar</Button>
+              <Button onClick={() => navigate(`/financeiro/xml?key=${notaAtual.documento_vinculo}`)} className="bg-purple-600 hover:bg-purple-500">
+                <Printer className="size-4 mr-2" /> Imprimir DANFE
+              </Button>
+            </div>
           </div>
         </div>
       )}
