@@ -261,7 +261,7 @@ export default function Financeiro() {
                         {c.status}
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-right flex justify-end gap-1">
+<td className="px-3 py-3 text-right flex justify-end gap-1">
                       {c.status !== "Pago" ? (
                         <Button size="sm" variant="ghost" className="text-emerald-400 hover:bg-emerald-500/10 h-8 px-2" onClick={() => marcarPago.mutate(c.id)}>
                           <CheckCircle2 className="size-4 mr-1" /> Quitar
@@ -271,6 +271,7 @@ export default function Financeiro() {
                           <Eye className="size-4 mr-1" /> Histórico
                         </Button>
                       )}
+                      
                       {c.origem === "Importado XML" && (
                         <>
                           <Button size="sm" variant="ghost" className="text-purple-400 hover:bg-purple-500/10 h-8 px-2" onClick={() => navigate(`/financeiro/xml?key=${c.documento_vinculo}`)} title="Imprimir DANFE">
@@ -281,6 +282,7 @@ export default function Financeiro() {
                           </Button>
                         </>
                       )}
+
                       <Button size="sm" variant="ghost" className="text-amber-400 hover:bg-amber-500/10 h-8 px-2" onClick={() => abrirEdicao(c)}>
                         <Edit className="size-4" />
                       </Button>
