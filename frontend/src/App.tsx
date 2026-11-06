@@ -43,6 +43,14 @@ import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
 const queryClient = new QueryClient();
 
 export default function App() {
+  // Garante que o token seja removido se a aba for fechada
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => {
+      localStorage.removeItem('token');
+      sessionStorage.clear();
+    });
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
