@@ -190,6 +190,134 @@ export default function VisualizadorXML() {
     }
   };
 
+
+  const imprimir = () => {
+    if (!dados) return;
+    const win = window.open("", "_blank");
+    if (!win) {
+      toast.error("Permita pop-ups para imprimir.");
+      return;
+    }
+
+    // Código do Layout DANFE (resumido para o patch caber, mas com o essencial)
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>DANFE - ${dados.numero}</title>
+        <style>
+          @page { size: A4 landscape; margin: 5mm; }
+          body { font-family: Arial, sans-serif; font-size: 7pt; margin: 0; padding: 0; }
+          .danfe { border: 1px solid #000; padding: 2mm; }
+          .header { display: flex; border-bottom: 1px solid #000; padding-bottom: 1mm; margin-bottom: 1mm; }
+          .header-left { width: 30%; border-right: 1px solid #000; padding-right: 2mm; }
+          .header-center { width: 40%; text-align: center; border-right: 1px solid #000; padding: 0 2mm; }
+          .header-right { width: 30%; padding-left: 2mm; font-size: 6pt; }
+          .logo { font-size: 14pt; font-weight: bold; }
+          .titulo { font-size: 10pt; font-weight: bold; margin: 1mm 0; }
+          .chave { font-family: monospace; font-size: 8pt; letter-spacing: 1px; }
+          .barcode-box { text-align: center; margin: 1mm 0; }
+          .barcode-box svg { max-width: 100%; height: 40px; }
+          .section { border: 1px solid #000; margin-top: 1mm; }
+          .section-title { background: #f0f0f0; font-weight: bold; padding: 0.5mm 1mm; font-size: 6.5pt; border-bottom: 1px solid #000; }
+          .section-body { padding: 1mm; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm; }
+          .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1mm; }
+          .field { margin-bottom: 0.5mm; }
+          .label { font-size: 5.5pt; color: #666; }
+          .value { font-size: 7pt; font-weight: bold; }
+          table { width: 100%; border-collapse: collapse; font-size: 6pt; }
+          th { background: #f0f0f0; border: 1px solid #000; padding: 0.5mm; text-align: center; font-size: 5.5pt; }
+          td { border: 1px solid #000; padding: 0.5mm; text-align: center; }
+          .total-box { display: flex; justify-content: flex-end; margin-top: 1mm; }
+          .total-item { border: 1px solid #000; padding: 1mm 3mm; font-size: 8pt; font-weight: bold; }
+          .footer { text-align: center; font-size: 5pt; margin-top: 1mm; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="danfe">
+          <div class="header">
+            <div class="header-left">
+              <div class="logo">${dados.emitente.nome || "EMITENTE"}</div>
+              <div style="font-size:6pt">${dados.emitente.endereco || ""}</div>
+              <div style="font-size:6pt">CNPJ: ${dados.emitente.cnpj || ""}</div>
+            </div>
+            <div class="header-center">
+              <div class="titulo">DANFE</div>
+              <div style="font-size:5.5pt">Documento Auxiliar da Nota Fiscal Eletrônica</div>
+              <div style="font-size:7pt">Nº ${dados.numero} &nbsp; Série ${dados.serie}</div>
+              <div class="barcode-box"><svg id="barcode"></svg></div>
+              <div class="chave">${dados.chave.match(/.{1,4}/g)?.join(" ") || dados.chave}</div>
+            </div>
+            <div class="header-right">
+              <div><b>Natureza:</b> ${dados.natOp || "—"}</div>
+              <div><b>Data Emissão:</b> ${dados.dataEmissao ? new Date(dados.dataEmissao).toLocaleString("pt-BR") : "—"}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">DESTINATÁRIO / REMETENTE</div>
+            <div class="section-body">
+              <div class="grid">
+                <div class="field"><div class="label">Nome / Razão Social</div><div class="value">${dados.destinatario.nome || "—"}</div></div>
+                <div class="field"><div class="label">CNPJ / CPF</div><div class="value">${dados.destinatario.cnpj || "—"}</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">DADOS DOS PRODUTOS / SERVIÇOS</div>
+            <div class="section-body" style="padding:0">
+              <table>
+                <thead>
+                  <tr><th>Cód</th><th>Descrição</th><th>Un</th><th>Qtd</th><th>Vl Unit</th><th>Vl Total</th></tr>
+                </thead>
+                <tbody>
+                  ${(dados.itens || []).map((it: any) => `
+                    <tr>
+                      <td>${it.codigo}</td><td style="text-align:left">${it.descricao}</td><td>${it.unidade}</td>
+                      <td>${it.quantidade}</td><td>${it.valorUnit.toFixed(2)}</td><td>${it.valorTotal.toFixed(2)}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="total-box">
+            <div class="total-item">VALOR TOTAL: R$ ${(dados.valorTotal || 0).toFixed(2)}</div>
+          </div>
+          <div class="footer">Documento gerado pelo Bravus Frota em ${new Date().toLocaleString("pt-BR")}</div>
+        </div>
+      </body>
+      </html>
+    `;
+    win.document.write(html);
+    win.document.close();
+    
+    // Código de barras
+    setTimeout(() => {
+      try {
+        const svg = win.document.getElementById("barcode");
+        if (svg) {
+          // Usa a lib global JsBarcode que está no index.html
+          (win as any).JsBarcode(svg, dados.chave, {
+            format: "CODE128C",
+            width: 1.2,
+            height: 50,
+            displayValue: false,
+            margin: 0,
+          });
+        }
+      } catch (e) {
+        console.warn("Erro ao gerar código de barras:", e);
+      }
+      win.focus();
+      setTimeout(() => { win.print(); }, 500);
+    }, 300);
+  };
+
   return (
     <div>
       <PageHeader
