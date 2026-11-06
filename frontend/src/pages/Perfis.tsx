@@ -202,7 +202,13 @@ export default function Perfis() {
             <div className="flex justify-end gap-3 border-t border-slate-800 px-6 py-4">
               <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
               <Button 
-                onClick={() => salvar.mutate(form)} 
+                onClick={() => salvar.mutate({
+                    nome: form.nome,
+                    descricao: form.descricao,
+                    permissoes: form.permissoes,
+                    timeout_minutos: Number(form.timeout_minutos) || 0,
+                    tentativas_login: form.tentativas_login || "5"
+                  })} 
                 disabled={!form.nome}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white px-6"
               >

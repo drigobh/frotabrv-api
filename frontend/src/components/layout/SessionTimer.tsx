@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Clock, TimerOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -15,7 +16,6 @@ export function SessionTimer({ timeoutMinutos, onTimeout }: { timeoutMinutos: nu
       return;
     }
 
-    // Mostra o aviso apenas uma vez, quando faltar 30 segundos
     if (segundosRestantes === 30 && !avisoUsado) {
       setMostrarAviso(true);
       setAvisoUsado(true);
@@ -45,8 +45,8 @@ export function SessionTimer({ timeoutMinutos, onTimeout }: { timeoutMinutos: nu
         <span className="font-mono">{String(minutos).padStart(2, '0')}:{String(segundos).padStart(2, '0')}</span>
       </div>
 
-      {/* Modal de Aviso de 30 Segundos - Renderizado via Portal ou Fixed */}
-      {mostrarAviso && (
+      {/* Modal de Aviso usando Portal para garantir que fique no centro da tela */}
+      {mostrarAviso && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
             <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mb-4">
@@ -59,7 +59,6 @@ export function SessionTimer({ timeoutMinutos, onTimeout }: { timeoutMinutos: nu
             <div className="flex justify-center gap-3">
               <Button 
                 onClick={() => {
-                  // Reinicia o timer
                   setSegundosRestantes(timeoutMinutos * 60);
                   setMostrarAviso(false);
                 }}
@@ -76,7 +75,8 @@ export function SessionTimer({ timeoutMinutos, onTimeout }: { timeoutMinutos: nu
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
