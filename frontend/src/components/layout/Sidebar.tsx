@@ -4,8 +4,8 @@ import {
   FileBarChart, CalendarClock, LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
-  Shield, Bell, UserCog, FileBox, Tag, Building, FolderOpen, Layers, BellRing, Eye
-, AlertTriangle } from "lucide-react";
+  Shield, Bell, UserCog, FileBox, Tag, Building, FolderOpen, Layers, BellRing, Eye, AlertTriangle
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -13,7 +13,10 @@ import { realizarLogoff } from "@/lib/logoff";
 import { Button } from "@/components/ui/button";
 
 const MENUS = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/", isDashboard: true, items: [] },
+  // Dashboard (Leaf)
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/", isLeaf: true },
+  
+  // Administração (Pai)
   {
     id: "administracao", label: "Administração", icon: Shield,
     items: [
@@ -27,6 +30,8 @@ const MENUS = [
       { label: "Perfis de Acesso", icon: Shield, path: "/admin/perfis" },
     ]
   },
+  
+  // Cadastro (Pai)
   {
     id: "cadastros", label: "Cadastro", icon: FolderOpen,
     items: [
@@ -40,10 +45,15 @@ const MENUS = [
       { label: "Fornecedores", icon: Briefcase, path: "/cadastros/fornecedores" },
       { label: "Motoristas", icon: Users, path: "/cadastros/motoristas" },
       { label: "Tipos de Fornecedores", icon: Tag, path: "/cadastros/tipos-fornecedores" },
+      { label: "Cadastros Financeiros", icon: DollarSign, path: "/cadastros/financeiro" },
       { label: "Veículos", icon: Truck, path: "/cadastros/veiculos" },
     ]
   },
-  { id: "financeiro", label: "Financeiro", icon: DollarSign, path: "/financeiro", items: [] },
+  
+  // Financeiro (Leaf - Link direto)
+  { id: "financeiro", label: "Financeiro", icon: DollarSign, path: "/financeiro", isLeaf: true },
+  
+  // Frota (Pai)
   {
     id: "frota", label: "Frota", icon: Truck,
     items: [
@@ -54,6 +64,8 @@ const MENUS = [
       { label: "Multas e Infrações", icon: AlertTriangle, path: "/multas" },
     ]
   },
+  
+  // Manutenção (Pai)
   {
     id: "manutencao", label: "Manutenção", icon: Wrench,
     items: [
@@ -61,6 +73,8 @@ const MENUS = [
       { label: "Gestão de Manutenção", icon: Wrench, path: "/admin/manutencoes" },
     ]
   },
+  
+  // Gestão (Pai)
   {
     id: "gestao", label: "Gestão", icon: BarChart3,
     items: [
@@ -70,6 +84,8 @@ const MENUS = [
       { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
     ]
   },
+  
+  // Relatórios Gerais (Pai)
   {
     id: "relatorios-gerais", label: "Relatórios Gerais", icon: FileText,
     items: [
@@ -114,7 +130,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <div className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
         {MENUS.filter(menu => {
-            if (menu.isDashboard) return true;
+            if (menu.isLeaf) return true;
             const modulo = {
               "administracao": "Administração",
               "cadastros": "Cadastros",
@@ -126,7 +142,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             }[menu.id];
             return modulo ? podeVer(modulo) : true;
           }).map((menu) => {
-          if (menu.isDashboard) {
+          if (menu.isLeaf) {
             const isActive = pathname === menu.path;
             return (
               <div key={menu.id} className="px-3 mb-2">
@@ -139,7 +155,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           }
 
           const isExpanded = expandedMenu === menu.id;
-          const hasActiveChild = menu.items.some(item => pathname === item.path);
+          const hasActiveChild = menu.items?.some(item => pathname === item.path);
 
           return (
             <div key={menu.id} className="relative px-3 mb-1 group">
@@ -153,7 +169,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 )}
               </button>
 
-              {!isCollapsed && isExpanded && (
+              {!isCollapsed && isExpanded && menu.items && (
                 <div className="mt-1 mb-2 space-y-1 pl-9 pr-1">
                   {menu.items.map((item) => (
                     <Link key={item.path} to={item.path} onClick={onNavigate} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-md text-xs transition-colors", pathname === item.path ? "bg-sky-500/10 text-sky-400 font-medium" : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50")}>
@@ -164,7 +180,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 </div>
               )}
 
-              {isCollapsed && (
+              {isCollapsed && menu.items && (
                 <div className="absolute left-full top-0 ml-2 w-56 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-auto">
                   <div className="p-2">
                     <p className="text-[10px] font-bold uppercase text-sky-400 px-2 py-1 mb-1 border-b border-slate-800 pb-2">{menu.label}</p>

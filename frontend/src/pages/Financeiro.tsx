@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, DollarSign, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, X, Check, Filter } from "lucide-react";
+import { Plus, Search, X, Check, CheckCircle2 } from "lucide-react";
 import { apiGet, apiPost, apiPut, apiPatch } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { brl } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -15,7 +14,7 @@ const CATEGORIAS = ["Combustível", "Manutenção", "Pneus", "Pedágio", "Seguro
 
 export default function Financeiro() {
   const qc = useQueryClient();
-  const [abaAtiva, setAbaAtiva] = useState<"Pagar" | "Receber" | "Todos">("Todos");
+  const [abaAtiva, setAbaAtiva] = useState<"Todos" | "Pagar" | "Receber">("Todos");
   const [busca, setBusca] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState<any>(null);
@@ -81,7 +80,6 @@ export default function Financeiro() {
         }
       />
 
-      {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="glass p-4 rounded-xl border border-rose-500/30">
           <p className="text-[11px] uppercase tracking-widest text-rose-400">A Pagar</p>
@@ -101,7 +99,6 @@ export default function Financeiro() {
         </div>
       </div>
 
-      {/* Filtro de Abas */}
       <div className="flex gap-1 bg-slate-900/50 p-1 rounded-lg mb-4 w-fit border border-slate-800">
         {["Todos", "Pagar", "Receber"].map((tipo) => (
           <button
@@ -149,9 +146,14 @@ export default function Financeiro() {
                     {c.tipo === "Pagar" ? "-" : "+"}{brl(c.valor)}
                   </td>
                   <td className="px-3 py-3">
-                    <Badge tone={c.status === "Pago" ? "ativo" : c.status === "Atrasado" ? "inativo" : "warning"}>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                      c.status === "Pago" ? "bg-emerald-500/20 text-emerald-400" :
+                      c.status === "Atrasado" ? "bg-rose-500/20 text-rose-400" :
+                      "bg-amber-500/20 text-amber-400"
+                    )}>
                       {c.status}
-                    </Badge>
+                    </span>
                   </td>
                   <td className="px-3 py-3 text-right">
                     {c.status !== "Pago" && (

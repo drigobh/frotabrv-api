@@ -37,6 +37,7 @@ import PneuMedidas from "@/pages/PneuMedidas";
 import ModelosPneus from "@/pages/ModelosPneus";
 import TiposFornecedores from "@/pages/TiposFornecedores";
 import Financeiro from "@/pages/Financeiro";
+import CadastrosFinanceiros from "@/pages/CadastrosFinanceiros";
 import Estoque from "@/pages/Estoque";
 import RelatorioManutencao from "@/pages/RelatorioManutencao";
 import RelatorioEstoque from "@/pages/RelatorioEstoque";
@@ -45,7 +46,6 @@ import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
 const queryClient = new QueryClient();
 
 export default function App() {
-  // Garante que o token seja removido se a aba for fechada
   if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', () => {
       localStorage.removeItem('token');
@@ -58,12 +58,16 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          
+
           <Route element={<AppLayout />}>
+            {/* Rotas Públicas (qualquer usuário logado) */}
             <Route path="/" element={<Dashboard />} />
             <Route path="/perfil" element={<Perfil />} />
             <Route path="/alertas" element={<CentralAlertas />} />
+            <Route path="/financeiro" element={<Financeiro />} />
+            <Route path="/cadastros/financeiro" element={<CadastrosFinanceiros />} />
 
+            {/* Rotas Protegidas por Permissão */}
             <Route element={<ProtectedRoute modulo="Abastecimentos" />}>
               <Route path="/abastecimentos" element={<Abastecimentos />} />
             </Route>
@@ -73,25 +77,14 @@ export default function App() {
             </Route>
 
             <Route element={<ProtectedRoute modulo="Frota" />}>
-              <Route path="/abastecimentos" element={<Abastecimentos />} />
-              <Route path="/operacao/pneus" element={<Pneus />} />
               <Route path="/cadastros/veiculos" element={<Veiculos />} />
               <Route path="/cadastros/veiculos/:id" element={<VeiculoDetalhe />} />
               <Route path="/admin/manutencoes" element={<Manutencoes />} />
-              <Route path="/alertas" element={<CentralAlertas />} />
               <Route path="/operacao/pneus/scanner" element={<LeitorQRCode />} />
               <Route path="/operacao/relatorios-pneus" element={<RelatoriosPneus />} />
               <Route path="/gestao/veiculo-360" element={<BuscaVeiculo360 />} />
-              <Route path="/perfil" element={<Perfil />} />
-              <Route path="/admin/usuarios" element={<Usuarios />} />
-              <Route path="/admin/perfis" element={<Perfis />} />
-              <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
-              <Route path="/agendamento" element={<Agendamento />} />
-              <Route path="/admin/avisos" element={<Avisos />} />
-              <Route path="/admin/auditoria" element={<Auditoria />} />
-              <Route path="/admin/base" element={<Base />} />
-              <Route path="/admin/empresa" element={<Empresa />} />
-              <Route path="/admin/seguranca" element={<Seguranca />} />
+              <Route path="/multas" element={<Multas />} />
+              <Route path="/operacao/estoque" element={<Estoque />} />
               <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
               <Route path="/cadastros/carretas" element={<Carretas />} />
               <Route path="/cadastros/chassi-templates" element={<ChassiTemplates />} />
@@ -103,32 +96,30 @@ export default function App() {
               <Route path="/cadastros/pneu-medidas" element={<PneuMedidas />} />
               <Route path="/cadastros/pneu-modelos" element={<ModelosPneus />} />
               <Route path="/cadastros/tipos-fornecedores" element={<TiposFornecedores />} />
-              <Route path="/multas" element={<Multas />} />
-              
-              <Route path="/operacao/estoque" element={<Estoque />} />
-              <Route path="/relatorio-manutencao" element={<RelatorioManutencao />} />
-              <Route path="/relatorios/estoque" element={<RelatorioEstoque />} />
-              <Route path="/relatorios/fornecedores" element={<RelatorioFornecedores />} />
             </Route>
 
             <Route element={<ProtectedRoute modulo="Manutenção" />}>
-              <Route path="/admin/manutencoes" element={<Manutencoes />} />
+              <Route path="/agendamento" element={<Agendamento />} />
             </Route>
 
             <Route element={<ProtectedRoute modulo="Relatórios" />}>
-              <Route path="/operacao/pneus/scanner" element={<LeitorQRCode />} />
-              <Route path="/operacao/relatorios-pneus" element={<RelatoriosPneus />} />
-              <Route path="/gestao/veiculo-360" element={<BuscaVeiculo360 />} />
+              <Route path="/relatorio-manutencao" element={<RelatorioManutencao />} />
+              <Route path="/relatorios/estoque" element={<RelatorioEstoque />} />
+              <Route path="/relatorios/fornecedores" element={<RelatorioFornecedores />} />
             </Route>
 
             <Route element={<ProtectedRoute modulo="Administração" />}>
               <Route path="/admin/usuarios" element={<Usuarios />} />
               <Route path="/admin/perfis" element={<Perfis />} />
               <Route path="/admin/parametrizacao" element={<Parametrizacao />} />
+              <Route path="/admin/avisos" element={<Avisos />} />
+              <Route path="/admin/auditoria" element={<Auditoria />} />
+              <Route path="/admin/base" element={<Base />} />
+              <Route path="/admin/empresa" element={<Empresa />} />
+              <Route path="/admin/seguranca" element={<Seguranca />} />
             </Route>
           </Route>
 
-          <Route path="/financeiro" element={<Financeiro />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
