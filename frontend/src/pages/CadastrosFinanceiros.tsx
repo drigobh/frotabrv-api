@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Building2, Tag, X, Check, Pencil, Power, Trash2, Search, ArrowDownCircle, ArrowUpCircle, CircleDot } from "lucide-react";
+import { Plus, Building2, Tag, X, Check, Pencil, Power, Trash2, Search, ArrowUpCircle, ArrowDownCircle, CircleDot } from "lucide-react";
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -100,7 +100,7 @@ export default function CadastrosFinanceiros() {
           <div className="flex gap-2 justify-between items-center mb-4">
             <div className="relative w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-              <Input placeholder="Buscar banco (nome, agência, conta)..." value={buscaBanco} onChange={(e) => setBuscaBanco(e.target.value)} className="pl-9 h-9" />
+              <Input placeholder="Buscar banco..." value={buscaBanco} onChange={(e) => setBuscaBanco(e.target.value)} className="pl-9 h-9" />
             </div>
             <Button onClick={abrirNovoBanco} className="bg-sky-600 hover:bg-sky-500 h-9"><Plus className="size-4 mr-2" /> Novo Banco</Button>
           </div>
@@ -108,7 +108,7 @@ export default function CadastrosFinanceiros() {
           <div className="glass rounded-2xl overflow-hidden border border-slate-800">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-800/50">
-                <tr className="text-[11px] uppercase tracking-wider text-slate-500">
+                <tr className="text-[11px] uppercase tracking-wider text-slate-400">
                   <th className="px-5 py-3 font-medium">Nome</th>
                   <th className="px-3 py-3 font-medium">Agência</th>
                   <th className="px-3 py-3 font-medium">Nº Agência</th>
@@ -121,17 +121,17 @@ export default function CadastrosFinanceiros() {
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {bancosFiltrados.length === 0 ? (
-                  <tr><td colSpan={8} className="p-8 text-center text-slate-500">Nenhum banco encontrado.</td></tr>
+                  <tr><td colSpan={8} className="p-8 text-center text-slate-400">Nenhum banco encontrado.</td></tr>
                 ) : (
                   bancosFiltrados.map((b: any) => (
                     <tr key={b.id} className={cn("hover:bg-slate-800/30 transition-colors", !b.ativo && "opacity-50")}>
                       <td className="px-5 py-3 text-slate-200 font-medium">{b.nome}</td>
-                      <td className="px-3 py-3 text-slate-400">{b.agencia || "—"}</td>
-                      <td className="px-3 py-3 text-slate-400">{b.numero_agencia || "—"}</td>
-                      <td className="px-3 py-3 text-slate-400">{b.conta || "—"}</td>
-                      <td className="px-3 py-3 text-slate-400">{b.telefone || "—"}</td>
-                      <td className="px-3 py-3 text-slate-400">{b.whatsapp || "—"}</td>
-                      <td className="px-3 py-3 text-slate-400">{b.contato || "—"}</td>
+                      <td className="px-3 py-3 text-slate-300">{b.agencia || "—"}</td>
+                      <td className="px-3 py-3 text-slate-300">{b.numero_agencia || "—"}</td>
+                      <td className="px-3 py-3 text-slate-300">{b.conta || "—"}</td>
+                      <td className="px-3 py-3 text-slate-300">{b.telefone || "—"}</td>
+                      <td className="px-3 py-3 text-slate-300">{b.whatsapp || "—"}</td>
+                      <td className="px-3 py-3 text-slate-300">{b.contato || "—"}</td>
                       <td className="px-3 py-3 text-right flex justify-end gap-1">
                         <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicaoBanco(b)}><Pencil className="size-4 text-sky-400" /></Button>
                         <Button size="icon-sm" variant="ghost" onClick={() => alternarStatusBanco.mutate({ id: b.id, ativo: !b.ativo })} className={b.ativo ? "text-amber-400" : "text-emerald-400"}>
@@ -170,7 +170,7 @@ export default function CadastrosFinanceiros() {
           <div className="glass rounded-2xl overflow-hidden border border-slate-800">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-800/50">
-                <tr className="text-[11px] uppercase tracking-wider text-slate-500">
+                <tr className="text-[11px] uppercase tracking-wider text-slate-400">
                   <th className="px-5 py-3 font-medium">Nome</th>
                   <th className="px-3 py-3 font-medium">Tipo</th>
                   <th className="px-3 py-3 text-right font-medium">Ações</th>
@@ -178,7 +178,7 @@ export default function CadastrosFinanceiros() {
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {categoriasFiltradas.length === 0 ? (
-                  <tr><td colSpan={3} className="p-8 text-center text-slate-500">Nenhuma categoria encontrada.</td></tr>
+                  <tr><td colSpan={3} className="p-8 text-center text-slate-400">Nenhuma categoria encontrada.</td></tr>
                 ) : (
                   categoriasFiltradas.map((c: any) => (
                     <tr key={c.id} className={cn("hover:bg-slate-800/30 transition-colors", !c.ativo && "opacity-50")}>
@@ -211,8 +211,61 @@ export default function CadastrosFinanceiros() {
         </div>
       )}
 
-      {/* MODAIS (Banco e Categoria) - Mantidos os existentes */}
-      {/* (Se você já tem os modais, mantenha-os aqui) */}
+      {/* MODAL BANCO */}
+      {modalBancoOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-slate-100">{editandoBanco ? "Editar Banco" : "Novo Banco"}</h2>
+              <Button variant="ghost" size="icon" onClick={() => setModalBancoOpen(false)}><X className="size-5" /></Button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid gap-1.5"><Label>Nome do Banco *</Label><Input value={formBanco.nome} onChange={(e) => setFormBanco(s => ({ ...s, nome: e.target.value }))} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-1.5"><Label>Agência</Label><Input value={formBanco.agencia} onChange={(e) => setFormBanco(s => ({ ...s, agencia: e.target.value }))} /></div>
+                <div className="grid gap-1.5"><Label>Nº da Agência</Label><Input value={formBanco.numero_agencia} onChange={(e) => setFormBanco(s => ({ ...s, numero_agencia: e.target.value }))} /></div>
+              </div>
+              <div className="grid gap-1.5"><Label>Conta</Label><Input value={formBanco.conta} onChange={(e) => setFormBanco(s => ({ ...s, conta: e.target.value }))} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-1.5"><Label>Telefone</Label><Input value={formBanco.telefone} onChange={(e) => setFormBanco(s => ({ ...s, telefone: e.target.value }))} /></div>
+                <div className="grid gap-1.5"><Label>WhatsApp</Label><Input value={formBanco.whatsapp} onChange={(e) => setFormBanco(s => ({ ...s, whatsapp: e.target.value }))} /></div>
+              </div>
+              <div className="grid gap-1.5"><Label>Contato</Label><Input value={formBanco.contato} onChange={(e) => setFormBanco(s => ({ ...s, contato: e.target.value }))} /></div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={() => setModalBancoOpen(false)}>Cancelar</Button>
+              <Button onClick={() => salvarBanco.mutate(formBanco)} disabled={!formBanco.nome} className="bg-emerald-600 hover:bg-emerald-500 text-white">Salvar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CATEGORIA */}
+      {modalCatOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-slate-100">{editandoCat ? "Editar Categoria" : "Nova Categoria"}</h2>
+              <Button variant="ghost" size="icon" onClick={() => setModalCatOpen(false)}><X className="size-5" /></Button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid gap-1.5"><Label>Nome da Categoria *</Label><Input value={formCat.nome} onChange={(e) => setFormCat(s => ({ ...s, nome: e.target.value }))} /></div>
+              <div className="grid gap-1.5">
+                <Label>Tipo</Label>
+                <select value={formCat.tipo} onChange={(e) => setFormCat(s => ({ ...s, tipo: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md px-3">
+                  <option value="Ambos">Ambos (Pagar e Receber)</option>
+                  <option value="Pagar">Apenas Pagar</option>
+                  <option value="Receber">Apenas Receber</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={() => setModalCatOpen(false)}>Cancelar</Button>
+              <Button onClick={() => salvarCat.mutate(formCat)} disabled={!formCat.nome} className="bg-emerald-600 hover:bg-emerald-500 text-white">Salvar</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
