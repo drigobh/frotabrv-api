@@ -1,13 +1,13 @@
-import { Eye, useState, useEffect } from "react";
-import { Eye, useNavigate } from "react-router-dom";
-import { Eye, QrCode, ArrowLeft, Search, CheckCircle2, AlertTriangle, Truck, Disc, MapPin } from "lucide-react";
-import { Eye, PageHeader } from "@/components/common/PageHeader";
-import { Eye, Button } from "@/components/ui/button";
-import { Eye, Input } from "@/components/ui/input";
-import { Eye, Label } from "@/components/ui/label";
-import { Eye, apiGet, apiPost } from "@/lib/api";
-import { Eye, toast } from "sonner";
-import { Eye, cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { QrCode, ArrowLeft, Search, CheckCircle2, AlertTriangle, Truck, Disc, MapPin, Eye } from "lucide-react";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { apiGet, apiPost } from "@/lib/api";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function LeitorQRCode() {
   const navigate = useNavigate();
