@@ -1,3 +1,0 @@
-Backup gerado em: 20261022_114707
-Motivo: Alteração do proxy no vite.config.ts para apontar para o Render.
-Estado anterior: O frontend buscava a API em http://localhost:8001
