@@ -12,6 +12,7 @@ import VeiculoDetalhe from "@/pages/VeiculoDetalhe";
 import Manutencoes from "@/pages/Manutencoes";
 import CentralAlertas from "@/pages/CentralAlertas";
 import RelatoriosPneus from "@/pages/RelatoriosPneus";
+import Multas from "@/pages/Multas";
 import LeitorQRCode from "@/pages/LeitorQRCode";
 import BuscaVeiculo360 from "@/pages/BuscaVeiculo360";
 import Perfil from "@/pages/Perfil";
@@ -102,6 +103,7 @@ export default function App() {
               <Route path="/cadastros/pneu-medidas" element={<PneuMedidas />} />
               <Route path="/cadastros/pneu-modelos" element={<ModelosPneus />} />
               <Route path="/cadastros/tipos-fornecedores" element={<TiposFornecedores />} />
+              <Route path="/multas" element={<Multas />} />
               <Route path="/financeiro" element={<Financeiro />} />
               <Route path="/operacao/estoque" element={<Estoque />} />
               <Route path="/relatorio-manutencao" element={<RelatorioManutencao />} />
