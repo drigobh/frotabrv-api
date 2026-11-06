@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, X, Check, CheckCircle2, Truck, Building2, FileText, Calendar, Filter } from "lucide-react";
+import { Plus, Search, X, Check, CheckCircle2, Truck, Building2, FileText, Calendar, Filter, FileSearch } from "lucide-react";
 import { apiGet, apiPost, apiPut, apiPatch } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ const CATEGORIAS_FALLBACK = ["Combustível", "Manutenção", "Pneus", "Pedágio"
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 export default function Financeiro() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [abaAtiva, setAbaAtiva] = useState<"Todos" | "Pagar" | "Receber" | "Conciliacao">("Todos");
   const [busca, setBusca] = useState("");
@@ -108,6 +110,7 @@ export default function Financeiro() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
               <Input placeholder="Buscar conta..." value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-9 h-9 w-64" />
             </div>
+            <Button onClick={() => navigate("/financeiro/xml")} variant="outline" className="border-purple-500/40 text-purple-400 hover:bg-purple-500/10 h-9 mr-2"><FileSearch className="size-4 mr-2" /> Visualizar XML</Button>
             <Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500 h-9">
               <Plus className="size-4 mr-2" /> Nova Conta
             </Button>

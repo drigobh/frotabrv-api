@@ -37,6 +37,7 @@ import PneuMedidas from "@/pages/PneuMedidas";
 import ModelosPneus from "@/pages/ModelosPneus";
 import TiposFornecedores from "@/pages/TiposFornecedores";
 import Financeiro from "@/pages/Financeiro";
+import VisualizadorXML from "@/pages/VisualizadorXML";
 import CadastrosFinanceiros from "@/pages/CadastrosFinanceiros";
 import Estoque from "@/pages/Estoque";
 import RelatorioManutencao from "@/pages/RelatorioManutencao";
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="/perfil" element={<Perfil />} />
             <Route path="/alertas" element={<CentralAlertas />} />
             <Route path="/financeiro" element={<Financeiro />} />
+            <Route path="/financeiro/xml" element={<VisualizadorXML />} />
             <Route path="/cadastros/financeiro" element={<CadastrosFinanceiros />} />
 
             {/* Rotas Protegidas por Permissão */}
