@@ -135,15 +135,37 @@ export default function Perfis() {
 
             <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="grid gap-1.5">
-                  <Label className="text-xs text-slate-400">Nome do Perfil *</Label>
-                  <Input value={form.nome} onChange={(e) => setForm((s: any) => ({ ...s, nome: e.target.value }))} placeholder="Ex: Gestor de Frota" />
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-slate-400">Nome do Perfil *</Label>
+                    <Input value={form.nome} onChange={(e) => setForm((s: any) => ({ ...s, nome: e.target.value }))} placeholder="Ex: Gestor de Frota" />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-slate-400">Descrição</Label>
+                    <Input value={form.descricao} onChange={(e) => setForm((s: any) => ({ ...s, descricao: e.target.value }))} placeholder="Ex: Acesso total ao módulo de frotas" />
+                  </div>
                 </div>
-                <div className="grid gap-1.5">
-                  
-                  <Input value={form.descricao} onChange={(e) => setForm((s: any) => ({ ...s, descricao: e.target.value }))} placeholder="Ex: Acesso total ao módulo de frotas" />
+                
+                {/* Segurança */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                    <Lock className="size-4 text-amber-400" /> Segurança
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-slate-400">Timeout de Sessão (minutos)</Label>
+                      <Input type="number" value={form.timeout_minutos || 30} onChange={(e) => setForm((s: any) => ({ ...s, timeout_minutos: Number(e.target.value) }))} />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs text-slate-400">Tentativas de Login Permitidas</Label>
+                      <select value={form.tentativas_login || 5} onChange={(e) => setForm((s: any) => ({ ...s, tentativas_login: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+                        <option value="3">3 tentativas</option>
+                        <option value="5">5 tentativas</option>
+                        <option value="7">7 tentativas</option>
+                        <option value="liberado">Liberado (apenas avisa)</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
               <div>
                 <h3 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
