@@ -112,7 +112,7 @@ export function Sidebar() {
             </div>
           </div>
         )}
-        <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className="text-slate-400 hover:text-slate-100 hover:bg-slate-800 shrink-0">
+        <Button variant="ghost" size="icon" onClick={handleLogout} className="text-slate-400 hover:text-slate-100 hover:bg-slate-800 shrink-0">
           {isCollapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
         </Button>
       </div>
@@ -148,7 +148,7 @@ export function Sidebar() {
 
           return (
             <div key={menu.id} className="relative px-3 mb-1 group">
-              <button onClick={() => !isCollapsed && toggleMenu(menu.id)} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors", (isExpanded || hasActiveChild) ? "text-slate-200 font-medium" : "text-slate-400 hover:bg-slate-900 hover:text-slate-200", isCollapsed && "justify-center px-0")} title={isCollapsed ? menu.label : undefined}>
+              <button onClick={handleLogout} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors", (isExpanded || hasActiveChild) ? "text-slate-200 font-medium" : "text-slate-400 hover:bg-slate-900 hover:text-slate-200", isCollapsed && "justify-center px-0")} title={isCollapsed ? menu.label : undefined}>
                 <menu.icon className={cn("size-5 shrink-0", (isExpanded || hasActiveChild) ? "text-sky-400" : "text-slate-500")} />
                 {!isCollapsed && (
                   <>

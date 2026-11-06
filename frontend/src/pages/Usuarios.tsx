@@ -248,6 +248,17 @@ export default function Usuarios() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="grid gap-1.5">
                     <Label className="text-xs text-slate-400">Perfil de Acesso (RBAC) *</Label>
+                    
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-slate-400">Ativação (Automático)</Label>
+                    <Input 
+                      value={editando && editando.data_cadastro ? new Date(editando.data_cadastro).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : (new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }))} 
+                      disabled 
+                      className="bg-slate-900/50 border-slate-800 text-slate-400 font-mono" 
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
                     <select value={form.perfil_id} onChange={(e) => setForm((s: any) => ({ ...s, perfil_id: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
                       <option value="">Selecione um perfil...</option>
                       {perfis.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
@@ -259,16 +270,7 @@ export default function Usuarios() {
                       <Input type="password" value={form.senha} onChange={(e) => setForm((s: any) => ({ ...s, senha: e.target.value }))} />
                     </div>
                   )}
-                  {!editando && (
-                    <div className="grid gap-1.5">
-                      <Label className="text-xs text-slate-400">Ativação (Automático)</Label>
-                      <Input 
-                        value={new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })} 
-                        disabled 
-                        className="bg-slate-900/50 border-slate-800 text-slate-400 font-mono" 
-                      />
-                    </div>
-                  )}
+                  
                 </div>
               </div>
 
