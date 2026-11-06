@@ -13,6 +13,10 @@ import { ChassiMapa } from "@/components/ChassiMapa";
 import { brl } from "@/lib/format";
 import * as XLSX from "xlsx";
 
+
+const STATUS_PNEU = ["Estoque", "Aplicado", "Recapagem", "Conserto", "Sucateado"];
+const TIPOS_PNEU = ["Direcional", "Tração", "Misto", "Banda", "Liso", "Borrachudo"];
+
 const parseDate = (val: any): string => {
   if (!val) return "";
   if (val instanceof Date) {
