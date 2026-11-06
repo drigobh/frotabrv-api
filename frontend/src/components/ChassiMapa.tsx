@@ -66,7 +66,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
   };
 
   const getCorSulco = (sulco?: number) => {
-    if (!sulco) return "bg-slate-800 border-slate-700 text-slate-500";
+    if (!sulco) return "bg-slate-800 border-slate-700 text-white/70";
     if (sulco <= 1.6) return "bg-black border-black text-white";
     if (sulco <= 3.0) return "bg-rose-500/20 border-rose-500 text-rose-400";
     if (sulco <= 5.9) return "bg-amber-500/20 border-amber-500 text-amber-400";
@@ -155,14 +155,14 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
           <span className="text-[10px] font-bold">{pneu.numero_fogo.slice(0, 6)}</span>
           <span className="text-[8px] opacity-70">{pneu.sulco_atual ? `${pneu.sulco_atual}mm` : "—"}</span>
         </div>
-        <span className="text-[9px] text-slate-500">{label}</span>
+        <span className="text-[9px] text-white/70">{label}</span>
         
         {/* Tooltip */}
         <div className="absolute bottom-full mb-2 hidden group-hover:block w-40 bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs z-50 shadow-xl">
-          <p className="font-bold text-slate-200">{pneu.numero_fogo}</p>
-          <p className="text-slate-400">{pneu.marca} - {pneu.medida}</p>
-          <p className="text-slate-400">Sulco: {pneu.sulco_atual || "—"} mm</p>
-          <p className="text-slate-400">Pressão: {pneu.pressao_atual || "—"} psi</p>
+          <p className="font-bold text-sky-300 font-bold">{pneu.numero_fogo}</p>
+          <p className="text-white">{pneu.marca} - {pneu.medida}</p>
+          <p className="text-white">Sulco: {pneu.sulco_atual || "—"} mm</p>
+          <p className="text-white">Pressão: {pneu.pressao_atual || "—"} psi</p>
           <p className="text-[10px] text-sky-400 mt-1">Clique para movimentar</p>
         </div>
       </div>
@@ -172,7 +172,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
   // Se não houver template, exibe mensagem
   if (!templateChassiId || !template) {
     return (
-      <div className="glass p-6 rounded-2xl text-center text-slate-500">
+      <div className="glass p-6 rounded-2xl text-center text-white/70">
         <AlertTriangle className="size-8 mx-auto mb-2" />
         <p className="text-sm">Nenhum template de chassi vinculado a este {tipo}. Edite o cadastro para vincular.</p>
       </div>
@@ -184,7 +184,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
 
   return (
     <div className="glass p-6 rounded-2xl">
-      <h3 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">
+      <h3 className="text-sm font-bold text-sky-300 mb-4 flex items-center gap-2">
         <Disc className="size-4 text-sky-400" /> Chassi do {tipo === "cavalo" ? "Cavalo" : "Carreta"} ({template.nome})
       </h3>
       
@@ -205,7 +205,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
                   renderCardPneu(`${eixoNum}-E`, `${eixoNum}-E`)
                 )}
               </div>
-              <div className="text-[10px] text-slate-500 font-bold uppercase text-center">
+              <div className="text-[10px] text-white/70 font-bold uppercase text-center">
                 Eixo {eixoNum} ({eixo.funcao_mecanica})
                 {eixo.tem_suspensor && <span className="block text-[8px] text-emerald-400">Suspensor</span>}
               </div>
@@ -245,11 +245,11 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
             
             <div className="grid gap-4">
               <div className="grid gap-1.5">
-                <label className="text-xs text-slate-400">Selecione um pneu do Estoque</label>
+                <label className="text-xs text-sky-300 font-bold">Selecione um pneu do Estoque</label>
                 <select 
                   value={pneuEstoqueSelecionado} 
                   onChange={(e) => setPneuEstoqueSelecionado(e.target.value)} 
-                  className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2"
+                  className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-sky-300 px-2"
                 >
                   <option value="">Selecione...</option>
                   {pneusEstoque.filter((p: any) => p.status === "Estoque" || p.status === "Conserto").map((p: any) => (
@@ -277,11 +277,11 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
             
             <div className="grid gap-4">
               <div className="grid gap-1.5">
-                <label className="text-xs text-slate-400">Tipo de Movimentação</label>
+                <label className="text-xs text-sky-300 font-bold">Tipo de Movimentação</label>
                 <select 
                   value={tipoMovimentacao} 
                   onChange={(e) => setTipoMovimentacao(e.target.value)} 
-                  className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2"
+                  className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-sky-300 px-2"
                 >
                   <option value="RODIZIO">Rodízio (Trocar de Posição)</option>
                   <option value="RECAPAGEM">Enviar para Recapagem</option>
@@ -292,24 +292,24 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
 
               {tipoMovimentacao === "RODIZIO" && (
                 <div className="grid gap-1.5">
-                  <label className="text-xs text-slate-400">Nova Posição *</label>
+                  <label className="text-xs text-sky-300 font-bold">Nova Posição *</label>
                   <Input 
                     value={posicaoDestino} 
                     onChange={(e) => setPosicaoDestino(e.target.value)} 
                     placeholder="Ex: 3-DE" 
                     className="h-9"
                   />
-                  <p className="text-[10px] text-slate-500">Posição atual: {pneuSelecionado.posicao || "—"}</p>
+                  <p className="text-[10px] text-white/70">Posição atual: {pneuSelecionado.posicao || "—"}</p>
                 </div>
               )}
 
               {tipoMovimentacao === "DESCARTE" && (
                 <div className="grid gap-1.5">
-                  <label className="text-xs text-slate-400">Motivo do Descarte *</label>
+                  <label className="text-xs text-sky-300 font-bold">Motivo do Descarte *</label>
                   <select 
                     value={motivoDescarte} 
                     onChange={(e) => setMotivoDescarte(e.target.value)} 
-                    className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2"
+                    className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-sky-300 px-2"
                   >
                     <option value="">Selecione o motivo...</option>
                     {motivosDescarte.map((m: any) => (
@@ -320,7 +320,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
               )}
 
               <div className="grid gap-1.5">
-                <label className="text-xs text-slate-400">Observações</label>
+                <label className="text-xs text-sky-300 font-bold">Observações</label>
                 <Input 
                   value={observacoes} 
                   onChange={(e) => setObservacoes(e.target.value)} 

@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { QrCode, ArrowLeft, Search, CheckCircle2, AlertTriangle, Truck, Disc, MapPin, Eye } from "lucide-react";
-import { PageHeader } from "@/components/common/PageHeader";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { apiGet, apiPost } from "@/lib/api";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { X, useState, useEffect } from "react";
+import { X, useNavigate } from "react-router-dom";
+import { X, QrCode, ArrowLeft, Search, CheckCircle2, AlertTriangle, Truck, Disc, MapPin, Eye } from "lucide-react";
+import { X, PageHeader } from "@/components/common/PageHeader";
+import { X, Button } from "@/components/ui/button";
+import { X, Input } from "@/components/ui/input";
+import { X, Label } from "@/components/ui/label";
+import { X, apiGet, apiPost } from "@/lib/api";
+import { X, ChassiMapa } from "@/components/ChassiMapa";
+import { X, toast } from "sonner";
+import { X, cn } from "@/lib/utils";
 
 export default function LeitorQRCode() {
   const navigate = useNavigate();
@@ -183,6 +184,28 @@ export default function LeitorQRCode() {
           </div>
         </div>
       )}
-    </div>
+
+      {/* Modal do Mapa */}
+      {mostrarMapa && pneu && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-4xl p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-slate-100">Mapa do Chassi</h2>
+              <Button variant="ghost" size="icon" onClick={() => setMostrarMapa(false)}>
+                <X className="size-5" />
+              </Button>
+            </div>
+            <div className="max-h-[70vh] overflow-auto">
+              <ChassiMapa 
+                pneus={[pneu]} 
+                veiculoId={pneu.veiculo_id} 
+                tipo="cavalo" 
+                templateChassiId={veiculo?.template_chassi_id} 
+              />
+            </div>
+          </div>
+        </div>
+      )}
+        </div>
   );
 }
