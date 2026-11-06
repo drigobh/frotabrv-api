@@ -93,7 +93,7 @@ function parseNFe(xmlDoc: Document) {
       valorCofins: parseFloat(get("vCOFINS", total)) || 0,
       valorTotal: (() => {
       const icmsTot = total?.getElementsByTagName("ICMSTot")[0];
-      return parseFloat(get("vNF", icmsTot || total)) || 0;
+      return parseFloat(get("vNF", icmsTot) || get("vNF", total) || get("vProd", total)) || 0;
     })(),
     },
     transporte: {
@@ -274,7 +274,6 @@ export default function VisualizadorXML() {
       const cnpjEmitente = dados.emitente.cnpj.replace(/\D/g, "");
       const valorReal = Number(dados.valorTotal) || 0;
 
-      // VERIFICA DUPLICIDADE
       const contasExistentes = await apiGet<any[]>("/financeiro/contas");
       const jaImportada = contasExistentes.find(c => c.documento_vinculo === dados.chave);
       if (jaImportada) {
@@ -288,7 +287,7 @@ export default function VisualizadorXML() {
         const fornecedorExistente = fornecedores.find(f => (f.documento || "").replace(/\D/g, "") === cnpjEmitente);
         
         if (!fornecedorExistente) {
-          toast.error("Fornecedor não cadastrado! Vá em Cadastros > Fornecedores e cadastre o CNPJ " + dados.emitente.cnpj);
+          toast.error("Fornecedor não cadastrado! Cadastre o CNPJ " + dados.emitente.cnpj + " antes de importar.");
           setLoadingImport(false);
           return;
         }

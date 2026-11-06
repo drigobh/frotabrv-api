@@ -248,6 +248,7 @@ export default function Financeiro() {
                     <td className={cn("px-3 py-3 font-mono font-bold", c.tipo === "Pagar" ? "text-rose-400" : "text-emerald-400")}>
                       {c.tipo === "Pagar" ? "-" : "+"}{brl(Number(c.valor || 0))}
                     </td>
+                    <td className="px-3 py-3 text-slate-400 text-xs">{c.origem || "Manual"}</td>
                     <td className="px-3 py-3">
                       <span className={cn(
                         "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
