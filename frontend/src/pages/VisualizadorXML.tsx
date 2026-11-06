@@ -7,8 +7,6 @@ import { Label } from "@/components/ui/label";
 import { brl } from "@/lib/format";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import * as JsBarcodeNamespace from 'jsbarcode';
-const JsBarcode = (JsBarcodeNamespace as any).default || JsBarcodeNamespace;
 
 // ============================================================
 // PARSER: NF-e
@@ -239,7 +237,7 @@ export default function VisualizadorXML() {
       try {
         const svg = win.document.getElementById("barcode");
         if (svg) {
-          JsBarcode(svg, d.chave, {
+          (window as any).JsBarcode(svg, d.chave, {
             format: "CODE128C",
             width: 1.2,
             height: 50,

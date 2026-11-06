@@ -25,7 +25,6 @@ export default defineConfig({
       'react-leaflet',
     ],
     noDiscovery: true,
-    exclude: ['jsbarcode'],
     // REMOVIDO: O exclude do Leaflet (não é mais necessário)
   },
   server: {
