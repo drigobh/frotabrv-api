@@ -11,10 +11,14 @@ async def listar_contas(tipo: str = None, mes: str = None, ano: str = None, _u: 
     filtro = {}
     if tipo:
         filtro["tipo"] = tipo
-    if mes and ano and mes != "0" and ano != "0":
-        # Filtra pelo campo vencimento (YYYY-MM-DD)
-        prefixo = f"{ano}-{str(mes).zfill(2)}"
-        filtro["vencimento"] = {"$regex": f"^{prefixo}"}
+    if ano and ano != "0":
+        if mes and mes != "0":
+            # Mês específico
+            prefixo = f"{ano}-{str(mes).zfill(2)}"
+            filtro["vencimento"] = {"$regex": f"^{prefixo}"}
+        else:
+            # Todos os meses do ano
+            filtro["vencimento"] = {"$regex": f"^{ano}"}
     
     return await db.contas.find(filtro, {"_id": 0}).sort("vencimento", 1).to_list(1000)
 
@@ -57,8 +61,16 @@ async def excluir_conta(id: str, _u: dict = Depends(require("write"))):
     return {"status": "ok"}
 
 @router.get("/resumo")
-async def resumo_financeiro(_u: dict = Depends(require("read"))):
-    contas = await db.contas.find({}, {"_id": 0}).to_list(1000)
+async def resumo_financeiro(mes: str = None, ano: str = None, _u: dict = Depends(require("read"))):
+    filtro = {}
+    if ano and ano != "0":
+        if mes and mes != "0":
+            prefixo = f"{ano}-{str(mes).zfill(2)}"
+            filtro["vencimento"] = {"$regex": f"^{prefixo}"}
+        else:
+            filtro["vencimento"] = {"$regex": f"^{ano}"}
+
+    contas = await db.contas.find(filtro, {"_id": 0}).to_list(1000)
     
     a_pagar = sum(c["valor"] for c in contas if c.get("tipo") == "Pagar" and c.get("status") == "Pendente")
     a_receber = sum(c["valor"] for c in contas if c.get("tipo") == "Receber" and c.get("status") == "Pendente")
@@ -73,13 +85,17 @@ async def resumo_financeiro(_u: dict = Depends(require("read"))):
         "saldo": a_receber - a_pagar
     }
 
-
 @router.get("/conciliacao")
-async def conciliacao(mes: str, ano: str, _u: dict = Depends(require("read"))):
-    prefixo = f"{ano}-{str(mes).zfill(2)}"
-    contas = await db.contas.find(
-        {"vencimento": {"$regex": f"^{prefixo}"}}, {"_id": 0}
-    ).to_list(1000)
+async def conciliacao(mes: str = None, ano: str = None, _u: dict = Depends(require("read"))):
+    filtro = {}
+    if ano and ano != "0":
+        if mes and mes != "0":
+            prefixo = f"{ano}-{str(mes).zfill(2)}"
+            filtro["vencimento"] = {"$regex": f"^{prefixo}"}
+        else:
+            filtro["vencimento"] = {"$regex": f"^{ano}"}
+
+    contas = await db.contas.find(filtro, {"_id": 0}).to_list(1000)
     
     total_pagar = sum(c["valor"] for c in contas if c.get("tipo") == "Pagar")
     total_receber = sum(c["valor"] for c in contas if c.get("tipo") == "Receber")
@@ -96,3 +112,4 @@ async def conciliacao(mes: str, ano: str, _u: dict = Depends(require("read"))):
         "saldo": total_receber - total_pagar,
         "contas": contas
     }
+

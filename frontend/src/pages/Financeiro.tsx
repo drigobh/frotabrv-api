@@ -17,7 +17,7 @@ export default function Financeiro() {
   const qc = useQueryClient();
   const [abaAtiva, setAbaAtiva] = useState<"Todos" | "Pagar" | "Receber" | "Conciliacao">("Todos");
   const [busca, setBusca] = useState("");
-  const [mesFiltro, setMesFiltro] = useState(new Date().getMonth() + 1);
+  const [mesFiltro, setMesFiltro] = useState(0);
   const [anoFiltro, setAnoFiltro] = useState(new Date().getFullYear());
   
   const [modalOpen, setModalOpen] = useState(false);
@@ -121,6 +121,7 @@ export default function Financeiro() {
           <Filter className="size-4" /> Filtrar Período:
         </div>
         <select value={mesFiltro} onChange={(e) => setMesFiltro(Number(e.target.value))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+          <option value={0}>Todos os Meses</option>
           {MESES.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
         </select>
         <select value={anoFiltro} onChange={(e) => setAnoFiltro(Number(e.target.value))} className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
