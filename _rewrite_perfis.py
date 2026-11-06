@@ -1,0 +1,50 @@
+import os
+
+path = os.path.join(os.getcwd(), "app", "backend", "routers", "perfis.py")
+
+conteudo = r'''from fastapi import APIRouter, Depends, HTTPException
+from lib.db import db
+from lib.security import require
+import uuid
+
+router = APIRouter()
+
+@router.get("")
+async def listar_perfis(_u: dict = Depends(require("read"))):
+    return await db.perfis.find({}, {"_id": 0}).to_list(100)
+
+@router.post("")
+async def criar_perfil(body: dict, _u: dict = Depends(require("write"))):
+    novo = {
+        "id": str(uuid.uuid4()),
+        "nome": body.get("nome"),
+        "descricao": body.get("descricao", ""),
+        "permissoes": body.get("permissoes", []),
+        "timeout_minutos": int(body.get("timeout_minutos", 30)),
+        "tentativas_login": str(body.get("tentativas_login", "5"))
+    }
+    await db.perfis.insert_one(novo)
+    novo.pop("_id", None)
+    return novo
+
+@router.put("/{id}")
+async def atualizar_perfil(id: str, body: dict, _u: dict = Depends(require("write"))):
+    update = {
+        "nome": body.get("nome"),
+        "descricao": body.get("descricao", ""),
+        "permissoes": body.get("permissoes", []),
+        "timeout_minutos": int(body.get("timeout_minutos", 30)),
+        "tentativas_login": str(body.get("tentativas_login", "5"))
+    }
+    await db.perfis.update_one({"id": id}, {"$set": update})
+    return {"status": "ok"}
+
+@router.delete("/{id}")
+async def excluir_perfil(id: str, _u: dict = Depends(require("write"))):
+    await db.perfis.delete_one({"id": id})
+    return {"status": "ok"}
+'''
+
+with open(path, "w", encoding="utf-8") as f:
+    f.write(conteudo)
+print("✅ perfis.py reescrito com sucesso.")

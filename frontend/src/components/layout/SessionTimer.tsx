@@ -45,7 +45,6 @@ export function SessionTimer({ timeoutMinutos, onTimeout }: { timeoutMinutos: nu
         <span className="font-mono">{String(minutos).padStart(2, '0')}:{String(segundos).padStart(2, '0')}</span>
       </div>
 
-      {/* Aviso Centralizado (Portal) */}
       {mostrarAviso && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
