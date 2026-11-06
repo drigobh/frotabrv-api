@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   FileBarChart, CalendarClock, LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
   Settings, Package, Disc, Activity, BarChart3, 
@@ -78,6 +78,7 @@ const MENUS = [
 ];
 
 export function Sidebar() {
+  const navigate = useNavigate();
   const { pathname } = useLocation();
   const { data: me } = useMe();
   const { podeVer } = usePermissions();
@@ -208,9 +209,7 @@ export function Sidebar() {
   localStorage.clear();
   sessionStorage.clear();
   // Força o reload completo da página
-  window.location.href = window.location.origin + "/login";
-  window.location.reload();
-}}}>
+  }>
           <LogOut className={cn("size-4", !isCollapsed && "mr-2")} /> 
           {!isCollapsed && "Sair"}
         </Button>
