@@ -51,9 +51,28 @@ async def atualizar_conta(id: str, body: dict, _u: dict = Depends(require("write
     return {"status": "ok"}
 
 @router.patch("/contas/{id}/pagar")
-async def marcar_pago(id: str, _u: dict = Depends(require("write"))):
-    await db.contas.update_one({"id": id}, {"$set": {"status": "Pago", "data_pagamento": datetime.now().isoformat()}})
-    return {"status": "ok"}
+async def pagar_conta(id: str, _u: dict = Depends(require("write"))):
+    conta = await db.contas.find_one({"id": id})
+    if not conta:
+        raise HTTPException(404, "Conta não encontrada")
+    
+    historico = conta.get("historico", [])
+    historico.append({
+        "acao": "Baixa",
+        "data": datetime.datetime.now().isoformat(),
+        "usuario": _u.get("nome", _u.get("email", "Sistema")),
+        "valor": conta.get("valor")
+    })
+    
+    await db.contas.update_one(
+        {"id": id},
+        {"$set": {
+            "status": "Pago",
+            "data_pagamento": datetime.datetime.now().isoformat(),
+            "historico": historico
+        }}
+    )
+    return {"ok": True}
 
 @router.delete("/contas/{id}")
 async def excluir_conta(id: str, _u: dict = Depends(require("write"))):
