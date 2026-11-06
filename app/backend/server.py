@@ -28,9 +28,9 @@ async def health():
     return {"status": "ok", "service": "frota-brv"}
 
 # Importando todas as rotas
-from routers import empresa, usuarios, perfis, multas
+from routers import empresa, usuarios, perfis, multas, financeiro
 from routers import pneu_movimentacoes, chassi_templates, pneu_marcas, pneu_medidas, pneus, planos_manutencao, tipos_fornecedores, parametrizacao, auth, movimentacoes, pecas, fornecedores, combustiveis, veiculos, carretas, motoristas, dashboard, acoplamentos, abastecimentos, manutencoes
-from routers import empresa, usuarios, perfis, multas
+from routers import empresa, usuarios, perfis, multas, financeiro
 from routers import admin
 
 api_router.include_router(auth.router)
@@ -51,6 +51,7 @@ api_router.include_router(parametrizacao.router)
 api_router.include_router(planos_manutencao.router)
 api_router.include_router(pneus.router)
 api_router.include_router(multas.router, prefix="/multas", tags=["multas"])
+api_router.include_router(financeiro.router, prefix="/financeiro", tags=["financeiro"])
 api_router.include_router(pneu_medidas.router)
 api_router.include_router(pneu_marcas.router)
 api_router.include_router(chassi_templates.router)
