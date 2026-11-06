@@ -38,13 +38,16 @@ async def me(_u: dict = Depends(require("read"))):
     if not usuario:
         raise HTTPException(404, "Usuário não encontrado.")
     
-    # Busca as permissões do perfil
+    # Busca o timeout do perfil
+    timeout = 30  # valor padrão
     if usuario.get("perfil_id"):
         perfil = await db.perfis.find_one({"id": usuario["perfil_id"]}, {"_id": 0})
         if perfil:
             usuario["permissoes"] = perfil.get("permissoes", [])
             usuario["perfil_nome"] = perfil.get("nome", "")
+            timeout = perfil.get("timeout_minutos", 30)
     
+    usuario["timeout_minutos"] = timeout
     return usuario
 
 @router.post("/logout")
