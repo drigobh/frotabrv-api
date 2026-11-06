@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { brl } from "@/lib/format";
 import { toast } from "sonner";
+import { apiGet, apiPost } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 // ============================================================
@@ -173,6 +175,10 @@ export default function VisualizadorXML() {
   const [dados, setDados] = useState<any>(null);
   const [tipo, setTipo] = useState<"NF-e" | "CT-e" | null>(null);
   const [erro, setErro] = useState("");
+  const [modalImportOpen, setModalImportOpen] = useState(false);
+  const [tipoConta, setTipoConta] = useState<"Pagar" | "Receber">("Pagar");
+  const [formForn, setFormForn] = useState<any>({});
+  const qc = useQueryClient();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -259,6 +265,65 @@ export default function VisualizadorXML() {
     }, 300);
   };
 
+
+  const executarImportacao = async () => {
+    try {
+      const cnpjEmitente = dados.emitente.cnpj.replace(/\D/g, "");
+      
+      if (tipoConta === "Pagar") {
+        // 1. Verifica se o fornecedor existe
+        const fornecedores = await apiGet<any[]>("/fornecedores");
+        let fornecedorId = fornecedores.find(f => (f.documento || "").replace(/\D/g, "") === cnpjEmitente)?.id;
+
+        // 2. Se não existe, cria o fornecedor com os dados do XML
+        if (!fornecedorId) {
+          const novoForn = {
+            nome: dados.emitente.nome,
+            documento: dados.emitente.cnpj,
+            tipo_pessoa: "PJ",
+            endereco: dados.emitente.endereco,
+            tipo_fornecedor: "Outros", // Valor padrão
+            empresa_id: "", // Valor padrão
+            origem: "Importado XML",
+            ativo: true
+          };
+          const fornCriado = await apiPost<any>("/fornecedores", novoForn);
+          fornecedorId = fornCriado.id;
+          toast.success("Fornecedor criado automaticamente via XML!");
+        }
+
+        // 3. Cria a Conta a Pagar
+        await apiPost("/financeiro/contas", {
+          tipo: "Pagar",
+          descricao: `NF-e ${dados.numero} - ${dados.emitente.nome}`,
+          categoria: "Peças e componentes",
+          valor: dados.valorTotal,
+          vencimento: new Date().toISOString().split("T")[0], // Idealmente puxar das duplicatas do XML
+          status: "Pendente",
+          fornecedor_id: fornecedorId,
+          documento_vinculo: dados.chave
+        });
+      } else {
+        // Contas a Receber (Destinatário é o cliente)
+        await apiPost("/financeiro/contas", {
+          tipo: "Receber",
+          descricao: `NF-e ${dados.numero} - ${dados.destinatario.nome}`,
+          categoria: "Frete",
+          valor: dados.valorTotal,
+          vencimento: new Date().toISOString().split("T")[0],
+          status: "Pendente",
+          documento_vinculo: dados.chave
+        });
+      }
+
+      toast.success("Importado para o Financeiro com sucesso!");
+      qc.invalidateQueries({ queryKey: ["contas"] });
+      navigate("/financeiro");
+    } catch (e: any) {
+      toast.error("Erro ao importar: " + (e.message || "Verifique os dados"));
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -316,6 +381,9 @@ export default function VisualizadorXML() {
             </h3>
             <Button onClick={imprimir} className="bg-sky-600 hover:bg-sky-500">
               <Printer className="size-4 mr-2" /> Imprimir {tipo === "NF-e" ? "DANFE" : "DACTE"}
+            </Button>
+            <Button onClick={() => setModalImportOpen(true)} className="bg-emerald-600 hover:bg-emerald-500 ml-2">
+              <DollarSign className="size-4 mr-2" /> Importar para Financeiro
             </Button>
           </div>
 
@@ -381,6 +449,35 @@ export default function VisualizadorXML() {
           )}
         </div>
       )}
+
+      {/* MODAL DE IMPORTAÇÃO PARA O FINANCEIRO */}
+      {modalImportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6">
+            <h2 className="text-lg font-bold text-slate-100 mb-2">Importar para Financeiro</h2>
+            <p className="text-sm text-slate-400 mb-6">Selecione o tipo de conta para lançar este documento.</p>
+            
+            <div className="flex gap-4 mb-6">
+              <Button variant={tipoConta === "Pagar" ? "default" : "outline"} onClick={() => setTipoConta("Pagar")} className="flex-1">Contas a Pagar</Button>
+              <Button variant={tipoConta === "Receber" ? "default" : "outline"} onClick={() => setTipoConta("Receber")} className="flex-1">Contas a Receber</Button>
+            </div>
+
+            {tipoConta === "Pagar" && (
+              <div className="bg-slate-800/50 p-4 rounded-lg mb-4">
+                <p className="text-xs text-slate-400 mb-2">Fornecedor (Emitente do XML)</p>
+                <p className="text-sm font-bold text-slate-200">{dados.emitente.nome}</p>
+                <p className="text-xs text-slate-400 font-mono">{dados.emitente.cnpj}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={() => setModalImportOpen(false)}>Cancelar</Button>
+              <Button onClick={executarImportacao} className="bg-emerald-600 hover:bg-emerald-500">Confirmar Importação</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
