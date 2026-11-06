@@ -66,7 +66,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
   };
 
   const getCorSulco = (sulco?: number) => {
-    if (!sulco) return "bg-slate-800 border-slate-700 text-white/70";
+    if (!sulco) return "bg-slate-800/50 border border-slate-600 border-sky-500/30 text-white/70";
     if (sulco <= 1.6) return "bg-black border-black text-white";
     if (sulco <= 3.0) return "bg-rose-500/20 border-rose-500 text-rose-400";
     if (sulco <= 5.9) return "bg-amber-500/20 border-amber-500 text-amber-400";
@@ -136,7 +136,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
       return (
         <div className="flex flex-col items-center gap-1 group relative">
           <div 
-            className="size-12 rounded-lg border-2 border-dashed border-slate-700 flex items-center justify-center text-slate-600 cursor-pointer hover:border-sky-500 hover:text-sky-400 transition-colors"
+            className="size-12 rounded-lg border-2 border-dashed border-sky-500/30 flex items-center justify-center text-slate-600 cursor-pointer hover:border-sky-500 hover:text-sky-400 transition-colors"
             onClick={() => setPosicaoVazia(posicao)}
           >
             <Plus className="size-5" />
@@ -158,7 +158,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
         <span className="text-[9px] text-white/70">{label}</span>
         
         {/* Tooltip */}
-        <div className="absolute bottom-full mb-2 hidden group-hover:block w-40 bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs z-50 shadow-xl">
+        <div className="absolute bottom-full mb-2 hidden group-hover:block w-40 bg-slate-800/50 border border-slate-600 border border-sky-500/30 rounded-lg p-2 text-xs z-50 shadow-xl">
           <p className="font-bold text-sky-300 font-bold">{pneu.numero_fogo}</p>
           <p className="text-white">{pneu.marca} - {pneu.medida}</p>
           <p className="text-white">Sulco: {pneu.sulco_atual || "—"} mm</p>
@@ -240,7 +240,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
       {/* Modal de Aplicação de Pneu */}
       {posicaoVazia && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="bg-slate-900 border border-sky-500/30 rounded-2xl shadow-2xl w-full max-w-md p-6">
             <h2 className="text-lg font-bold text-slate-100 mb-4">Aplicar Pneu na Posição {posicaoVazia}</h2>
             
             <div className="grid gap-4">
@@ -249,7 +249,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
                 <select 
                   value={pneuEstoqueSelecionado} 
                   onChange={(e) => setPneuEstoqueSelecionado(e.target.value)} 
-                  className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-sky-300 px-2"
+                  className="h-9 bg-slate-950 border border-sky-500/30 rounded-md text-sm text-sky-300 px-2"
                 >
                   <option value="">Selecione...</option>
                   {pneusEstoque.filter((p: any) => p.status === "Estoque" || p.status === "Conserto").map((p: any) => (
@@ -272,7 +272,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
       {/* Modal de Movimentação */}
       {movimentacaoOpen && pneuSelecionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="bg-slate-900 border border-sky-500/30 rounded-2xl shadow-2xl w-full max-w-md p-6">
             <h2 className="text-lg font-bold text-slate-100 mb-4">Movimentar Pneu: {pneuSelecionado.numero_fogo}</h2>
             
             <div className="grid gap-4">
@@ -281,7 +281,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
                 <select 
                   value={tipoMovimentacao} 
                   onChange={(e) => setTipoMovimentacao(e.target.value)} 
-                  className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-sky-300 px-2"
+                  className="h-9 bg-slate-950 border border-sky-500/30 rounded-md text-sm text-sky-300 px-2"
                 >
                   <option value="RODIZIO">Rodízio (Trocar de Posição)</option>
                   <option value="RECAPAGEM">Enviar para Recapagem</option>
@@ -309,7 +309,7 @@ export function ChassiMapa({ pneus, veiculoId, tipo, templateChassiId }: ChassiM
                   <select 
                     value={motivoDescarte} 
                     onChange={(e) => setMotivoDescarte(e.target.value)} 
-                    className="h-9 bg-slate-950 border border-slate-700 rounded-md text-sm text-sky-300 px-2"
+                    className="h-9 bg-slate-950 border border-sky-500/30 rounded-md text-sm text-sky-300 px-2"
                   >
                     <option value="">Selecione o motivo...</option>
                     {motivosDescarte.map((m: any) => (
