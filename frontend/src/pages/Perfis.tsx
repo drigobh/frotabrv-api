@@ -38,6 +38,7 @@ export default function Perfis() {
       return apiPost("/perfis", payload);
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["me"] });
       toast.success(editando ? "Perfil atualizado!" : "Perfil criado!");
       setModalOpen(false);
       qc.invalidateQueries({ queryKey: ["perfis"] });

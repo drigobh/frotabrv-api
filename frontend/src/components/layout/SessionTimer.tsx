@@ -9,6 +9,13 @@ export function SessionTimer({ timeoutMinutos, onTimeout }: { timeoutMinutos: nu
   const [mostrarAviso, setMostrarAviso] = useState(false);
   const [avisoUsado, setAvisoUsado] = useState(false);
 
+  // Sincroniza o estado quando o timeoutMinutos mudar (ex: ao carregar o perfil)
+  useEffect(() => {
+    if (!desativado) {
+      setSegundosRestantes(timeoutMinutos * 60);
+    }
+  }, [timeoutMinutos, desativado]);
+
   useEffect(() => {
     if (desativado) return;
     if (segundosRestantes <= 0) {
