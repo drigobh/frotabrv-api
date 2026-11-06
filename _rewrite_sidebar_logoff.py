@@ -1,11 +1,8 @@
 import os
 
-# ==========================================
-# 1. REESCREVER O SIDEBAR COMPLETO (LIMPO)
-# ==========================================
-path_sidebar = os.path.join(os.getcwd(), "frontend", "src", "components", "layout", "Sidebar.tsx")
+path = os.path.join(os.getcwd(), "frontend", "src", "components", "layout", "Sidebar.tsx")
 
-conteudo_sidebar = r'''import { useState, useEffect } from "react";
+conteudo = r'''import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   FileBarChart, CalendarClock, LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
@@ -100,10 +97,10 @@ export function Sidebar() {
     else setExpandedMenu(id);
   };
 
-  const handleLogout = () => {
+  const handleLogoff = () => {
     localStorage.clear();
     sessionStorage.clear();
-    window.location.href = "/login";
+    window.location.replace("/login");
   };
 
   return (
@@ -209,9 +206,13 @@ export function Sidebar() {
             </div>
           )}
         </Link>
-        <Button variant="ghost" className={cn("w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 h-9", isCollapsed ? "justify-center px-0" : "justify-start px-3")} onClick={handleLogout}>
+        <Button 
+          variant="ghost" 
+          className={cn("w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 h-9", isCollapsed ? "justify-center px-0" : "justify-start px-3")} 
+          onClick={handleLogoff}
+        >
           <LogOut className={cn("size-4", !isCollapsed && "mr-2")} /> 
-          {!isCollapsed && "Sair"}
+          {!isCollapsed && "Encerrar Sessão"}
         </Button>
       </div>
     </aside>
@@ -219,26 +220,7 @@ export function Sidebar() {
 }
 '''
 
-with open(path_sidebar, "w", encoding="utf-8") as f:
-    f.write(conteudo_sidebar)
+with open(path, "w", encoding="utf-8") as f:
+    f.write(conteudo)
 
-print("✅ Sidebar.tsx reescrito com sucesso (logout via window.location).")
-
-# ==========================================
-# 2. CORRIGIR O LOGIN (SALVAR TOKEN)
-# ==========================================
-path_login = os.path.join(os.getcwd(), "frontend", "src", "pages", "Login.tsx")
-
-with open(path_login, "r", encoding="utf-8") as f:
-    c = f.read()
-
-if "localStorage.setItem" not in c:
-    c = c.replace(
-        'onSuccess: (data: any) => {',
-        'onSuccess: (data: any) => {\n      if (data.token) localStorage.setItem("token", data.token);'
-    )
-    with open(path_login, "w", encoding="utf-8") as f:
-        f.write(c)
-    print("✅ Login.tsx: Token agora é salvo no localStorage.")
-
-print("✅ Tudo pronto! Faça o git push.")
+print("✅ Sidebar.tsx reescrito com sucesso! Menu e botão de Logoff funcionando.")

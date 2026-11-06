@@ -78,20 +78,6 @@ const MENUS = [
 ];
 
 export function Sidebar() {
-  const handleLogoff = async () => {
-    try {
-      // Limpa o cache do React Query (se estiver acessível)
-      if (window.__REACT_QUERY_CLIENT__) {
-        window.__REACT_QUERY_CLIENT__.clear();
-      }
-    } catch (e) {}
-    // Limpa todo o armazenamento local e de sessão
-    localStorage.clear();
-    sessionStorage.clear();
-    // Redireciona para a tela de login, forçando recarregamento completo
-    window.location.replace("/login");
-  };
-
   const { pathname } = useLocation();
   const { data: me } = useMe();
   const { podeVer } = usePermissions();
@@ -107,10 +93,10 @@ export function Sidebar() {
     else setExpandedMenu(id);
   };
 
-  const handleLogout = () => {
+  const handleLogoff = () => {
     localStorage.clear();
     sessionStorage.clear();
-    window.location.href = "/login";
+    window.location.replace("/login");
   };
 
   return (
@@ -125,7 +111,105 @@ export function Sidebar() {
             </div>
           </div>
         )}
-        
+        <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className="text-slate-400 hover:text-slate-100 hover:bg-slate-800 shrink-0">
+          {isCollapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
+        </Button>
+      </div>
+
+      <div className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
+        {MENUS.filter(menu => {
+            if (menu.isDashboard) return true;
+            const modulo = {
+              "administracao": "Administração",
+              "cadastros": "Cadastros",
+              "frota": "Frota",
+              "manutencao": "Manutenção",
+              "financeiro": "Financeiro",
+              "gestao": "Relatórios",
+              "relatorios-gerais": "Relatórios",
+            }[menu.id];
+            return modulo ? podeVer(modulo) : true;
+          }).map((menu) => {
+          if (menu.isDashboard) {
+            const isActive = pathname === menu.path;
+            return (
+              <div key={menu.id} className="px-3 mb-2">
+                <Link to={menu.path!} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors group", isActive ? "bg-sky-500/10 text-sky-400 font-medium" : "text-slate-400 hover:bg-slate-900 hover:text-slate-200", isCollapsed && "justify-center px-0")} title={isCollapsed ? menu.label : undefined}>
+                  <menu.icon className={cn("size-5", isActive ? "text-sky-400" : "text-slate-500 group-hover:text-slate-300")} />
+                  {!isCollapsed && <span>{menu.label}</span>}
+                </Link>
+              </div>
+            );
+          }
+
+          const isExpanded = expandedMenu === menu.id;
+          const hasActiveChild = menu.items.some(item => pathname === item.path);
+
+          return (
+            <div key={menu.id} className="relative px-3 mb-1 group">
+              <button onClick={() => !isCollapsed && toggleMenu(menu.id)} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors", (isExpanded || hasActiveChild) ? "text-slate-200 font-medium" : "text-slate-400 hover:bg-slate-900 hover:text-slate-200", isCollapsed && "justify-center px-0")} title={isCollapsed ? menu.label : undefined}>
+                <menu.icon className={cn("size-5 shrink-0", (isExpanded || hasActiveChild) ? "text-sky-400" : "text-slate-500")} />
+                {!isCollapsed && (
+                  <>
+                    <span className="flex-1 text-left">{menu.label}</span>
+                    {isExpanded ? <ChevronDown className="size-4 text-slate-500" /> : <ChevronRight className="size-4 text-slate-500" />}
+                  </>
+                )}
+              </button>
+
+              {!isCollapsed && isExpanded && (
+                <div className="mt-1 mb-2 space-y-1 pl-9 pr-1">
+                  {menu.items.map((item) => (
+                    <Link key={item.path} to={item.path} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-md text-xs transition-colors", pathname === item.path ? "bg-sky-500/10 text-sky-400 font-medium" : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50")}>
+                      <item.icon className="size-3.5 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {isCollapsed && (
+                <div className="absolute left-full top-0 ml-2 w-56 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-auto">
+                  <div className="p-2">
+                    <p className="text-[10px] font-bold uppercase text-sky-400 px-2 py-1 mb-1 border-b border-slate-800 pb-2">{menu.label}</p>
+                    {menu.items.map((item) => (
+                      <Link key={item.path} to={item.path} className={cn("flex items-center gap-2 px-2 py-2 rounded-md text-xs transition-colors", pathname === item.path ? "bg-sky-500/10 text-sky-400 font-medium" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800")}>
+                        <item.icon className="size-3.5 shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="p-3 border-t border-slate-800 shrink-0">
+        <Link to="/perfil" className={cn("flex items-center gap-3 px-2 py-2 rounded-lg bg-slate-900/50 mb-2 transition-colors hover:bg-slate-800", isCollapsed && "justify-center")}>
+          <div className="size-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0 overflow-hidden">
+            {me?.foto_url ? (
+              <img src={me.foto_url} alt={me.nome} className="size-full object-cover" />
+            ) : (
+              me?.nome?.charAt(0).toUpperCase() || "U"
+            )}
+          </div>
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-slate-200 truncate">{me?.nome || "Usuário"}</p>
+              <p className="text-[10px] text-slate-500 truncate">{me?.perfil_nome || me?.perfil || "Operador"}</p>
+            </div>
+          )}
+        </Link>
+        <Button 
+          variant="ghost" 
+          className={cn("w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 h-9", isCollapsed ? "justify-center px-0" : "justify-start px-3")} 
+          onClick={handleLogoff}
+        >
+          <LogOut className={cn("size-4", !isCollapsed && "mr-2")} /> 
+          {!isCollapsed && "Encerrar Sessão"}
+        </Button>
       </div>
     </aside>
   );
