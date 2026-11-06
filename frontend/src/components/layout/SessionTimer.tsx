@@ -3,10 +3,10 @@ import { Clock, TimerOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function SessionTimer({ timeoutMinutos, onTimeout }: { timeoutMinutos: number, onTimeout: () => void }) {
-  // Se timeoutMinutos for 0 ou menor, o timer está desativado
   const desativado = timeoutMinutos <= 0;
   const [segundosRestantes, setSegundosRestantes] = useState(desativado ? 0 : timeoutMinutos * 60);
   const [mostrarAviso, setMostrarAviso] = useState(false);
+  const [avisoUsado, setAvisoUsado] = useState(false);
 
   useEffect(() => {
     if (desativado) return;
@@ -15,18 +15,18 @@ export function SessionTimer({ timeoutMinutos, onTimeout }: { timeoutMinutos: nu
       return;
     }
 
-    // Se faltar 30 segundos, mostra o aviso
-    if (segundosRestantes === 30) {
+    // Mostra o aviso apenas uma vez, quando faltar 30 segundos
+    if (segundosRestantes === 30 && !avisoUsado) {
       setMostrarAviso(true);
+      setAvisoUsado(true);
     }
 
     const interval = setInterval(() => {
       setSegundosRestantes((s) => s - 1);
     }, 1000);
     return () => clearInterval(interval);
-  }, [segundosRestantes, onTimeout, desativado]);
+  }, [segundosRestantes, onTimeout, desativado, avisoUsado]);
 
-  // Se desativado, mostra um ícone roxo de relógio cortado
   if (desativado) {
     return (
       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-500/10 text-purple-400" title="Timer de sessão desativado">
@@ -45,9 +45,9 @@ export function SessionTimer({ timeoutMinutos, onTimeout }: { timeoutMinutos: nu
         <span className="font-mono">{String(minutos).padStart(2, '0')}:{String(segundos).padStart(2, '0')}</span>
       </div>
 
-      {/* Modal de Aviso de 30 Segundos */}
+      {/* Modal de Aviso de 30 Segundos - Renderizado via Portal ou Fixed */}
       {mostrarAviso && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
             <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mb-4">
               <TimerOff className="size-6 text-amber-400" />
@@ -55,12 +55,11 @@ export function SessionTimer({ timeoutMinutos, onTimeout }: { timeoutMinutos: nu
             <h2 className="text-lg font-bold text-slate-100 mb-2">Sessão Expirando</h2>
             <p className="text-sm text-slate-400 mb-6">
               Você será desconectado automaticamente em <strong className="text-amber-400">30 segundos</strong>.
-              Deseja continuar conectado?
             </p>
             <div className="flex justify-center gap-3">
               <Button 
                 onClick={() => {
-                  // Renova o timer
+                  // Reinicia o timer
                   setSegundosRestantes(timeoutMinutos * 60);
                   setMostrarAviso(false);
                 }}

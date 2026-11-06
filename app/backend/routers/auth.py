@@ -38,8 +38,7 @@ async def me(_u: dict = Depends(require("read"))):
     if not usuario:
         raise HTTPException(404, "Usuário não encontrado.")
     
-    # Busca o timeout do perfil
-    timeout = 30  # valor padrão
+    timeout = 30
     if usuario.get("perfil_id"):
         perfil = await db.perfis.find_one({"id": usuario["perfil_id"]}, {"_id": 0})
         if perfil:

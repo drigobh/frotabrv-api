@@ -153,7 +153,7 @@ export default function Perfis() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-1.5">
                       <Label className="text-xs text-slate-400">Timeout de Sessão (minutos)</Label>
-                      <Input type="number" value={form.timeout_minutos || 30} onChange={(e) => setForm((s: any) => ({ ...s, timeout_minutos: Number(e.target.value) }))} />
+                      <Input type="number" value={form.timeout_minutos === 0 ? 0 : (form.timeout_minutos || 30)} onChange={(e) => setForm((s: any) => ({ ...s, timeout_minutos: Number(e.target.value) }))} />
                     </div>
                     <div className="grid gap-1.5">
                       <Label className="text-xs text-slate-400">Tentativas de Login Permitidas</Label>
