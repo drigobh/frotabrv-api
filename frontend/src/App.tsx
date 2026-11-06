@@ -12,6 +12,7 @@ import VeiculoDetalhe from "@/pages/VeiculoDetalhe";
 import Manutencoes from "@/pages/Manutencoes";
 import CentralAlertas from "@/pages/CentralAlertas";
 import RelatoriosPneus from "@/pages/RelatoriosPneus";
+import LeitorQRCode from "@/pages/LeitorQRCode";
 import BuscaVeiculo360 from "@/pages/BuscaVeiculo360";
 import Perfil from "@/pages/Perfil";
 import Usuarios from "@/pages/Usuarios";
@@ -77,6 +78,7 @@ export default function App() {
               <Route path="/cadastros/veiculos/:id" element={<VeiculoDetalhe />} />
               <Route path="/admin/manutencoes" element={<Manutencoes />} />
               <Route path="/alertas" element={<CentralAlertas />} />
+              <Route path="/operacao/pneus/scanner" element={<LeitorQRCode />} />
               <Route path="/operacao/relatorios-pneus" element={<RelatoriosPneus />} />
               <Route path="/gestao/veiculo-360" element={<BuscaVeiculo360 />} />
               <Route path="/perfil" element={<Perfil />} />
@@ -112,6 +114,7 @@ export default function App() {
             </Route>
 
             <Route element={<ProtectedRoute modulo="Relatórios" />}>
+              <Route path="/operacao/pneus/scanner" element={<LeitorQRCode />} />
               <Route path="/operacao/relatorios-pneus" element={<RelatoriosPneus />} />
               <Route path="/gestao/veiculo-360" element={<BuscaVeiculo360 />} />
             </Route>
