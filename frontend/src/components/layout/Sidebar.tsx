@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   FileBarChart, CalendarClock, LayoutDashboard, Fuel, Wrench, Truck, Users, Car, 
   Settings, Package, Disc, Activity, BarChart3, 
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
-  Shield, Bell, UserCog, FileBox, Tag, Building, FolderOpen, Layers, BellRing
-, Eye } from "lucide-react";
+  Shield, Bell, UserCog, FileBox, Tag, Building, FolderOpen, Layers, BellRing, Eye
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -72,14 +72,13 @@ const MENUS = [
     id: "relatorios-gerais", label: "Relatórios Gerais", icon: FileText,
     items: [
       { label: "Relatórios Pneus", icon: BarChart3, path: "/operacao/relatorios-pneus" },
-      { label: "Ficha 360º", icon: Eye, path: "/gestao/veiculo-360" }, // Supondo que Eye foi importado ou será
+      { label: "Ficha 360º", icon: Eye, path: "/gestao/veiculo-360" },
     ]
   },
 ];
 
 export function Sidebar() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const { data: me } = useMe();
   const { podeVer } = usePermissions();
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem("sidebar_collapsed") === "true");
@@ -97,7 +96,7 @@ export function Sidebar() {
   const handleLogout = () => {
     localStorage.clear();
     sessionStorage.clear();
-    navigate("/login");
+    window.location.href = "/login";
   };
 
   return (
@@ -112,7 +111,7 @@ export function Sidebar() {
             </div>
           </div>
         )}
-        <Button variant="ghost" size="icon" onClick={handleLogout} className="text-slate-400 hover:text-slate-100 hover:bg-slate-800 shrink-0">
+        <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(!isCollapsed)} className="text-slate-400 hover:text-slate-100 hover:bg-slate-800 shrink-0">
           {isCollapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
         </Button>
       </div>
@@ -148,7 +147,7 @@ export function Sidebar() {
 
           return (
             <div key={menu.id} className="relative px-3 mb-1 group">
-              <button onClick={handleLogout} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors", (isExpanded || hasActiveChild) ? "text-slate-200 font-medium" : "text-slate-400 hover:bg-slate-900 hover:text-slate-200", isCollapsed && "justify-center px-0")} title={isCollapsed ? menu.label : undefined}>
+              <button onClick={() => !isCollapsed && toggleMenu(menu.id)} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors", (isExpanded || hasActiveChild) ? "text-slate-200 font-medium" : "text-slate-400 hover:bg-slate-900 hover:text-slate-200", isCollapsed && "justify-center px-0")} title={isCollapsed ? menu.label : undefined}>
                 <menu.icon className={cn("size-5 shrink-0", (isExpanded || hasActiveChild) ? "text-sky-400" : "text-slate-500")} />
                 {!isCollapsed && (
                   <>
