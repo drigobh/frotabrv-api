@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileText, Upload, Building2, CheckCircle2, ShieldAlert, DollarSign } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { brl } from "@/lib/format";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api";
 
@@ -162,7 +162,8 @@ export default function VisualizadorXML() {
           status: "Pendente",
           fornecedor_id: fornecedorExistente.id,
           documento_vinculo: dados.chave,
-          origem: "Importado XML"
+          origem: "Importado XML",
+          xml_original: xmlString
         });
       } else {
         await apiPost("/financeiro/contas", {
@@ -173,7 +174,8 @@ export default function VisualizadorXML() {
           vencimento: new Date().toISOString().split("T")[0],
           status: "Pendente",
           documento_vinculo: dados.chave,
-          origem: "Importado XML"
+          origem: "Importado XML",
+          xml_original: xmlString
         });
       }
 
@@ -317,6 +319,24 @@ export default function VisualizadorXML() {
       setTimeout(() => { win.print(); }, 500);
     }, 300);
   };
+
+
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const chaveUrl = searchParams.get("key");
+    if (chaveUrl && !dados) {
+      apiGet<any>(`/financeiro/xml/${chaveUrl}`)
+        .then((res) => {
+          if (res && res.xml) {
+            processarXML(res.xml);
+            toast.success("XML carregado da conta!");
+          }
+        })
+        .catch((err) => {
+          toast.error("Não foi possível carregar o XML: " + (err.message || "Erro"));
+        });
+    }
+  }, [searchParams]);
 
   return (
     <div>
