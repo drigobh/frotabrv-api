@@ -31,8 +31,8 @@ export default function LeitorQRCode() {
       
       // Se o pneu tem veículo, busca os dados do veículo e o último abastecimento
       if (res.veiculo_id) {
-        const v = await apiGet<any>(`/veiculos/${res.veiculo_id}`);
-        setVeiculo(v);
+        const v = await apiGet<any>(`/veiculos/detalhes/${res.veiculo_id}`);
+        setVeiculo(v.veiculo || v);
         setOdometro(String(v.hodometro_km || ""));
         
         // Verifica o último KM do abastecimento
