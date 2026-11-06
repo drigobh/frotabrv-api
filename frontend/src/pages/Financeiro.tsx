@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, X, Check, CheckCircle2 } from "lucide-react";
+import { Plus, Search, X, Check, CheckCircle2, Truck, Building2, FileText } from "lucide-react";
 import { apiGet, apiPost, apiPut, apiPatch } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,8 @@ import { brl } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const CATEGORIAS = ["Combustível", "Manutenção", "Pneus", "Pedágio", "Seguro", "Frete", "Multa", "Outros"];
+// Categorias padrão (serão substituídas pelas do banco depois)
+const CATEGORIAS_FALLBACK = ["Combustível", "Manutenção", "Pneus", "Pedágio", "Seguro", "Frete", "Multa", "Outros"];
 
 export default function Financeiro() {
   const qc = useQueryClient();
@@ -18,13 +19,27 @@ export default function Financeiro() {
   const [busca, setBusca] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState<any>(null);
+  const [buscaFornecedor, setBuscaFornecedor] = useState("");
+  const [mostrarSugestoesFornecedor, setMostrarSugestoesFornecedor] = useState(false);
+  
   const [form, setForm] = useState<any>({
-    tipo: "Pagar", descricao: "", categoria: "Outros", valor: "", vencimento: "", status: "Pendente", vinculo: "", observacoes: ""
+    tipo: "Pagar", descricao: "", categoria: "Outros", valor: "", vencimento: "", status: "Pendente", 
+    fornecedor_id: "", veiculo_id: "", documento_vinculo: "", observacoes: ""
   });
 
-  const { data: contas = [], isLoading } = useQuery({ queryKey: ["contas", abaAtiva], queryFn: () => apiGet<any[]>(`/financeiro/contas${abaAtiva !== "Todos" ? `?tipo=${abaAtiva}` : ""}`) });
-  const { data: resumo = { a_pagar: 0, a_receber: 0, vencido: 0, total_pago: 0, saldo: 0 } } = useQuery({ queryKey: ["resumo-financeiro"], queryFn: () => apiGet<any>("/financeiro/resumo") });
+  // Queries
+  const { data: contas = [], isLoading } = useQuery({ 
+    queryKey: ["contas", abaAtiva], 
+    queryFn: () => apiGet<any[]>(`/financeiro/contas${abaAtiva !== "Todos" ? `?tipo=${abaAtiva}` : ""}`) 
+  });
+  const { data: resumo = { a_pagar: 0, a_receber: 0, vencido: 0, total_pago: 0, saldo: 0 } } = useQuery({ 
+    queryKey: ["resumo-financeiro"], 
+    queryFn: () => apiGet<any>("/financeiro/resumo") 
+  });
+  const { data: fornecedores = [] } = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
+  const { data: veiculos = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
 
+  // Mutations
   const salvar = useMutation({
     mutationFn: (payload: any) => editando ? apiPut(`/financeiro/contas/${editando.id}`, payload) : apiPost("/financeiro/contas", payload),
     onSuccess: () => {
@@ -46,20 +61,30 @@ export default function Financeiro() {
 
   const abrirNovo = () => {
     setEditando(null);
-    setForm({ tipo: "Pagar", descricao: "", categoria: "Outros", valor: "", vencimento: "", status: "Pendente", vinculo: "", observacoes: "" });
+    setForm({ tipo: "Pagar", descricao: "", categoria: "Outros", valor: "", vencimento: "", status: "Pendente", fornecedor_id: "", veiculo_id: "", documento_vinculo: "", observacoes: "" });
+    setBuscaFornecedor("");
     setModalOpen(true);
   };
 
   const abrirEdicao = (c: any) => {
     setEditando(c);
     setForm({ ...c, valor: String(c.valor) });
+    setBuscaFornecedor(fornecedores.find((f: any) => f.id === c.fornecedor_id)?.nome || "");
     setModalOpen(true);
   };
 
   const filtrados = contas.filter((c: any) =>
     (c.descricao || "").toLowerCase().includes(busca.toLowerCase()) ||
-    (c.vinculo || "").toLowerCase().includes(busca.toLowerCase())
+    (c.documento_vinculo || "").toLowerCase().includes(busca.toLowerCase())
   );
+
+  const fornecedoresFiltrados = fornecedores.filter((f: any) =>
+    (f.nome || "").toLowerCase().includes(buscaFornecedor.toLowerCase()) ||
+    (f.documento || "").toLowerCase().includes(buscaFornecedor.toLowerCase())
+  );
+
+  const getFornecedorNome = (id: string) => fornecedores.find((f: any) => f.id === id)?.nome || "—";
+  const getVeiculoPlaca = (id: string) => veiculos.find((v: any) => v.id === id)?.placa || "—";
 
   return (
     <div>
@@ -117,7 +142,7 @@ export default function Financeiro() {
       <div className="glass rounded-2xl overflow-hidden border border-slate-800">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-800/50">
-            <tr className="text-[11px] uppercase tracking-wider text-slate-500">
+            <tr className="text-[11px] uppercase tracking-wider text-slate-400">
               <th className="px-5 py-3 font-medium">Vencimento</th>
               <th className="px-3 py-3 font-medium">Descrição</th>
               <th className="px-3 py-3 font-medium">Categoria</th>
@@ -129,19 +154,23 @@ export default function Financeiro() {
           </thead>
           <tbody className="divide-y divide-slate-800">
             {isLoading ? (
-              <tr><td colSpan={7} className="p-8 text-center text-slate-500">Carregando...</td></tr>
+              <tr><td colSpan={7} className="p-8 text-center text-slate-400">Carregando...</td></tr>
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={7} className="p-8 text-center text-slate-500">Nenhuma conta encontrada.</td></tr>
+              <tr><td colSpan={7} className="p-8 text-center text-slate-400">Nenhuma conta encontrada.</td></tr>
             ) : (
               filtrados.map((c: any) => (
                 <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
                   <td className="px-5 py-3 font-mono text-slate-300">{c.vencimento ? c.vencimento.split("-").reverse().join("/") : "—"}</td>
                   <td className="px-3 py-3">
                     <p className="text-slate-200">{c.descricao}</p>
-                    <p className="text-xs text-slate-500">{c.observacoes}</p>
+                    <p className="text-xs text-slate-400">{c.observacoes}</p>
                   </td>
-                  <td className="px-3 py-3 text-slate-400">{c.categoria}</td>
-                  <td className="px-3 py-3 text-slate-400 font-mono text-xs">{c.vinculo || "—"}</td>
+                  <td className="px-3 py-3 text-slate-300">{c.categoria}</td>
+                  <td className="px-3 py-3 text-slate-300 font-mono text-xs">
+                    {c.fornecedor_id && <div className="flex items-center gap-1"><Building2 className="size-3" /> {getFornecedorNome(c.fornecedor_id)}</div>}
+                    {c.veiculo_id && <div className="flex items-center gap-1"><Truck className="size-3" /> {getVeiculoPlaca(c.veiculo_id)}</div>}
+                    {c.documento_vinculo && <div className="flex items-center gap-1"><FileText className="size-3" /> {c.documento_vinculo}</div>}
+                  </td>
                   <td className={cn("px-3 py-3 font-mono font-bold", c.tipo === "Pagar" ? "text-rose-400" : "text-emerald-400")}>
                     {c.tipo === "Pagar" ? "-" : "+"}{brl(c.valor)}
                   </td>
@@ -189,28 +218,74 @@ export default function Financeiro() {
                   </label>
                 </div>
               </div>
+              
               <div className="grid gap-1.5 md:col-span-2">
                 <Label className="text-xs text-slate-400">Descrição *</Label>
                 <Input value={form.descricao} onChange={(e) => setForm((s: any) => ({ ...s, descricao: e.target.value }))} placeholder="Ex: Frete Campinas x SP" />
               </div>
+
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">Categoria</Label>
                 <select value={form.categoria} onChange={(e) => setForm((s: any) => ({ ...s, categoria: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
-                  {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {CATEGORIAS_FALLBACK.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">Valor (R$) *</Label>
                 <Input type="number" value={form.valor} onChange={(e) => setForm((s: any) => ({ ...s, valor: e.target.value }))} placeholder="0,00" />
               </div>
+              
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">Vencimento *</Label>
                 <Input type="date" value={form.vencimento} onChange={(e) => setForm((s: any) => ({ ...s, vencimento: e.target.value }))} />
               </div>
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-slate-400">Vínculo (Placa, OS, Contrato)</Label>
-                <Input value={form.vinculo} onChange={(e) => setForm((s: any) => ({ ...s, vinculo: e.target.value }))} placeholder="Ex: QPN5139 / OS-1042" />
+
+              {/* Busca de Fornecedor */}
+              <div className="grid gap-1.5 relative">
+                <Label className="text-xs text-slate-400">Fornecedor</Label>
+                <Input 
+                  placeholder="Buscar fornecedor por nome ou CNPJ..." 
+                  value={buscaFornecedor} 
+                  onChange={(e) => { setBuscaFornecedor(e.target.value); setMostrarSugestoesFornecedor(true); }}
+                  onFocus={() => setMostrarSugestoesFornecedor(true)}
+                  onBlur={() => setTimeout(() => setMostrarSugestoesFornecedor(false), 200)}
+                />
+                {form.fornecedor_id && (
+                  <p className="text-[10px] text-emerald-400 mt-1">
+                    Selecionado: {getFornecedorNome(form.fornecedor_id)}
+                  </p>
+                )}
+                {mostrarSugestoesFornecedor && buscaFornecedor.length > 0 && (
+                  <div className="absolute top-full mt-1 left-0 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-2xl max-h-48 overflow-y-auto z-50">
+                    {fornecedoresFiltrados.map((f: any) => (
+                      <button key={f.id} type="button" className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700" onClick={() => { setForm((s: any) => ({ ...s, fornecedor_id: f.id })); setBuscaFornecedor(f.nome); setMostrarSugestoesFornecedor(false); }}>
+                        {f.nome} {f.documento && <span className="text-xs text-slate-400">({f.documento})</span>}
+                      </button>
+                    ))}
+                    {fornecedoresFiltrados.length === 0 && (
+                      <div className="p-3 text-xs text-slate-400">Nenhum fornecedor encontrado.</div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {/* Vínculo Dinâmico */}
+              {form.tipo === "Pagar" && (
+                <div className="grid gap-1.5 md:col-span-2">
+                  <Label className="text-xs text-slate-400">Veículo Vinculado</Label>
+                  <select value={form.veiculo_id} onChange={(e) => setForm((s: any) => ({ ...s, veiculo_id: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+                    <option value="">Nenhum (Despesa Geral)</option>
+                    {veiculos.map((v: any) => <option key={v.id} value={v.id}>{v.placa} - {v.modelo}</option>)}
+                  </select>
+                </div>
+              )}
+              {form.tipo === "Receber" && (
+                <div className="grid gap-1.5 md:col-span-2">
+                  <Label className="text-xs text-slate-400">Documento de Vínculo (CT-e, XML, NF)</Label>
+                  <Input value={form.documento_vinculo} onChange={(e) => setForm((s: any) => ({ ...s, documento_vinculo: e.target.value }))} placeholder="Ex: CT-e 12345 / NF 67890" />
+                </div>
+              )}
+
               <div className="grid gap-1.5 md:col-span-2">
                 <Label className="text-xs text-slate-400">Observações</Label>
                 <Input value={form.observacoes} onChange={(e) => setForm((s: any) => ({ ...s, observacoes: e.target.value }))} />

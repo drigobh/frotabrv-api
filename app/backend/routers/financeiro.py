@@ -17,13 +17,15 @@ async def listar_contas(tipo: str = None, _u: dict = Depends(require("read"))):
 async def criar_conta(body: dict, _u: dict = Depends(require("write"))):
     novo = {
         "id": str(uuid.uuid4()),
-        "tipo": body.get("tipo", "Pagar"), # Pagar ou Receber
+        "tipo": body.get("tipo", "Pagar"),
         "descricao": body.get("descricao", ""),
         "categoria": body.get("categoria", "Outros"),
         "valor": float(body.get("valor", 0)),
         "vencimento": body.get("vencimento"),
-        "status": body.get("status", "Pendente"), # Pendente, Pago, Atrasado
-        "vinculo": body.get("vinculo", ""),
+        "status": body.get("status", "Pendente"),
+        "fornecedor_id": body.get("fornecedor_id"),
+        "veiculo_id": body.get("veiculo_id"),
+        "documento_vinculo": body.get("documento_vinculo", ""),
         "observacoes": body.get("observacoes", ""),
         "created_at": datetime.now().isoformat()
     }
