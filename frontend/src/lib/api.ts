@@ -18,6 +18,19 @@ function getHeaders() {
   return headers;
 }
 
+// Interceptor para evitar chamadas sem token
+const originalFetch = window.fetch;
+window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
+  const url = typeof input === 'string' ? input : input.toString();
+  if (url.includes('/auth/me')) {
+    const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
+    if (!token) {
+      return Promise.reject(new Error("Sem token - ignorando /auth/me"));
+    }
+  }
+  return originalFetch.apply(this, [input, init]);
+};
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
