@@ -36,7 +36,7 @@ async def criar_conta(body: dict, _u: dict = Depends(require("write"))):
         "veiculo_id": body.get("veiculo_id"),
         "documento_vinculo": body.get("documento_vinculo", ""),
         "observacoes": body.get("observacoes", ""),
-        "created_at": datetime.now().isoformat()
+        "created_at": datetime.datetime.now().isoformat()
     }
     await db.contas.insert_one(novo)
     novo.pop("_id", None)
