@@ -125,8 +125,8 @@ export default function CadastrosFinanceiros() {
             <div className="space-y-4">
               <div className="grid gap-1.5"><Label>Nome do Banco *</Label><Input value={formBanco.nome} onChange={(e) => setFormBanco(s => ({ ...s, nome: e.target.value }))} /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-1.5"><Label>Agência</Label><Input value={formBanco.agencia} onChange={(e) => setFormBanco(s => ({ ...s, agencia: e.target.value }))} /></div>
-                <div className="grid gap-1.5"><Label>Conta</Label><Input value={formBanco.conta} onChange={(e) => setFormBanco(s => ({ ...s, conta: e.target.value }))} /></div>
+                <div className="grid gap-1.5"><Label>Número da Agência</Label><Input value={formBanco.agencia} onChange={(e) => setFormBanco(s => ({ ...s, agencia: e.target.value }))} /></div>
+                <div className="grid gap-1.5"><Label>Número da Conta</Label><Input value={formBanco.conta} onChange={(e) => setFormBanco(s => ({ ...s, conta: e.target.value }))} /></div>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
