@@ -115,6 +115,12 @@ export default function Perfis() {
                 <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400 font-medium">
                   {p.permissoes?.length || 0} permissões
                 </span>
+                <span className="px-2 py-0.5 rounded bg-sky-500/10 text-[10px] text-sky-400 font-medium">
+                  ⏱️ {p.timeout_minutos === 0 ? "Sem timer" : `${p.timeout_minutos} min`}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/10 text-[10px] text-amber-400 font-medium">
+                  🔒 {p.tentativas_login === "liberado" ? "Liberado" : `${p.tentativas_login} tent.`}
+                </span>
               </div>
             </div>
           ))
