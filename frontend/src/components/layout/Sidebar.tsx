@@ -207,9 +207,10 @@ export function Sidebar() {
         <Button variant="ghost" className={cn("w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 h-9", isCollapsed ? "justify-center px-0" : "justify-start px-3")} onClick={() => {
   localStorage.clear();
   sessionStorage.clear();
-  // Força o reload da página inteira, limpando o cache do React Query
-  window.location.replace("/login");
-}}>
+  // Força o reload completo da página
+  window.location.href = window.location.origin + "/login";
+  window.location.reload();
+}}}>
           <LogOut className={cn("size-4", !isCollapsed && "mr-2")} /> 
           {!isCollapsed && "Sair"}
         </Button>
