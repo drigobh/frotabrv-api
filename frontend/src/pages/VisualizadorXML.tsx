@@ -274,6 +274,7 @@ export default function VisualizadorXML() {
       const cnpjEmitente = dados.emitente.cnpj.replace(/\D/g, "");
       const valorReal = Number(dados.valorTotal) || 0;
 
+      // VERIFICA DUPLICIDADE
       const contasExistentes = await apiGet<any[]>("/financeiro/contas");
       const jaImportada = contasExistentes.find(c => c.documento_vinculo === dados.chave);
       if (jaImportada) {
@@ -319,60 +320,6 @@ export default function VisualizadorXML() {
       toast.success("Importado com sucesso!");
       qc.invalidateQueries({ queryKey: ["contas"] });
       qc.invalidateQueries({ queryKey: ["resumo-financeiro"] });
-      navigate("/financeiro");
-    } catch (e: any) {
-      toast.error("Erro ao importar: " + (e.message || "Verifique os dados"));
-    } finally {
-      setLoadingImport(false);
-    }
-  };
-          const fornCriado = await apiPost<any>("/fornecedores", novoForn);
-          fornecedorId = fornCriado.id;
-          toast.success("Fornecedor criado automaticamente via XML!");
-        }
-
-        // 3. Cria a Conta a Pagar
-        const contasExistentes = await apiGet<any[]>("/financeiro/contas");
-        const jaImportada = contasExistentes.find(c => c.documento_vinculo === dados.chave);
-        if (jaImportada) {
-          toast.error("Este XML já foi importado para o Financeiro!");
-          setLoadingImport(false);
-          return;
-        }
-
-        await apiPost("/financeiro/contas", {
-          tipo: "Pagar",
-          descricao: `NF-e ${dados.numero} - ${dados.emitente.nome}`,
-          categoria: "Peças e componentes",
-          valor: Number(dados.valorTotal) || 0,
-          vencimento: new Date().toISOString().split("T")[0], // TODO: Ler tag <dup><dVenc> // Idealmente puxar das duplicatas do XML
-          status: "Pendente",
-          fornecedor_id: fornecedorId,
-          documento_vinculo: dados.chave
-        });
-      } else {
-        // Contas a Receber (Destinatário é o cliente)
-        const contasExistentes = await apiGet<any[]>("/financeiro/contas");
-        const jaImportada = contasExistentes.find(c => c.documento_vinculo === dados.chave);
-        if (jaImportada) {
-          toast.error("Este XML já foi importado para o Financeiro!");
-          setLoadingImport(false);
-          return;
-        }
-
-        await apiPost("/financeiro/contas", {
-          tipo: "Receber",
-          descricao: `NF-e ${dados.numero} - ${dados.destinatario.nome}`,
-          categoria: "Frete",
-          valor: Number(dados.valorTotal) || 0,
-          vencimento: new Date().toISOString().split("T")[0], // TODO: Ler tag <dup><dVenc>
-          status: "Pendente",
-          documento_vinculo: dados.chave
-        });
-      }
-
-      toast.success("Importado para o Financeiro com sucesso!");
-      qc.invalidateQueries({ queryKey: ["contas"] });
       navigate("/financeiro");
     } catch (e: any) {
       toast.error("Erro ao importar: " + (e.message || "Verifique os dados"));
