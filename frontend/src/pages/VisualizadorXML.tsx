@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { FileText, Upload, Printer, Building2, User, Truck, CheckCircle2, ShieldAlert, DollarSign } from "lucide-react";
+import { useState } from "react";
+import { FileText, Upload, Building2, CheckCircle2, ShieldAlert, DollarSign } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,6 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api";
 
-// === PARSERS ===
 function parseXML(xmlString: string) {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlString, "text/xml");
@@ -63,8 +62,6 @@ function parseXML(xmlString: string) {
       itens.push({
         codigo: get("cProd", prod),
         descricao: get("xProd", prod),
-        ncm: get("NCM", prod),
-        cfop: get("CFOP", prod),
         unidade: get("uCom", prod),
         quantidade: parseFloat(get("qCom", prod)) || 0,
         valorUnit: parseFloat(get("vUnCom", prod)) || 0,
@@ -89,7 +86,6 @@ function parseXML(xmlString: string) {
         cnpj: get("CNPJ", dest) || get("CPF", dest),
         endereco: `${get("xLgr", dest?.getElementsByTagName("enderDest")[0])}, ${get("nro", dest?.getElementsByTagName("enderDest")[0])} - ${get("xBairro", dest?.getElementsByTagName("enderDest")[0])} - ${get("xMun", dest?.getElementsByTagName("enderDest")[0])}/${get("UF", dest?.getElementsByTagName("enderDest")[0])}`
       },
-      // Pega o vNF, se não tiver, tenta vProd
       valorTotal: parseFloat(get("vNF", icmsTot || total)) || parseFloat(get("vProd", icmsTot || total)) || 0,
       itens
     };
@@ -138,7 +134,6 @@ export default function VisualizadorXML() {
       const cnpjEmitente = dados.emitente.cnpj.replace(/\D/g, "");
       const valorReal = Number(dados.valorTotal) || 0;
 
-      // Verifica duplicidade
       const contasExistentes = await apiGet<any[]>("/financeiro/contas");
       const jaImportada = contasExistentes.find(c => c.documento_vinculo === dados.chave);
       if (jaImportada) {
