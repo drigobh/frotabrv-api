@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from lib.security import require
@@ -79,3 +80,9 @@ async def listar_usuarios(_u: dict = Depends(require("read"))):
     return usuarios
 
 
+
+@router.post("/logoff")
+async def logoff(_u: dict = Depends(require("read"))):
+    from datetime import datetime
+    await db.usuarios.update_one({"id": _u["id"]}, {"$set": {"ultimo_logoff": datetime.now().isoformat()}})
+    return {"status": "ok"}

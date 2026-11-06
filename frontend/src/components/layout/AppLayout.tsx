@@ -5,6 +5,9 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { Button } from "@/components/ui/button";
 import { useMe } from "@/hooks/useSession";
 import { Sidebar } from "./Sidebar";
+import { SessionTimer } from "./SessionTimer";
+import { useMe } from "@/hooks/useSession";
+import { realizarLogoff } from "@/lib/logoff";
 
 export default function AppLayout() {
   const { data: user, isPending, isError } = useMe();

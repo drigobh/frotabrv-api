@@ -16,6 +16,8 @@ async def criar_perfil(body: dict, _u: dict = Depends(require("write"))):
         "nome": body.get("nome"),
         "descricao": body.get("descricao", ""),
         "permissoes": body.get("permissoes", []),
+        "timeout_minutos": body.get("timeout_minutos", 30),
+        "tentativas_login": body.get("tentativas_login", 5),
     }
     await db.perfis.insert_one(novo)
     novo.pop("_id", None)

@@ -137,3 +137,8 @@ async def fix_datas_cadastro():
             {"$set": {"data_cadastro": datetime.now().isoformat()}}
         )
     return {"status": "ok", "corrigidos": len(usuarios)}
+
+@router.patch("/{id}/destravar")
+async def destravar_usuario(id: str, _u: dict = Depends(require("write"))):
+    await db.usuarios.update_one({"id": id}, {"$set": {"login_tentativas": 0}})
+    return {"status": "ok", "message": "Usuário destravado."}

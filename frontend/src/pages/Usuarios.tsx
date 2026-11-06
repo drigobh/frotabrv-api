@@ -28,6 +28,14 @@ export default function Usuarios() {
     onSuccess: () => { toast.success("Status alterado!"); qc.invalidateQueries({ queryKey: ["usuarios"] }); }
   });
 
+  const destravar = useMutation({
+    mutationFn: (id: string) => apiPatch(`/usuarios/${id}/destravar`, {}),
+    onSuccess: () => {
+      toast.success("Usuário destravado com sucesso!");
+      qc.invalidateQueries({ queryKey: ["usuarios"] });
+    }
+  });
+
   const salvar = useMutation({
     mutationFn: (payload: any) => editando ? apiPut(`/usuarios/${editando.id}`, payload) : apiPost("/usuarios", payload),
     onSuccess: () => {
@@ -179,6 +187,9 @@ export default function Usuarios() {
                   </td>
                   <td className="px-3 py-3 text-right flex justify-end gap-1">
                     <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(u)}><Pencil className="size-4 text-sky-400" /></Button>
+                    <Button size="icon-sm" variant="ghost" onClick={() => destravar.mutate(u.id)} title="Destravar Login">
+                      <ShieldAlert className="size-4 text-amber-400" />
+                    </Button>
                     <Button size="icon-sm" variant="ghost" onClick={() => toggleStatus.mutate({ id: u.id, ativo: !u.ativo })} className={u.ativo ? "text-amber-400" : "text-emerald-400"}>
                       {u.ativo ? <Power className="size-4" /> : <RotateCcw className="size-4" />}
                     </Button>

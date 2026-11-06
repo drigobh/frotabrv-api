@@ -140,7 +140,7 @@ export default function Perfis() {
                   <Input value={form.nome} onChange={(e) => setForm((s: any) => ({ ...s, nome: e.target.value }))} placeholder="Ex: Gestor de Frota" />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label className="text-xs text-slate-400">Descrição</Label>
+                  
                   <Input value={form.descricao} onChange={(e) => setForm((s: any) => ({ ...s, descricao: e.target.value }))} placeholder="Ex: Acesso total ao módulo de frotas" />
                 </div>
               </div>
