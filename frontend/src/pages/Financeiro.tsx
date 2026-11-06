@@ -221,6 +221,7 @@ export default function Financeiro() {
                 <th className="px-3 py-3 font-medium">Categoria</th>
                 <th className="px-3 py-3 font-medium">Vínculo</th>
                 <th className="px-3 py-3 font-medium">Valor</th>
+                <th className="px-3 py-3 font-medium">Origem</th>
                 <th className="px-3 py-3 font-medium">Status</th>
                 <th className="px-3 py-3 text-right font-medium">Ações</th>
               </tr>
@@ -245,7 +246,7 @@ export default function Financeiro() {
                       {c.documento_vinculo && <div className="flex items-center gap-1"><FileText className="size-3" /> {c.documento_vinculo}</div>}
                     </td>
                     <td className={cn("px-3 py-3 font-mono font-bold", c.tipo === "Pagar" ? "text-rose-400" : "text-emerald-400")}>
-                      {c.tipo === "Pagar" ? "-" : "+"}{brl(Number(c.valor || c.valor_total || 0))}
+                      {c.tipo === "Pagar" ? "-" : "+"}{brl(Number(c.valor || 0))}
                     </td>
                     <td className="px-3 py-3">
                       <span className={cn(

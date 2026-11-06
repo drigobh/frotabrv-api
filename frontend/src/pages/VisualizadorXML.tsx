@@ -268,30 +268,65 @@ export default function VisualizadorXML() {
 
 
   const executarImportacao = async () => {
-    if (loadingImport) return; // Trava de duplo clique
+    if (loadingImport) return;
     setLoadingImport(true);
     try {
       const cnpjEmitente = dados.emitente.cnpj.replace(/\D/g, "");
-      
+      const valorReal = Number(dados.valorTotal) || 0;
+
+      // VERIFICA DUPLICIDADE
+      const contasExistentes = await apiGet<any[]>("/financeiro/contas");
+      const jaImportada = contasExistentes.find(c => c.documento_vinculo === dados.chave);
+      if (jaImportada) {
+        toast.error("Este XML já foi importado para o Financeiro!");
+        setLoadingImport(false);
+        return;
+      }
+
       if (tipoConta === "Pagar") {
-        // 1. Verifica se o fornecedor existe
         const fornecedores = await apiGet<any[]>("/fornecedores");
         const fornecedorExistente = fornecedores.find(f => (f.documento || "").replace(/\D/g, "") === cnpjEmitente);
-        let fornecedorId = fornecedorExistente?.id;
+        
+        if (!fornecedorExistente) {
+          toast.error("Fornecedor não cadastrado! Vá em Cadastros > Fornecedores e cadastre o CNPJ " + dados.emitente.cnpj);
+          setLoadingImport(false);
+          return;
+        }
 
-        // 2. Se não existe, cria o fornecedor com os dados do XML
-        if (!fornecedorId) {
-          toast.info("Fornecedor não encontrado. Cadastrando automaticamente via XML...");
-          const novoForn = {
-            nome: dados.emitente.nome,
-            documento: dados.emitente.cnpj,
-            tipo_pessoa: "PJ",
-            endereco: dados.emitente.endereco,
-            tipo_fornecedor: "Outros", // Valor padrão
-            empresa_id: "", // Valor padrão
-            origem: "Importado XML",
-            ativo: true
-          };
+        await apiPost("/financeiro/contas", {
+          tipo: "Pagar",
+          descricao: `NF-e ${dados.numero} - ${dados.emitente.nome}`,
+          categoria: "Peças e componentes",
+          valor: valorReal,
+          vencimento: new Date().toISOString().split("T")[0],
+          status: "Pendente",
+          fornecedor_id: fornecedorExistente.id,
+          documento_vinculo: dados.chave,
+          origem: "Importado XML"
+        });
+      } else {
+        await apiPost("/financeiro/contas", {
+          tipo: "Receber",
+          descricao: `NF-e ${dados.numero} - ${dados.destinatario.nome}`,
+          categoria: "Frete",
+          valor: valorReal,
+          vencimento: new Date().toISOString().split("T")[0],
+          status: "Pendente",
+          documento_vinculo: dados.chave,
+          origem: "Importado XML"
+        });
+      }
+
+      toast.success("Importado com sucesso!");
+      qc.invalidateQueries({ queryKey: ["contas"] });
+      qc.invalidateQueries({ queryKey: ["resumo-financeiro"] });
+      navigate("/financeiro");
+    } catch (e: any) {
+      toast.error("Erro ao importar: " + (e.message || "Verifique os dados"));
+    } finally {
+      setLoadingImport(false);
+    }
+  };
           const fornCriado = await apiPost<any>("/fornecedores", novoForn);
           fornecedorId = fornCriado.id;
           toast.success("Fornecedor criado automaticamente via XML!");
