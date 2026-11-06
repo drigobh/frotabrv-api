@@ -276,10 +276,12 @@ export default function VisualizadorXML() {
       if (tipoConta === "Pagar") {
         // 1. Verifica se o fornecedor existe
         const fornecedores = await apiGet<any[]>("/fornecedores");
-        let fornecedorId = fornecedores.find(f => (f.documento || "").replace(/\D/g, "") === cnpjEmitente)?.id;
+        const fornecedorExistente = fornecedores.find(f => (f.documento || "").replace(/\D/g, "") === cnpjEmitente);
+        let fornecedorId = fornecedorExistente?.id;
 
         // 2. Se não existe, cria o fornecedor com os dados do XML
         if (!fornecedorId) {
+          toast.info("Fornecedor não encontrado. Cadastrando automaticamente via XML...");
           const novoForn = {
             nome: dados.emitente.nome,
             documento: dados.emitente.cnpj,
@@ -308,8 +310,8 @@ export default function VisualizadorXML() {
           tipo: "Pagar",
           descricao: `NF-e ${dados.numero} - ${dados.emitente.nome}`,
           categoria: "Peças e componentes",
-          valor: dados.valorTotal,
-          vencimento: new Date().toISOString().split("T")[0], // Idealmente puxar das duplicatas do XML
+          valor: Number(dados.valorTotal) || 0,
+          vencimento: new Date().toISOString().split("T")[0], // TODO: Ler tag <dup><dVenc> // Idealmente puxar das duplicatas do XML
           status: "Pendente",
           fornecedor_id: fornecedorId,
           documento_vinculo: dados.chave
@@ -328,8 +330,8 @@ export default function VisualizadorXML() {
           tipo: "Receber",
           descricao: `NF-e ${dados.numero} - ${dados.destinatario.nome}`,
           categoria: "Frete",
-          valor: dados.valorTotal,
-          vencimento: new Date().toISOString().split("T")[0],
+          valor: Number(dados.valorTotal) || 0,
+          vencimento: new Date().toISOString().split("T")[0], // TODO: Ler tag <dup><dVenc>
           status: "Pendente",
           documento_vinculo: dados.chave
         });

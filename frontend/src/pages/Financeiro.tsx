@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, X, Check, CheckCircle2, Truck, Building2, FileText, Calendar, Filter, FileSearch , Eye, Edit, Trash2, RotateCcw} from "lucide-react";
-import { apiGet, apiPost, apiPut, apiPatch } from "@/lib/api";
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +83,16 @@ export default function Financeiro() {
     }
   });
 
+  const excluir = useMutation({
+    mutationFn: (id: string) => apiDelete(`/financeiro/contas/${id}`),
+    onSuccess: () => {
+      toast.success("Conta excluída com sucesso!");
+      qc.invalidateQueries({ queryKey: ["contas"] });
+      qc.invalidateQueries({ queryKey: ["resumo-financeiro"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao excluir")
+  });
+
   const abrirNovo = () => {
     setEditando(null);
     setForm({ tipo: "Pagar", descricao: "", categoria: "Outros", valor: "", vencimento: "", status: "Pendente", fornecedor_id: "", veiculo_id: "", documento_vinculo: "", observacoes: "" });
@@ -147,19 +157,19 @@ export default function Financeiro() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="glass p-4 rounded-xl border border-rose-500/30">
           <p className="text-[11px] uppercase tracking-widest text-rose-400">A Pagar</p>
-          <p className="text-2xl font-bold text-rose-400 mt-1">{brl(resumo.a_pagar)}</p>
+          <p className="text-2xl font-bold text-rose-400 mt-1">{brl(Number(resumo?.a_pagar) || 0)}</p>
         </div>
         <div className="glass p-4 rounded-xl border border-emerald-500/30">
           <p className="text-[11px] uppercase tracking-widest text-emerald-400">A Receber</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1">{brl(resumo.a_receber)}</p>
+          <p className="text-2xl font-bold text-emerald-400 mt-1">{brl(Number(resumo?.a_receber) || 0)}</p>
         </div>
         <div className="glass p-4 rounded-xl border border-amber-500/30">
           <p className="text-[11px] uppercase tracking-widest text-amber-400">Saldo Projetado</p>
-          <p className={cn("text-2xl font-bold mt-1", resumo.saldo >= 0 ? "text-emerald-400" : "text-rose-400")}>{brl(resumo.saldo)}</p>
+          <p className={cn("text-2xl font-bold mt-1", resumo.saldo >= 0 ? "text-emerald-400" : "text-rose-400")}>{brl(Number(resumo?.saldo) || 0)}</p>
         </div>
         <div className="glass p-4 rounded-xl border border-slate-800">
           <p className="text-[11px] uppercase tracking-widest text-slate-400">Vencidas</p>
-          <p className="text-2xl font-bold text-slate-300 mt-1">{brl(resumo.vencido)}</p>
+          <p className="text-2xl font-bold text-slate-300 mt-1">{brl(Number(resumo?.vencido) || 0)}</p>
         </div>
       </div>
 
@@ -235,7 +245,7 @@ export default function Financeiro() {
                       {c.documento_vinculo && <div className="flex items-center gap-1"><FileText className="size-3" /> {c.documento_vinculo}</div>}
                     </td>
                     <td className={cn("px-3 py-3 font-mono font-bold", c.tipo === "Pagar" ? "text-rose-400" : "text-emerald-400")}>
-                      {c.tipo === "Pagar" ? "-" : "+"}{brl(Number(c.valor) || 0)}
+                      {c.tipo === "Pagar" ? "-" : "+"}{brl(Number(c.valor || c.valor_total || 0))}
                     </td>
                     <td className="px-3 py-3">
                       <span className={cn(
@@ -260,7 +270,7 @@ export default function Financeiro() {
                       <Button size="sm" variant="ghost" className="text-amber-400 hover:bg-amber-500/10 h-8 px-2" onClick={() => abrirEdicao(c)}>
                         <Edit className="size-4" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="text-rose-400 hover:bg-rose-500/10 h-8 px-2" onClick={() => { if(confirm("Excluir conta?")) { /* falta rota de delete */ } }}>
+                      <Button size="sm" variant="ghost" className="text-rose-400 hover:bg-rose-500/10 h-8 px-2" disabled={c.status === "Pago"} onClick={() => { if(confirm("Excluir esta conta permanentemente?")) { excluir.mutate(c.id); } }}>
                         <Trash2 className="size-4" />
                       </Button>
                     </td>
