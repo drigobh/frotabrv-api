@@ -330,6 +330,10 @@ export default function VisualizadorXML() {
           if (res && res.xml) {
             processarXML(res.xml);
             toast.success("XML carregado da conta!");
+            // Se veio ?print=true, dispara a impressão após um tempo
+            if (searchParams.get("print") === "true") {
+              setTimeout(() => { window.print(); }, 1500);
+            }
           }
         })
         .catch((err) => {
