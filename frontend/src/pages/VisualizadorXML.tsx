@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FileText, Upload, Building2, CheckCircle2, ShieldAlert, DollarSign } from "lucide-react";
+import { FileText, Upload, Building2, CheckCircle2, ShieldAlert, DollarSign , Printer } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -410,6 +410,9 @@ export default function VisualizadorXML() {
             <div className="flex gap-2">
               <Button onClick={() => setModalOpen(true)} className="bg-emerald-600 hover:bg-emerald-500">
                 <DollarSign className="size-4 mr-2" /> Importar para Financeiro
+              </Button>
+              <Button onClick={imprimir} className="bg-purple-600 hover:bg-purple-500 text-white">
+                <Printer className="size-4 mr-2" /> Imprimir DANFE
               </Button>
             </div>
           </div>
