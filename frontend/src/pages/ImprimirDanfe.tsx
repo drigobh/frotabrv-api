@@ -69,9 +69,14 @@ export default function ImprimirDanfe() {
         .danfe .grid4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1mm; }
       `}</style>
 
-      <div className="no-print p-4 bg-slate-900 flex gap-2 justify-end">
-        <Button onClick={() => window.print()} className="bg-purple-600">Imprimir novamente</Button>
-        <Button variant="outline" onClick={() => window.close()}>Fechar</Button>
+      <div className="no-print p-4 bg-slate-900 flex gap-2 justify-between items-center">
+        <Button onClick={() => window.location.href = "/financeiro"} variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800">
+          ← Voltar ao Financeiro
+        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => window.print()} className="bg-purple-600 hover:bg-purple-500">Imprimir novamente</Button>
+          <Button variant="outline" onClick={() => window.close()}>Fechar</Button>
+        </div>
       </div>
 
       <div className="p-4">
