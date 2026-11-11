@@ -328,11 +328,24 @@ export default function VisualizadorXML() {
       apiGet<any>(`/financeiro/xml/${chaveUrl}`)
         .then((res) => {
           if (res && res.xml) {
-            processarXML(res.xml);
-            toast.success("XML carregado da conta!");
-            // Se veio ?print=true, dispara a impressão após um tempo
-            if (searchParams.get("print") === "true") {
-              setTimeout(() => { window.print(); }, 1500);
+            // Em vez de só processar, vamos processar e imprimir
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(res.xml, "text/xml");
+            const isCTe = xmlDoc.getElementsByTagName("infCte").length > 0;
+            const isNFe = xmlDoc.getElementsByTagName("infNFe").length > 0;
+            
+            if (isCTe || isNFe) {
+              // Simula o processamento
+              const d = parseXML(res.xml);
+              setDados(d);
+              toast.success("XML carregado. Abrindo DANFE...");
+              
+              // Aguarda o React renderizar e chama a impressão
+              setTimeout(() => {
+                window.print(); // O CSS @media print no index.html deve esconder a tela e mostrar o DANFE
+              }, 1000);
+            } else {
+              toast.error("XML inválido retornado do banco.");
             }
           }
         })
@@ -340,7 +353,7 @@ export default function VisualizadorXML() {
           toast.error("Não foi possível carregar o XML: " + (err.message || "Erro"));
         });
     }
-  }, [searchParams]);
+  }, [searchParams, dados]);
 
   return (
     <div>
