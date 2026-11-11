@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter
-from app.backend.routers import checklist
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from lib.db import ensure_indexes, client
@@ -29,7 +28,7 @@ async def health():
     return {"status": "ok", "service": "frota-brv"}
 
 # Importando todas as rotas
-from routers import empresa, usuarios, perfis, multas, financeiro, cadastros_financeiros
+from routers import empresa, usuarios, perfis, multas, financeiro, cadastros_financeiros, checklist
 from routers import pneu_movimentacoes, chassi_templates, pneu_marcas, pneu_medidas, pneus, planos_manutencao, tipos_fornecedores, parametrizacao, auth, movimentacoes, pecas, fornecedores, combustiveis, veiculos, carretas, motoristas, dashboard, acoplamentos, abastecimentos, manutencoes
 from routers import empresa, usuarios, perfis, multas, financeiro, cadastros_financeiros
 from routers import admin
