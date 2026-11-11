@@ -41,6 +41,7 @@ import ImprimirDanfe from "@/pages/ImprimirDanfe";
 import VisualizadorXML from "@/pages/VisualizadorXML";
 import CadastrosFinanceiros from "@/pages/CadastrosFinanceiros";
 import Estoque from "@/pages/Estoque";
+import ChecklistViagem from "@/pages/ChecklistViagem";
 import RelatorioManutencao from "@/pages/RelatorioManutencao";
 import RelatorioEstoque from "@/pages/RelatorioEstoque";
 import RelatorioFornecedores from "@/pages/RelatorioFornecedores";
@@ -89,6 +90,7 @@ export default function App() {
               <Route path="/gestao/veiculo-360" element={<BuscaVeiculo360 />} />
               <Route path="/multas" element={<Multas />} />
               <Route path="/operacao/estoque" element={<Estoque />} />
+            <Route path="/frota/checklist" element={<ChecklistViagem />} />
               <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
               <Route path="/cadastros/carretas" element={<Carretas />} />
               <Route path="/cadastros/chassi-templates" element={<ChassiTemplates />} />

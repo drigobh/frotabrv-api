@@ -62,3 +62,4 @@ api_router.include_router(tipos_fornecedores.router)
 
 app.include_router(api_router)
 app.include_router(admin.router)
+app.include_router(checklist.router)
