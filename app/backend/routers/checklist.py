@@ -10,8 +10,15 @@ from .auth import require
 router = APIRouter(prefix="/checklist", tags=["Checklist"])
 
 async def gerar_numero_checklist():
-    count = await db.checklists.count_documents({})
-    return f"CHK-{(count + 1):04d}"
+    # Usa a coleção de contadores para garantir sequencial único e crescente
+    res = await db.contadores.find_one_and_update(
+        {"_id": "checklist"},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True
+    )
+    seq = res.get("seq", 1) if res else 1
+    return f"CHK-{seq:05d}"
 
 @router.post("")
 async def criar_checklist(payload: ChecklistViagemCreate, _u: dict = Depends(require("write"))):
@@ -64,20 +71,46 @@ async def enviar_email(id: str, payload: EmailRequest, _u: dict = Depends(requir
 @router.put("/{id}")
 async def editar_checklist(id: str, payload: ChecklistViagemCreate, _u: dict = Depends(require("write"))):
     try:
+        # Busca o checklist antigo para comparar
+        antigo = await db.checklists.find_one({"id": id})
+        if not antigo:
+            raise HTTPException(404, "Checklist não encontrado")
+            
         tem_falha = any(i.status == "Falha" for i in payload.itens)
         risco = "Alto" if tem_falha else "Baixo"
         
-        await db.checklists.update_one(
-            {"id": id},
-            {"$set": {
+        # Verifica se estava reprovado e agora foi aprovado
+        estava_reprovado = antigo.get("status_geral") == "Reprovado"
+        esta_aprovado = payload.status_geral == "Aprovado"
+        
+        # Prepara os dados de atualização
+        update_data = {
+            "veiculo_id": payload.veiculo_id,
+            "motorista_id": payload.motorista_id,
+            "itens": [item.model_dump() for item in payload.itens],
+            "observacoes_gerais": payload.observacoes_gerais,
+            "status_geral": payload.status_geral,
+            "risco": risco
+        }
+
+        # Se foi corrigido (passou de Reprovado para Aprovado)
+        if estava_reprovado and esta_aprovado:
+            update_data["aprovado_por"] = _u.get("nome", "Sistema")
+            update_data["data_aprovacao"] = datetime.now().isoformat()
+            
+            # Registra o histórico do que foi corrigido
+            historico_antigo = antigo.get("historico_correcoes", [])
+            historico_antigo.append({
+                "data": datetime.now().isoformat(),
+                "usuario": _u.get("nome", "Sistema"),
+                "acao": "Correção e Aprovação",
                 "veiculo_id": payload.veiculo_id,
-                "motorista_id": payload.motorista_id,
-                "itens": [item.model_dump() for item in payload.itens],
-                "observacoes_gerais": payload.observacoes_gerais,
-                "status_geral": payload.status_geral,
-                "risco": risco
-            }}
-        )
+                "motorista_id": payload.motorista_id
+            })
+            update_data["historico_correcoes"] = historico_antigo
+
+        await db.checklists.update_one({"id": id}, {"$set": update_data})
         return {"ok": True}
     except Exception as e:
         raise HTTPException(400, f"Erro ao editar checklist: {str(e)}")
+
