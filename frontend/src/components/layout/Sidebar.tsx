@@ -6,7 +6,7 @@ import {
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox, Tag, Building, FolderOpen, Layers, BellRing, Eye, AlertTriangle,
   CheckSquare
-} from "lucide-react";
+, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -83,6 +83,7 @@ const MENUS = [
       { label: "Central de Alertas", icon: BellRing, path: "/alertas" },
       { label: "Performance de Fornecedores", icon: BarChart3, path: "/relatorios/fornecedores" },
       { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },
+      { label: "Compras", icon: ShoppingCart, path: "/compras" },
       { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
     ]
   },
