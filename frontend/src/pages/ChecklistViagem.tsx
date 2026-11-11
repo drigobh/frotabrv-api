@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Truck, CheckCircle2, MoreVertical, FileText, Mail, MessageCircle, Trash2, Edit, ShieldCheck, Activity } from "lucide-react";
+import { X, Plus, Truck, CheckCircle2, MoreVertical, FileText, Mail, MessageCircle, Trash2, Edit, ShieldCheck, Activity } from "lucide-react";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
