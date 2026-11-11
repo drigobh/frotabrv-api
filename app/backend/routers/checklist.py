@@ -3,7 +3,7 @@ from datetime import datetime
 import uuid
 import smtplib
 from email.mime.text import MIMEText
-from app.backend.models.checklist import ChecklistViagemCreate, EmailRequest
+from models.checklist import ChecklistViagemCreate, EmailRequest
 from lib.db import db
 from .auth import require
 
