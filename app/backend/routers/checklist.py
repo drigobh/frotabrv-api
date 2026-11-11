@@ -98,14 +98,28 @@ async def editar_checklist(id: str, payload: ChecklistViagemCreate, _u: dict = D
             update_data["aprovado_por"] = _u.get("nome", "Sistema")
             update_data["data_aprovacao"] = datetime.now().isoformat()
             
-            # Registra o histórico do que foi corrigido
+            # Verifica exatamente quais itens mudaram de Falha para OK/N/A
+            itens_corrigidos = []
+            for item_novo in payload.itens:
+                # Encontra o item correspondente no antigo
+                item_antigo = next((i for i in antigo["itens"] if i["nome"] == item_novo.nome and i["categoria"] == item_novo.categoria), None)
+                if item_antigo and item_antigo["status"] == "Falha" and item_novo.status != "Falha":
+                    itens_corrigidos.append({
+                        "item": item_novo.nome,
+                        "categoria": item_novo.categoria,
+                        "de": "Falha",
+                        "para": item_novo.status
+                    })
+
+            # Registra o histórico do que foi corrigido, agora com detalhes
             historico_antigo = antigo.get("historico_correcoes", [])
             historico_antigo.append({
                 "data": datetime.now().isoformat(),
                 "usuario": _u.get("nome", "Sistema"),
                 "acao": "Correção e Aprovação",
                 "veiculo_id": payload.veiculo_id,
-                "motorista_id": payload.motorista_id
+                "motorista_id": payload.motorista_id,
+                "itens_corrigidos": itens_corrigidos
             })
             update_data["historico_correcoes"] = historico_antigo
 

@@ -282,6 +282,20 @@ export default function ChecklistViagem() {
                   <p className="text-sm font-bold text-emerald-400">{h.acao} por {h.usuario}</p>
                   <p className="text-xs text-slate-400 mt-1">{new Date(h.data).toLocaleString("pt-BR")}</p>
                   <p className="text-xs text-slate-300 mt-2">Veículo: {veiculos.find((v: any) => v.id === h.veiculo_id)?.placa} | Motorista: {motoristas.find((m: any) => m.id === h.motorista_id)?.nome}</p>
+                  
+                  {h.itens_corrigidos && h.itens_corrigidos.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-700">
+                      <p className="text-[10px] uppercase text-slate-500 font-bold mb-2">O que foi corrigido:</p>
+                      <ul className="space-y-1">
+                        {h.itens_corrigidos.map((ic: any, j: number) => (
+                          <li key={j} className="text-xs text-slate-300 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span><b>{ic.categoria}:</b> {ic.item} (de {ic.de} para {ic.para})</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
