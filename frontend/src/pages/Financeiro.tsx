@@ -277,9 +277,6 @@ export default function Financeiro() {
                           <Button size="sm" variant="ghost" className="text-purple-400 hover:bg-purple-500/10 h-8 px-2" onClick={() => window.open(`/financeiro/danfe?key=${c.documento_vinculo}`, "_blank")} title="Imprimir DANFE">
                             <Printer className="size-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="text-sky-400 hover:bg-sky-500/10 h-8 px-2" onClick={() => navigate(`/financeiro/xml?key=${c.documento_vinculo}`)} title="Visualizar DANFE Completo">
-                            <FileText className="size-4" />
-                          </Button>
                         </>
                       )}
 
