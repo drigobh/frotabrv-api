@@ -4,6 +4,7 @@ import { Plus, Truck, CheckCircle2, FileText, MessageCircle, Trash2, Edit, X, Hi
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -89,8 +90,37 @@ export default function ChecklistViagem() {
     salvar.mutate({ veiculo_id: veiculoId, motorista_id: motoristaId, itens, observacoes_gerais: obsGeral, status_geral: statusGeral });
   };
 
-  const imprimirPDF = (c: any) => { /* Lógica do PDF mantida */ toast.info("Gerando PDF..."); };
-  const enviarWhatsApp = (c: any) => { /* Lógica do Zap mantida */ toast.info("Abrindo WhatsApp..."); };
+  const imprimirPDF = (c: any) => {
+    const win = window.open("", "_blank");
+    if (!win) return toast.error("Permita pop-ups para imprimir.");
+    win.document.write(`
+      <html><head><title>Checklist ${c.numero}</title><style>
+        body { font-family: Arial; padding: 20px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #000; padding: 5px; text-align: left; }
+        th { background: #eee; }
+      </style></head><body>
+        <h2>Checklist de Viagem - ${c.numero}</h2>
+        <p><b>Veículo:</b> ${veiculos.find((v: any) => v.id === c.veiculo_id)?.placa}</p>
+        <p><b>Motorista:</b> ${motoristas.find((m: any) => m.id === c.motorista_id)?.nome}</p>
+        <p><b>Status:</b> ${c.status_geral}</p>
+        <table>
+          <tr><th>Categoria</th><th>Item</th><th>Status</th><th>Obs</th></tr>
+          ${c.itens.map((i: any) => `<tr><td>${i.categoria}</td><td>${i.nome}</td><td><b>${i.status}</b></td><td>${i.observacao || ""}</td></tr>`).join("")}
+        </table>
+      </body></html>
+    `);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 500);
+  };
+
+  const enviarWhatsApp = (c: any) => {
+    const v = veiculos.find((x: any) => x.id === c.veiculo_id)?.placa || "Desconhecido";
+    const m = motoristas.find((x: any) => x.id === c.motorista_id)?.nome || "Desconhecido";
+    const falhas = c.itens.filter((i: any) => i.status === "Falha").map((i: any) => i.nome).join(", ");
+    const texto = `*Checklist ${c.numero}*\n*Veículo:* ${v}\n*Motorista:* ${m}\n*Status:* ${c.status_geral}\n${falhas ? `*Falhas:* ${falhas}` : "*Sem falhas*"}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
+  };
 
   // KPIs
   const total = checklists.length;
@@ -180,6 +210,63 @@ export default function ChecklistViagem() {
         </table>
       </div>
 
+      {/* MODAL DE CRIAÇÃO / EDIÇÃO */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/30">
+              <h2 className="text-xl font-bold text-slate-100">{editandoId ? "Editar Checklist" : "Novo Checklist"}</h2>
+              <Button variant="ghost" size="icon" onClick={() => setModalOpen(false)}><X className="size-5" /></Button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><Label className="text-xs text-slate-400">Veículo</Label>
+                  <select value={veiculoId} onChange={(e) => setVeiculoId(e.target.value)} className="w-full h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+                    <option value="">Selecione</option>
+                    {veiculos.map((v: any) => <option key={v.id} value={v.id}>{v.placa} - {v.modelo}</option>)}
+                  </select>
+                </div>
+                <div><Label className="text-xs text-slate-400">Motorista</Label>
+                  <select value={motoristaId} onChange={(e) => setMotoristaId(e.target.value)} className="w-full h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+                    <option value="">Selecione</option>
+                    {motoristas.map((m: any) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-4">
+                {CATEGORIAS.map((cat, catIdx) => (
+                  <div key={catIdx} className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950/50">
+                    <div className="bg-slate-800/80 px-4 py-2 border-b border-slate-700"><h4 className="text-sm font-bold text-sky-400">{cat.nome}</h4></div>
+                    <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {itens.filter(i => i.categoria === cat.nome).map((item, idx) => {
+                        const globalIdx = itens.findIndex(i => i.categoria === cat.nome && i.nome === item.nome);
+                        return (
+                          <div key={idx} className="flex items-center justify-between gap-2">
+                            <span className="text-slate-300 text-sm flex-1">{item.nome}</span>
+                            <div className="flex gap-1">
+                              <button onClick={() => { const n = [...itens]; n[globalIdx].status = "OK"; setItens(n); }} className={cn("px-2 py-1 rounded text-xs font-bold", item.status === "OK" ? "bg-emerald-500 text-white" : "bg-slate-800 text-slate-400")}>OK</button>
+                              <button onClick={() => { const n = [...itens]; n[globalIdx].status = "Falha"; setItens(n); }} className={cn("px-2 py-1 rounded text-xs font-bold", item.status === "Falha" ? "bg-rose-500 text-white" : "bg-slate-800 text-slate-400")}>Falha</button>
+                              <button onClick={() => { const n = [...itens]; n[globalIdx].status = "N/A"; setItens(n); }} className={cn("px-2 py-1 rounded text-xs font-bold", item.status === "N/A" ? "bg-amber-500 text-white" : "bg-slate-800 text-slate-400")}>N/A</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div><Label className="text-xs text-slate-400">Observações</Label>
+                <textarea value={obsGeral} onChange={(e) => setObsGeral(e.target.value)} className="w-full h-20 bg-slate-950 border border-slate-700 rounded-md p-2 text-sm text-slate-300 mt-1" />
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-800 flex justify-end gap-3 bg-slate-800/30">
+              <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSalvar} disabled={salvar.isPending} className="bg-emerald-600 hover:bg-emerald-500">Salvar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL DE HISTÓRICO DE CORREÇÃO */}
       {modalHistoricoOpen && checklistHistorico && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -189,7 +276,6 @@ export default function ChecklistViagem() {
               <Button variant="ghost" size="icon" onClick={() => setModalHistoricoOpen(false)}><X className="size-5" /></Button>
             </div>
             <p className="text-sm text-slate-400 mb-4">Este checklist foi reprovado e posteriormente corrigido.</p>
-            
             <div className="space-y-3">
               {(checklistHistorico.historico_correcoes || []).map((h: any, i: number) => (
                 <div key={i} className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
@@ -202,9 +288,6 @@ export default function ChecklistViagem() {
           </div>
         </div>
       )}
-
-      {/* MODAL DE CRIAÇÃO/EDIÇÃO (Mantido igual ao anterior) */}
-      {/* ... Cole aqui o modal que já existe no seu arquivo ... */}
     </div>
   );
 }
