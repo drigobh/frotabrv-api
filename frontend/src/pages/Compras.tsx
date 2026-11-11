@@ -57,11 +57,14 @@ export default function Compras() {
   });
 
   const handleSalvar = () => {
+    console.log('Tentando salvar pedido...');
     if (!fornecedorId || !descricao || !quantidade || !valorUnit) {
       return toast.error("Preencha todos os campos obrigatórios.");
     }
     const qtd = parseFloat(quantidade);
     const unit = parseFloat(valorUnit);
+    if (isNaN(qtd) || isNaN(unit)) return toast.error("Valores inválidos.");
+    
     salvar.mutate({
       fornecedor_id: fornecedorId,
       veiculo_id: veiculoId || null,
@@ -153,6 +156,10 @@ export default function Compras() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-bold text-slate-100">Novo Pedido de Compra</h2>
               <Button variant="ghost" size="icon" onClick={() => setModalOpen(false)}><X className="size-5" /></Button>
+            </div>
+            <div className="bg-slate-800/50 p-3 rounded-lg mb-4 flex justify-between items-center text-xs text-slate-400">
+              <span><b>Solicitante:</b> (Usuário Logado)</span>
+              <span><b>Data:</b> {new Date().toLocaleString("pt-BR")}</span>
             </div>
             <div className="grid gap-4">
               <div>
