@@ -1,6 +1,6 @@
-from app.backend.routers import checklist
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter
+from app.backend.routers import checklist
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from lib.db import ensure_indexes, client
@@ -61,6 +61,6 @@ api_router.include_router(pneu_movimentacoes.router)
 api_router.include_router(empresa.router)
 api_router.include_router(tipos_fornecedores.router)
 
+api_router.include_router(checklist.router)
 app.include_router(api_router)
 app.include_router(admin.router)
-app.include_router(checklist.router)
