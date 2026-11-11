@@ -60,6 +60,7 @@ const MENUS = [
       { label: "Abastecimentos", icon: Fuel, path: "/abastecimentos" },
       { label: "Acoplamentos", icon: Settings, path: "/cadastros/acoplamentos" },
       { label: "Estoque", icon: Package, path: "/operacao/estoque" },
+      { label: "Checklist de Viagem", icon: CheckSquare, path: "/frota/checklist" },
       { label: "Pneus", icon: Disc, path: "/operacao/pneus" },
       { label: "Multas e Infrações", icon: AlertTriangle, path: "/multas" },
     ]
