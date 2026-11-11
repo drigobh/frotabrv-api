@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 import uuid
-from app.backend.models.checklist import ChecklistViagemCreate
+from models.checklist import ChecklistViagemCreate
 from lib.db import db
 from .auth import require
 
