@@ -15,8 +15,7 @@ export default function Usuarios() {
   const [busca, setBusca] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState<any>(null);
-  const [form, setForm] = useState<any>({
-     
+  const [form, setForm] = useState<any>({ 
     nome: "", email: "", perfil_id: "", setor: "", cargo: "", telefone: "", whatsapp: "", foto_url: "", senha: "",
     notificacoes: { manutencao: true, documentos: true, pneus: true, resumo_semanal: false }
   });
@@ -320,8 +319,7 @@ export default function Usuarios() {
               <Button onClick={() => salvar.mutate(form)} disabled={salvar.isPending || !form.nome || !form.email || !form.perfil_id} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6">
                 <Check className="size-4 mr-2" /> Salvar Usuário
               </Button>
-            
-            
+            </div>
           </div>
         </div>
       )}
