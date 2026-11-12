@@ -43,8 +43,12 @@ export default function GestaoCompras() {
   const excluir = useMutation({
     mutationFn: (id: string) => apiDelete(`/compras/usuarios/${id}`),
     onSuccess: () => {
-      toast.success("Permissões removidas!");
+      toast.success("Permissões removidas com sucesso!");
       qc.invalidateQueries({ queryKey: ["usuarios-compras"] });
+    },
+    onError: (error: any) => {
+      console.error("Erro ao excluir:", error);
+      toast.error("Erro ao remover: " + (error.message || "Verifique se a rota DELETE existe no backend."));
     }
   });
 
