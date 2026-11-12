@@ -54,8 +54,25 @@ export default function Orcamentos() {
 
   const salvar = useMutation({
     mutationFn: (payload: any) => editandoId ? apiPut(`/orcamentos/${editandoId}`, payload) : apiPost("/orcamentos", payload),
-    onSuccess: () => {
+    onSuccess: async (data: any) => {
       toast.success(editandoId ? "Orçamento atualizado!" : "Orçamento criado!");
+      
+      // Disparar envio automático de email/whatsapp apenas se for um novo orçamento
+      if (!editandoId && data && data.id) {
+        toast.info("Enviando notificações por E-mail e WhatsApp...");
+        try {
+          const res = await apiPost<any>(`/orcamentos/${data.id}/enviar`, {});
+          if (res.links_whatsapp && res.links_whatsapp.length > 0) {
+            toast.success(`${res.links_whatsapp.length} WhatsApp(s) pronto(s) para envio.`);
+            res.links_whatsapp.forEach((link: string) => window.open(link, "_blank"));
+          } else {
+            toast.success("E-mails enviados com sucesso!");
+          }
+        } catch (e) {
+          console.error("Erro ao enviar notificações:", e);
+        }
+      }
+      
       setModalOpen(false);
       qc.invalidateQueries({ queryKey: ["orcamentos"] });
     }
