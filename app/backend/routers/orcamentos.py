@@ -48,7 +48,8 @@ async def excluir_orcamento(id: str, _u: dict = Depends(require("write"))):
 @router.put("/{id}")
 async def editar_orcamento(id: str, payload: OrcamentoCreate, _u: dict = Depends(require("write"))):
     try:
-        await db.orcamentos.update_one(
+        # Substitui TUDO no banco pelos novos dados que vieram do frontend
+        resultado = await db.orcamentos.update_one(
             {"id": id},
             {"$set": {
                 "produto": payload.produto,
@@ -56,10 +57,11 @@ async def editar_orcamento(id: str, payload: OrcamentoCreate, _u: dict = Depends
                 "ofertas": [item.model_dump() for item in payload.ofertas]
             }}
         )
+        if resultado.matched_count == 0:
+            raise HTTPException(404, "Orçamento não encontrado")
         return {"ok": True}
     except Exception as e:
         raise HTTPException(400, f"Erro ao editar orçamento: {str(e)}")
-
 @router.patch("/{id}/escolher-vencedor")
 async def escolher_vencedor(id: str, payload: dict, _u: dict = Depends(require("write"))):
     try:
@@ -98,40 +100,33 @@ async def historico_preco(produto: str, fornecedor_id: str, _u: dict = Depends(r
 @router.post("/ia-search")
 async def ia_search(payload: dict, _u: dict = Depends(require("read"))):
     produto = payload.get("produto", "").lower()
-    cidade = payload.get("cidade", "")
+    cidade = payload.get("cidade", "Contagem")
     raio_km = float(payload.get("raio_km", 100))
     condicao = payload.get("condicao", "Novo")
     
-    nomes_base = ["Distribuidora", "Peças", "Auto", "Atacadão", "Mercado"]
-    tipos = ["Silva", "ABC", "Central", "Norte", "Sul"]
+    # Listas fixas para gerar nomes únicos
+    nomes = ["Auto Peças Silva", "Distribuidora ABC", "Atacadão Central", "Mercado Livre Auto", "Peças Já", "Oficina do Zé"]
     bairros = ["Centro", "Industrial", "Nossa Senhora", "Riacho", "Eldorado"]
     
-    # Semente baseada apenas no produto, assim os fornecedores são os mesmos antes do filtro
-    random.seed(len(produto) + 42) 
-    
-    todos_fornecedores = []
-    for i in range(8): 
-        nome = f"{random.choice(nomes_base)} {random.choice(tipos)}"
-        dist = random.randint(5, 150) 
-        preco = round(random.uniform(50.0, 500.0), 2)
-        
-        todos_fornecedores.append({
-            "fornecedor_nome": nome,
-            "cnpj": f"12.345.678/0001-{random.randint(10, 99)}",
-            "preco": preco,
-            "cidade": cidade,
-            "bairro": random.choice(bairros),
-            "condicao": condicao,
-            "whatsapp": f"55319{random.randint(10000000, 99999999)}",
-            "email": f"contato@{nome.split()[0].lower()}.com.br",
-            "distancia": dist,
-            "foto_url": f"https://picsum.photos/seed/{nome.replace(' ', '')}/200/200",
-            "classificacao": round(random.uniform(3.0, 5.0), 1),
-            "compras_realizadas": random.randint(1, 50),
-            "prazo_entrega": f"{random.randint(2, 15)} dias",
-            "prazo_pagamento": f"{random.choice([15, 30, 45, 60])} dias",
-            "forma_pagamento": random.choice(["Boleto", "Pix", "Cartão"])
-        })
-    
-    resultados = [f for f in todos_fornecedores if f["distancia"] <= raio_km]
-    return resultados[:5]
+    resultados = []
+    for i, nome in enumerate(nomes):
+        dist = 10 + (i * 15) # Distâncias diferentes (10km, 25km, 40km...)
+        if dist <= raio_km:
+            resultados.append({
+                "fornecedor_nome": nome,
+                "cnpj": f"12.345.678/0001-{10+i}",
+                "preco": 150.0 + (i * 50.0), # Preços diferentes
+                "cidade": cidade,
+                "bairro": bairros[i % len(bairros)],
+                "condicao": condicao,
+                "whatsapp": "5531999999999", # Número de teste válido
+                "email": f"contato@fornecedor{i}.com.br",
+                "distancia": dist,
+                "foto_url": "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=150&h=150&fit=crop", # Foto real
+                "classificacao": 4.5,
+                "compras_realizadas": 12,
+                "prazo_entrega": "5 dias",
+                "prazo_pagamento": "30 dias",
+                "forma_pagamento": "Boleto"
+            })
+    return resultados

@@ -239,7 +239,9 @@ export default function Orcamentos() {
                           </div>
                           <p className="text-emerald-400 font-bold my-1">{brl(r.preco)}</p>
                           <div className="text-slate-400 space-y-0.5 mb-2 text-[10px]">
-                            <p className="flex items-center gap-1"><MapPin className="size-3"/> {r.bairro} - {r.distancia}km</p>
+                            <p className="flex items-center gap-1 cursor-pointer hover:text-sky-400" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.fornecedor_nome + " " + r.cidade)}`, "_blank")}>
+                              <MapPin className="size-3"/> {r.bairro} - {r.distancia}km
+                            </p>
                             <p className="flex items-center gap-1"><Phone className="size-3"/> {r.whatsapp.replace(/^55/, '')} <a href={`https://wa.me/${r.whatsapp}?text=Olá, gostaria de orçar o produto: ${produto}`} target="_blank" rel="noreferrer" className="text-emerald-500 hover:text-emerald-400 ml-1"><MessageCircle className="size-3" /></a></p>
                           </div>
                           <Button size="sm" onClick={() => adicionarOferta({ fornecedor_nome: r.fornecedor_nome, valor_unitario: r.preco, whatsapp: r.whatsapp, email: r.email, origem: "IA", prazo_entrega: r.prazo_entrega, prazo_pagamento: r.prazo_pagamento, forma_pagamento: r.forma_pagamento, classificacao: r.classificacao, compras_realizadas: r.compras_realizadas })} className="w-full bg-emerald-600 hover:bg-emerald-500 h-7 text-xs">Adicionar</Button>
@@ -265,7 +267,14 @@ export default function Orcamentos() {
                         <td className="p-2"><Input type="number" value={of.quantidade} onChange={e => { const n = [...ofertas]; n[i].quantidade = Number(e.target.value); setOfertas(n); }} className="h-7 w-16 bg-slate-950" /></td>
                         <td className="p-2"><Input type="number" value={of.valor_unitario} onChange={e => { const n = [...ofertas]; n[i].valor_unitario = Number(e.target.value); setOfertas(n); }} className="h-7 w-24 bg-slate-950" /></td>
                         <td className="p-2 text-emerald-400 font-bold">{brl(of.quantidade * of.valor_unitario)}</td>
-                        <td className="p-2 text-slate-400">{of.prazo_entrega} / {of.forma_pagamento}</td>
+                        <td className="p-2 flex gap-1">
+                          <Input value={of.prazo_entrega} onChange={e => { const n = [...ofertas]; n[i].prazo_entrega = e.target.value; setOfertas(n); }} className="h-7 w-16 text-xs bg-slate-950" placeholder="Prazo" />
+                          <select value={of.forma_pagamento} onChange={e => { const n = [...ofertas]; n[i].forma_pagamento = e.target.value; setOfertas(n); }} className="h-7 w-20 text-xs bg-slate-950 border border-slate-700 rounded">
+                            <option value="Boleto">Boleto</option>
+                            <option value="Pix">Pix</option>
+                            <option value="Cartão">Cartão</option>
+                          </select>
+                        </td>
                         <td className="p-2 text-right"><Button size="icon" variant="ghost" onClick={() => setOfertas(ofertas.filter((_, idx) => idx !== i))} className="text-rose-400 h-7 w-7"><Trash2 className="size-3"/></Button></td>
                       </tr>
                     ))}
@@ -329,14 +338,15 @@ export default function Orcamentos() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {orcamentoAprovacao.ofertas.map((of: any, i: number) => {
+                {/* Filtrando ofertas duplicadas por fornecedor_nome + valor para não repetir visualmente */}
+                {orcamentoAprovacao.ofertas.filter((v: any, i: number, a: any[]) => a.findIndex(x => x.fornecedor_nome === v.fornecedor_nome && x.valor_unitario === v.valor_unitario) === i).map((of: any, i: number) => {
                   const menorPreco = Math.min(...orcamentoAprovacao.ofertas.map((x: any) => x.valor_unitario));
                   const isMenorPreco = of.valor_unitario === menorPreco;
 
                   return (
                     <div key={i} className={`p-4 rounded-xl border-2 flex flex-col ${isMenorPreco ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 bg-slate-800/50'}`}>
                       {isMenorPreco && <span className="text-[10px] font-bold uppercase text-emerald-400 mb-2 flex items-center gap-1"><Star className="size-3 fill-emerald-400"/> Melhor Preço</span>}
-                      <p className="font-bold text-slate-100 text-lg">{of.fornecedor_nome}</p>
+                      <p className="font-bold text-slate-100 text-lg line-clamp-1">{of.fornecedor_nome}</p>
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-amber-400 flex items-center text-xs"><Star className="size-3 fill-amber-400 mr-1"/>{of.classificacao || 'N/A'}</span>
                         <span className="text-slate-400 text-xs">({of.compras_realizadas || 0} compras)</span>
