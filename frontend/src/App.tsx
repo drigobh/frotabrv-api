@@ -44,6 +44,7 @@ import Estoque from "@/pages/Estoque";
 import GestaoCompras from "@/pages/GestaoCompras";
 import ChecklistViagem from "@/pages/ChecklistViagem";
 import Compras from "@/pages/Compras";
+import Orcamentos from "@/pages/Orcamentos";
 
 import RelatorioManutencao from "@/pages/RelatorioManutencao";
 import RelatorioEstoque from "@/pages/RelatorioEstoque";
@@ -95,6 +96,7 @@ export default function App() {
               <Route path="/operacao/estoque" element={<Estoque />} />
             <Route path="/frota/checklist" element={<ChecklistViagem />} />
             <Route path="/compras" element={<Compras />} />
+            <Route path="/orcamentos" element={<Orcamentos />} />
             <Route path="/admin/compras" element={<GestaoCompras />} />
               <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
               <Route path="/cadastros/carretas" element={<Carretas />} />

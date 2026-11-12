@@ -88,6 +88,7 @@ const MENUS = [
       { label: "Central de Alertas", icon: BellRing, path: "/alertas" },
       { label: "Performance de Fornecedores", icon: BarChart3, path: "/relatorios/fornecedores" },
       { label: "Relatório de Estoque", icon: Package, path: "/relatorios/estoque" },
+      { label: "Orçamentos", icon: FileText, path: "/orcamentos" },
       { label: "Compras", icon: ShoppingCart, path: "/compras" },
       { label: "Relatório de Manutenção", icon: FileBarChart, path: "/relatorio-manutencao" },
     ]
