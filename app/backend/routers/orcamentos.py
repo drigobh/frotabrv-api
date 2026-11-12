@@ -75,11 +75,10 @@ async def ia_search(payload: dict, _u: dict = Depends(require("read"))):
     produto = payload.get("produto", "").lower()
     cidade = payload.get("cidade", "")
     
-    # IA Simulada dinâmica
     nomes_base = ["Distribuidora", "Peças", "Auto", "Atacadão", "Mercado"]
     tipos = ["Silva", "ABC", "Central", "Norte", "Sul"]
     
-    random.seed(len(produto)) # Garante mesma busca, mesmos resultados
+    random.seed(len(produto)) 
     resultados = []
     for i in range(3):
         nome = f"{random.choice(nomes_base)} {random.choice(tipos)}"
@@ -91,6 +90,7 @@ async def ia_search(payload: dict, _u: dict = Depends(require("read"))):
             "cidade": cidade,
             "whatsapp": f"(31) 9{random.randint(1000, 9999)}-{random.randint(1000, 9999)}",
             "email": f"contato@{nome.split()[0].lower()}.com.br",
-            "distancia": f"{random.randint(5, 120)} km da sua empresa"
+            "distancia": f"{random.randint(5, 120)} km da sua empresa",
+            "foto_url": "https://placehold.co/100x100/1e293b/475569?text=Peça" # Foto simulada
         })
     return resultados

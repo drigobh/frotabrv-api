@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Sparkles, X, Save, Check, Trash2, MapPin, Phone, Mail } from "lucide-react";
+import { Plus, Search, Sparkles, X, Save, Check, Trash2, MapPin, Phone, Mail, Image as ImageIcon } from "lucide-react";
 import { apiGet, apiPost, apiPatch } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -24,14 +24,19 @@ export default function Orcamentos() {
   const [pesquisando, setPesquisando] = useState(false);
   const [resultadosIA, setResultadosIA] = useState<any[]>([]);
 
-  // Estados do Fornecedor Manual
+  // Estados do Fornecedor Cadastrado
   const [modalFornecedorOpen, setModalFornecedorOpen] = useState(false);
   const [tipoForn, setTipoForn] = useState("");
-  const [fornecedorManual, setFornecedorManual] = useState<any>(null);
+  const [buscaForn, setBuscaForn] = useState("");
 
   const { data: orcamentos = [] } = useQuery({ queryKey: ["orcamentos"], queryFn: () => apiGet<any[]>("/orcamentos") });
   const { data: fornecedores = [] } = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
   const { data: tipos = [] } = useQuery({ queryKey: ["tipos-fornecedores"], queryFn: () => apiGet<any[]>("/tipos-fornecedores") });
+
+  // Filtra apenas os tipos que possuem fornecedores cadastrados
+  const tiposComFornecedores = tipos.filter((t: any) => 
+    fornecedores.some((f: any) => f.tipo_fornecedor_id === t.id || f.tipo_fornecedor === t.id)
+  );
 
   const salvar = useMutation({
     mutationFn: (payload: any) => apiPost("/orcamentos", payload),
@@ -63,7 +68,6 @@ export default function Orcamentos() {
   const adicionarOferta = async (base: any) => {
     if (!produto) return toast.error("Preencha o produto antes de adicionar fornecedores.");
     
-    // Checar histórico de preço
     if (base.fornecedor_id) {
       try {
         const hist = await apiGet<any>(`/orcamentos/historico-preco?produto=${produto}&fornecedor_id=${base.fornecedor_id}`);
@@ -74,7 +78,7 @@ export default function Orcamentos() {
       } catch (e) {}
     }
 
-    setOfertas([...ofertas, { ...base, quantidade: 1, prazo_entrega: "5 dias", prazo_pagamento: "30 dias", forma_pagamento: "Boleto" }]);
+    setOfertas([...ofertas, { ...base, quantidade: 1, valor_unitario: base.valor_unitario || 0, prazo_entrega: "5 dias", prazo_pagamento: "30 dias", forma_pagamento: "Boleto" }]);
     toast.success("Fornecedor adicionado ao orçamento.");
   };
 
@@ -82,6 +86,11 @@ export default function Orcamentos() {
     if (ofertas.length === 0) return toast.error("Adicione pelo menos um fornecedor.");
     salvar.mutate({ produto, observacoes, ofertas });
   };
+
+  const filtradosManual = fornecedores.filter((f: any) => 
+    (f.tipo_fornecedor_id === tipoForn || f.tipo_fornecedor === tipoForn) &&
+    f.nome.toLowerCase().includes(buscaForn.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -112,7 +121,6 @@ export default function Orcamentos() {
                 <td className="px-3 py-3"><span className="px-2 py-1 bg-amber-500/20 text-amber-400 rounded text-xs font-bold">{o.status}</span></td>
                 <td className="px-3 py-3 flex gap-2">
                   <Button size="sm" variant="ghost" className="text-emerald-400" onClick={() => {
-                    // Abrir modal para escolher vencedor
                     const vencedor = prompt(`Qual fornecedor venceu?\n${o.ofertas.map((x:any) => x.fornecedor_nome).join("\n")}`);
                     const of = o.ofertas.find((x:any) => x.fornecedor_nome === vencedor);
                     if (of) escolherVencedor.mutate({ id: o.id, fornecedor_id: of.fornecedor_id, fornecedor_nome: of.fornecedor_nome });
@@ -140,13 +148,13 @@ export default function Orcamentos() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* BLOCO MANUAL */}
+                {/* BLOCO CADASTRADO */}
                 <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                  <h3 className="text-sm font-bold text-slate-200 mb-3">Fornecedor Manual</h3>
+                  <h3 className="text-sm font-bold text-slate-200 mb-3">Fornecedor Cadastrado</h3>
                   <div className="flex gap-2">
                     <select value={tipoForn} onChange={(e) => setTipoForn(e.target.value)} className="flex-1 h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
-                      <option value="">Escolha o Tipo de Fornecedor</option>
-                      {tipos.map((t: any) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                      <option value="">Escolha o Tipo</option>
+                      {tiposComFornecedores.map((t: any) => <option key={t.id} value={t.id}>{t.nome}</option>)}
                     </select>
                     <Button onClick={() => setModalFornecedorOpen(true)} disabled={!tipoForn} className="bg-sky-600">Listar</Button>
                   </div>
@@ -169,15 +177,20 @@ export default function Orcamentos() {
                   <p className="text-xs font-bold text-purple-400 uppercase mb-3">Resultados da IA para "{produto}"</p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {resultadosIA.map((r, i) => (
-                      <div key={i} className="bg-slate-800/50 p-3 rounded border border-slate-700 text-xs">
-                        <p className="font-bold text-slate-200">{r.fornecedor_nome}</p>
-                        <p className="text-emerald-400 font-bold my-1">{brl(r.preco)}</p>
-                        <div className="text-slate-400 space-y-1 mb-2">
-                          <p className="flex items-center gap-1"><MapPin className="size-3"/> {r.distancia}</p>
-                          <p className="flex items-center gap-1"><Phone className="size-3"/> {r.whatsapp}</p>
-                          <p className="flex items-center gap-1"><Mail className="size-3"/> {r.email}</p>
+                      <div key={i} className="bg-slate-800/50 p-3 rounded border border-slate-700 text-xs flex gap-3">
+                        {/* FOTO DA PEÇA */}
+                        <div className="w-16 h-16 rounded bg-slate-700 flex items-center justify-center shrink-0 overflow-hidden">
+                          {r.foto_url ? <img src={r.foto_url} alt="Peça" className="w-full h-full object-cover" /> : <ImageIcon className="size-6 text-slate-500" />}
                         </div>
-                        <Button size="sm" onClick={() => adicionarOferta({ fornecedor_nome: r.fornecedor_nome, valor_unitario: r.preco, whatsapp: r.whatsapp, email: r.email, origem: "IA" })} className="w-full bg-emerald-600 hover:bg-emerald-500">Adicionar</Button>
+                        <div className="flex-1">
+                          <p className="font-bold text-slate-200 line-clamp-1">{r.fornecedor_nome}</p>
+                          <p className="text-emerald-400 font-bold my-1">{brl(r.preco)}</p>
+                          <div className="text-slate-400 space-y-0.5 mb-2 text-[10px]">
+                            <p className="flex items-center gap-1"><MapPin className="size-3"/> {r.distancia}</p>
+                            <p className="flex items-center gap-1"><Phone className="size-3"/> {r.whatsapp}</p>
+                          </div>
+                          <Button size="sm" onClick={() => adicionarOferta({ fornecedor_nome: r.fornecedor_nome, valor_unitario: r.preco, whatsapp: r.whatsapp, email: r.email, origem: "IA" })} className="w-full bg-emerald-600 hover:bg-emerald-500 h-7 text-xs">Adicionar</Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -218,24 +231,34 @@ export default function Orcamentos() {
         </div>
       )}
 
-      {/* MODAL DE LISTAGEM DE FORNECEDOR MANUAL */}
+      {/* MODAL DE LISTAGEM DE FORNECEDOR CADASTRADO COM BUSCA */}
       {modalFornecedorOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6 flex flex-col">
             <h2 className="text-lg font-bold text-slate-100 mb-4">Escolha um Fornecedor</h2>
+            
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+              <Input placeholder="Pesquisar fornecedor..." value={buscaForn} onChange={e => setBuscaForn(e.target.value)} className="pl-9 bg-slate-950" />
+            </div>
+
             <div className="max-h-60 overflow-y-auto space-y-2">
-              {fornecedores.filter((f: any) => f.tipo_fornecedor_id === tipoForn || f.tipo_fornecedor === tipoForn).map((f: any) => (
-                <div key={f.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-lg">
-                  <div>
-                    <p className="text-sm font-bold text-slate-200">{f.nome}</p>
-                    <p className="text-xs text-slate-400">{f.whatsapp} | {f.email}</p>
+              {filtradosManual.length === 0 ? (
+                <p className="text-center text-slate-500 text-sm py-4">Nenhum fornecedor encontrado para este tipo.</p>
+              ) : (
+                filtradosManual.map((f: any) => (
+                  <div key={f.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-lg">
+                    <div>
+                      <p className="text-sm font-bold text-slate-200">{f.nome}</p>
+                      <p className="text-xs text-slate-400">{f.whatsapp} | {f.email}</p>
+                    </div>
+                    <Button size="sm" onClick={() => {
+                      adicionarOferta({ fornecedor_id: f.id, fornecedor_nome: f.nome, valor_unitario: 0, whatsapp: f.whatsapp, email: f.email, origem: "Manual" });
+                      setModalFornecedorOpen(false);
+                    }} className="bg-emerald-600 hover:bg-emerald-500">Selecionar</Button>
                   </div>
-                  <Button size="sm" onClick={() => {
-                    adicionarOferta({ fornecedor_id: f.id, fornecedor_nome: f.nome, valor_unitario: 0, whatsapp: f.whatsapp, email: f.email, origem: "Manual" });
-                    setModalFornecedorOpen(false);
-                  }} className="bg-emerald-600">Selecionar</Button>
-                </div>
-              ))}
+                ))
+              )}
             </div>
             <div className="flex justify-end mt-4"><Button variant="outline" onClick={() => setModalFornecedorOpen(false)}>Fechar</Button></div>
           </div>
