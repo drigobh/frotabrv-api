@@ -168,11 +168,11 @@ Olá, *{destinatario_nome}*! O orçamento foi {acao}.
     for of in orcamento.get("ofertas", []):
         venc = " 🏆" if of.get("is_vencedor") else ""
         total = of.get("valor_unitario", 0) * of.get("quantidade", 0)
-        texto += f"• {of.get('fornecedor_nome')}{venc}: R$ {of.get('valor_unitario',0):.2f} (Total R$ {total:.2f})
-"
+        texto += "• " + str(of.get('fornecedor_nome')) + venc + ": R$ {:.2f} (Total R$ {:.2f})
+".format(of.get('valor_unitario', 0), total)
     
-    texto += f"
-*Acesse o sistema para {'ver' if tipo == 'comprador' else 'aprovar'}:* https://frotabrv.onrender.com/orcamentos"
+    texto += "
+*Acesse o sistema para " + ("ver" if tipo == "comprador" else "aprovar") + ":* https://frotabrv.onrender.com/orcamentos"
     return texto
 
 def enviar_whatsapp(numero: str, mensagem: str) -> str:
