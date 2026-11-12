@@ -15,7 +15,9 @@ export default function Usuarios() {
   const [busca, setBusca] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState<any>(null);
-  const [form, setForm] = useState<any>({ 
+  const [form, setForm] = useState<any>({
+    pode_aprovar_compras: false,
+    alcada_aprovacao: 0, 
     nome: "", email: "", perfil_id: "", setor: "", cargo: "", telefone: "", whatsapp: "", foto_url: "", senha: "",
     notificacoes: { manutencao: true, documentos: true, pneus: true, resumo_semanal: false }
   });
@@ -319,7 +321,25 @@ export default function Usuarios() {
               <Button onClick={() => salvar.mutate(form)} disabled={salvar.isPending || !form.nome || !form.email || !form.perfil_id} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6">
                 <Check className="size-4 mr-2" /> Salvar Usuário
               </Button>
+            
+            <div className="col-span-2 border-t border-slate-700 pt-4 mt-2">
+              <h4 className="text-sm font-bold text-slate-200 mb-3">Permissões de Compras</h4>
+              <div className="flex items-center gap-4 mb-3">
+                <label className="flex items-center gap-2 text-sm text-slate-300">
+                  <input type="checkbox" checked={form.pode_aprovar_compras} onChange={(e) => setForm({...form, pode_aprovar_compras: e.target.checked})} className="rounded border-slate-700 bg-slate-900" />
+                  Pode Aprovar Compras
+                </label>
+              </div>
+              {form.pode_aprovar_compras && (
+                <div>
+                  <Label className="text-xs text-slate-400">Alçada de Aprovação (R$)</Label>
+                  <Input type="number" value={form.alcada_aprovacao} onChange={(e) => setForm({...form, alcada_aprovacao: parseFloat(e.target.value) || 0})} className="bg-slate-950 mt-1" />
+                  <p className="text-[10px] text-slate-500 mt-1">Valor máximo que este usuário pode aprovar sem escalar para outro nível.</p>
+                </div>
+              )}
             </div>
+        
+</div>
           </div>
         </div>
       )}

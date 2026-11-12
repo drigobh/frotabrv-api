@@ -69,3 +69,18 @@ async def aprovar_pedido(id: str, payload: AprovacaoPayload, _u: dict = Depends(
 async def excluir_pedido(id: str, _u: dict = Depends(require("write"))):
     await db.compras.delete_one({"id": id})
     return {"ok": True}
+
+
+@router.get("/alcada")
+async def verificar_alcada(_u: dict = Depends(require("read"))):
+    """Retorna a alçada do usuário logado para aprovação de compras."""
+    # Puxa os dados frescos do usuário no banco
+    user = await db.usuarios.find_one({"id": _u["id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(404, "Usuário não encontrado")
+    
+    return {
+        "pode_aprovar": user.get("pode_aprovar_compras", False),
+        "alcada": user.get("alcada_aprovacao", 0.0),
+        "nome": user.get("nome", "")
+    }
