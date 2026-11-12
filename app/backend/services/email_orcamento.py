@@ -13,13 +13,13 @@ ZAPI_INSTANCE = os.getenv("ZAPI_INSTANCE", "")
 ZAPI_TOKEN = os.getenv("ZAPI_TOKEN", "")
 ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN", "")
 
+
 def gerar_html(orcamento: dict, tipo: str, destinatario_nome: str) -> str:
     cor = "#22d3ee" if tipo == "comprador" else "#a855f7"
     cor_secundaria = "#a855f7" if tipo == "comprador" else "#22d3ee"
     titulo_acao = "Orçamento Criado com Sucesso" if tipo == "comprador" else "Ação Necessária: Aprovar Orçamento"
     subtitulo = "Seu orçamento foi registrado e enviado para aprovação." if tipo == "comprador" else "Você tem um novo orçamento aguardando sua análise."
 
-    # Linhas das ofertas
     linhas = ""
     for of in orcamento.get("ofertas", []):
         vencedor = of.get("is_vencedor", False)
@@ -49,19 +49,16 @@ def gerar_html(orcamento: dict, tipo: str, destinatario_nome: str) -> str:
         <tr><td align="center">
           <table width="600" cellpadding="0" cellspacing="0" style="background:#1e293b; border-radius:16px; overflow:hidden; box-shadow: 0 20px 60px rgba(34,211,238,0.15);">
             
-            <!-- HEADER -->
             <tr><td style="background: linear-gradient(135deg, {cor} 0%, {cor_secundaria} 100%); padding: 30px; text-align:center;">
               <div style="font-size:14px; letter-spacing:3px; color:rgba(255,255,255,0.8); text-transform:uppercase; font-weight:600;">Bravus Frota</div>
               <h1 style="margin:10px 0 5px 0; color:#ffffff; font-size:26px; font-weight:800;">{titulo_acao}</h1>
               <p style="margin:0; color:rgba(255,255,255,0.9); font-size:14px;">{subtitulo}</p>
             </td></tr>
 
-            <!-- SAUDAÇÃO -->
             <tr><td style="padding: 30px 30px 15px 30px;">
               <p style="color:#cbd5e1; font-size:15px; margin:0;">Olá, <b style="color:{cor};">{destinatario_nome}</b>,</p>
             </td></tr>
 
-            <!-- CARD DE RESUMO -->
             <tr><td style="padding: 0 30px;">
               <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a; border-radius:12px; border:1px solid #334155;">
                 <tr>
@@ -87,7 +84,6 @@ def gerar_html(orcamento: dict, tipo: str, destinatario_nome: str) -> str:
               </table>
             </td></tr>
 
-            <!-- TABELA DE OFERTAS -->
             <tr><td style="padding: 25px 30px 10px 30px;">
               <h2 style="color:#f1f5f9; font-size:16px; font-weight:700; margin:0 0 12px 0;">📊 Ofertas Recebidas ({len(orcamento.get('ofertas', []))})</h2>
               <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px; overflow:hidden;">
@@ -102,7 +98,6 @@ def gerar_html(orcamento: dict, tipo: str, destinatario_nome: str) -> str:
               </table>
             </td></tr>
 
-            <!-- TOTAL -->
             <tr><td style="padding: 15px 30px 30px 30px;">
               <div style="background: linear-gradient(135deg, {cor}22 0%, {cor_secundaria}22 100%); border: 1px solid {cor}; border-radius:12px; padding: 18px; display:flex; justify-content:space-between;">
                 <span style="color:#cbd5e1; font-size:14px; font-weight:600;">💰 Valor Total Estimado (Menor Oferta)</span>
@@ -110,12 +105,10 @@ def gerar_html(orcamento: dict, tipo: str, destinatario_nome: str) -> str:
               </div>
             </td></tr>
 
-            <!-- CTA -->
             <tr><td style="padding: 0 30px 30px 30px; text-align:center;">
               <a href="https://frotabrv.onrender.com/orcamentos" style="display:inline-block; background: linear-gradient(135deg, {cor} 0%, {cor_secundaria} 100%); color:#0f172a; text-decoration:none; font-weight:800; padding:14px 32px; border-radius:10px; font-size:14px;">{'Ver Orçamento no Sistema' if tipo == 'comprador' else 'Analisar e Aprovar'}</a>
             </td></tr>
 
-            <!-- FOOTER -->
             <tr><td style="background:#0f172a; padding:20px; text-align:center; border-top:1px solid #334155;">
               <p style="color:#475569; font-size:11px; margin:0;">Este é um e-mail automático do sistema <b style="color:{cor};">Bravus Frota</b>.</p>
               <p style="color:#475569; font-size:11px; margin:4px 0 0 0;">Dúvidas? Acesse o sistema e consulte o módulo de Compras.</p>
@@ -127,6 +120,7 @@ def gerar_html(orcamento: dict, tipo: str, destinatario_nome: str) -> str:
     </body>
     </html>
     """
+
 
 def enviar_email(destinatario: str, assunto: str, html: str) -> bool:
     if not SMTP_HOST or not SMTP_USER:
@@ -154,29 +148,27 @@ def enviar_email(destinatario: str, assunto: str, html: str) -> bool:
         print(f"[EMAIL] Erro ao enviar para {destinatario}: {e}")
         return False
 
+
 def gerar_texto_whatsapp(orcamento: dict, tipo: str, destinatario_nome: str) -> str:
     acao = "criado e aguardando aprovação" if tipo == "comprador" else "aguardando sua aprovação"
-    texto = f"""*🚀 Bravus Frota - Orçamento {orcamento.get('numero')}*
-
-Olá, *{destinatario_nome}*! O orçamento foi {acao}.
-
-*📦 Produto:* {orcamento.get('produto')}
-*👤 Solicitante:* {orcamento.get('criado_por')}
-*📊 Ofertas:* {len(orcamento.get('ofertas', []))} fornecedores
-
-"""
+    texto = "*🚀 Bravus Frota - Orçamento " + str(orcamento.get("numero")) + "*\n\n"
+    texto += "Olá, *" + destinatario_nome + "*! O orçamento foi " + acao + ".\n\n"
+    texto += "*📦 Produto:* " + str(orcamento.get("produto")) + "\n"
+    texto += "*👤 Solicitante:* " + str(orcamento.get("criado_por")) + "\n"
+    texto += "*📊 Ofertas:* " + str(len(orcamento.get("ofertas", []))) + " fornecedores\n\n"
+    
     for of in orcamento.get("ofertas", []):
         venc = " 🏆" if of.get("is_vencedor") else ""
         total = of.get("valor_unitario", 0) * of.get("quantidade", 0)
-        texto += "• " + str(of.get('fornecedor_nome')) + venc + ": R$ {:.2f} (Total R$ {:.2f})
-".format(of.get('valor_unitario', 0), total)
+        valor_fmt = "R$ {:.2f}".format(of.get("valor_unitario", 0))
+        total_fmt = "R$ {:.2f}".format(total)
+        texto += "• " + str(of.get("fornecedor_nome")) + venc + ": " + valor_fmt + " (Total " + total_fmt + ")\n"
     
-    texto += "
-*Acesse o sistema para " + ("ver" if tipo == "comprador" else "aprovar") + ":* https://frotabrv.onrender.com/orcamentos"
+    texto += "\n*Acesse o sistema para " + ("ver" if tipo == "comprador" else "aprovar") + ":* https://frotabrv.onrender.com/orcamentos"
     return texto
 
+
 def enviar_whatsapp(numero: str, mensagem: str) -> str:
-    """Se ZAPI configurada, envia direto. Senão, retorna link para abrir."""
     numero_limpo = "".join(filter(str.isdigit, numero))
     if len(numero_limpo) < 10:
         return None
