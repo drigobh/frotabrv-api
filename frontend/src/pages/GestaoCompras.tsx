@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, ShieldCheck, ShoppingCart, Save, X, Edit, History } from "lucide-react";
+import { Search, ShieldCheck, ShoppingCart, Save, X, Edit, History, Trash2 } from "lucide-react";
 import { apiGet, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,14 @@ export default function GestaoCompras() {
   const { data: usuarios = [] } = useQuery({
     queryKey: ["usuarios-compras"],
     queryFn: () => apiGet<any[]>("/compras/usuarios")
+  });
+
+  const excluir = useMutation({
+    mutationFn: (id: string) => apiDelete(`/compras/usuarios/${id}`),
+    onSuccess: () => {
+      toast.success("Permissões removidas!");
+      qc.invalidateQueries({ queryKey: ["usuarios-compras"] });
+    }
   });
 
   const salvar = useMutation({
