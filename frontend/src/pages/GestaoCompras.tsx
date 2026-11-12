@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { brl } from "@/lib/format";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 export default function GestaoCompras() {
   const qc = useQueryClient();
@@ -16,7 +15,6 @@ export default function GestaoCompras() {
   const [modalOpen, setModalOpen] = useState(false);
   const [usuarioEdicao, setUsuarioEdicao] = useState<any>(null);
 
-  // Estados do Form
   const [podeComprar, setPodeComprar] = useState(false);
   const [limiteCompra, setLimiteCompra] = useState(0);
   const [podeAprovar, setPodeAprovar] = useState(false);
@@ -79,37 +77,29 @@ export default function GestaoCompras() {
             <tr className="text-[11px] uppercase tracking-wider text-slate-400">
               <th className="px-5 py-3 font-medium">Usuário</th>
               <th className="px-3 py-3 font-medium">Comprador</th>
-              <th className="px-3 py-3 font-medium">Limite de Compra</th>
+              <th className="px-3 py-3 font-medium">Limite Compra</th>
               <th className="px-3 py-3 font-medium">Aprovador</th>
-              <th className="px-3 py-3 font-medium">Limite de Aprovação</th>
+              <th className="px-3 py-3 font-medium">Limite Aprovação</th>
               <th className="px-3 py-3 text-right font-medium">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
             {filtrados.map((u: any) => (
-              <tr key={u.id} className="hover:bg-slate-800/30 transition-colors">
+              <tr key={u.id} className="hover:bg-slate-800/30">
                 <td className="px-5 py-3">
                   <p className="text-slate-200 font-medium">{u.nome}</p>
                   <p className="text-xs text-slate-400">{u.email}</p>
                 </td>
                 <td className="px-3 py-3">
-                  {u.pode_comprar ? (
-                    <span className="text-emerald-400 font-medium flex items-center gap-1"><ShoppingCart className="size-3"/> Sim</span>
-                  ) : (
-                    <span className="text-slate-600">Não</span>
-                  )}
+                  {u.pode_comprar ? <span className="text-emerald-400 font-medium flex items-center gap-1"><ShoppingCart className="size-3"/> Sim</span> : <span className="text-slate-600">Não</span>}
                 </td>
                 <td className="px-3 py-3 text-slate-300 font-mono">{u.pode_comprar ? brl(u.limite_compra) : "—"}</td>
                 <td className="px-3 py-3">
-                  {u.pode_aprovar_compras ? (
-                    <span className="text-sky-400 font-medium flex items-center gap-1"><ShieldCheck className="size-3"/> Sim</span>
-                  ) : (
-                    <span className="text-slate-600">Não</span>
-                  )}
+                  {u.pode_aprovar_compras ? <span className="text-sky-400 font-medium flex items-center gap-1"><ShieldCheck className="size-3"/> Sim</span> : <span className="text-slate-600">Não</span>}
                 </td>
                 <td className="px-3 py-3 text-slate-300 font-mono">{u.pode_aprovar_compras ? brl(u.limite_aprovacao) : "—"}</td>
                 <td className="px-3 py-3 text-right">
-                  <Button size="sm" variant="ghost" className="text-sky-400 hover:bg-sky-500/10" onClick={() => abrirEdicao(u)}>Gerenciar</Button>
+                  <Button size="sm" variant="ghost" className="text-sky-400" onClick={() => abrirEdicao(u)}>Gerenciar</Button>
                 </td>
               </tr>
             ))}
@@ -117,7 +107,6 @@ export default function GestaoCompras() {
         </table>
       </div>
 
-      {/* MODAL DE GERENCIAMENTO */}
       {modalOpen && usuarioEdicao && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6">
@@ -127,7 +116,6 @@ export default function GestaoCompras() {
             </div>
             
             <div className="space-y-6">
-              {/* COMPRADOR */}
               <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
                 <div className="flex items-center gap-2 mb-3">
                   <input type="checkbox" checked={podeComprar} onChange={(e) => setPodeComprar(e.target.checked)} className="rounded border-slate-700 bg-slate-900 size-4" />
@@ -141,7 +129,6 @@ export default function GestaoCompras() {
                 )}
               </div>
 
-              {/* APROVADOR */}
               <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
                 <div className="flex items-center gap-2 mb-3">
                   <input type="checkbox" checked={podeAprovar} onChange={(e) => setPodeAprovar(e.target.checked)} className="rounded border-slate-700 bg-slate-900 size-4" />
@@ -158,7 +145,7 @@ export default function GestaoCompras() {
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSalvar} disabled={salvar.isPending} className="bg-emerald-600 hover:bg-emerald-500"><Save className="size-4 mr-2"/> Salvar Permissões</Button>
+              <Button onClick={handleSalvar} disabled={salvar.isPending} className="bg-emerald-600 hover:bg-emerald-500"><Save className="size-4 mr-2"/> Salvar</Button>
             </div>
           </div>
         </div>
