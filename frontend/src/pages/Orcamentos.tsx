@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Sparkles, X, Save, Check, Trash2, MapPin, Phone, Mail, Image as ImageIcon } from "lucide-react";
+import { Plus, Search, Sparkles, X, Save, Edit, Trash2, MapPin, Phone, Mail, Image as ImageIcon, MessageCircle } from "lucide-react";
 import { apiGet, apiPost, apiPatch } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,9 @@ export default function Orcamentos() {
   const [cidade, setCidade] = useState("");
   const [pesquisando, setPesquisando] = useState(false);
   const [resultadosIA, setResultadosIA] = useState<any[]>([]);
+  const [raioKm, setRaioKm] = useState("50");
+  const [condicao, setCondicao] = useState("Novo");
+  const [editandoId, setEditandoId] = useState<string | null>(null);
 
   // Estados do Fornecedor Cadastrado
   const [modalFornecedorOpen, setModalFornecedorOpen] = useState(false);
@@ -39,10 +42,11 @@ export default function Orcamentos() {
   );
 
   const salvar = useMutation({
-    mutationFn: (payload: any) => apiPost("/orcamentos", payload),
+    mutationFn: (payload: any) => editandoId ? apiPut(`/orcamentos/${editandoId}`, payload) : apiPost("/orcamentos", payload),
     onSuccess: () => {
-      toast.success("Orçamento salvo!");
+      toast.success(editandoId ? "Orçamento atualizado!" : "Orçamento salvo!");
       setModalOpen(false);
+      setEditandoId(null);
       setOfertas([]); setProduto(""); setResultadosIA([]);
       qc.invalidateQueries({ queryKey: ["orcamentos"] });
     }
@@ -56,11 +60,19 @@ export default function Orcamentos() {
     }
   });
 
+
+  const abrirEdicao = (o: any) => {
+    setEditandoId(o.id);
+    setProduto(o.produto);
+    setObservacoes(o.observacoes || "");
+    setOfertas(o.ofertas);
+    setModalOpen(true);
+  };
   const pesquisarComIA = async () => {
     if (!produto || !cidade) return toast.error("Preencha o produto e a cidade.");
     setPesquisando(true);
     try {
-      const res = await apiPost<any[]>("/orcamentos/ia-search", { produto, cidade, estado: "MG" });
+      const res = await apiPost<any[]>("/orcamentos/ia-search", { produto, cidade, estado: "MG", raio_km: raioKm, condicao });
       setResultadosIA(res);
     } catch (e) { toast.error("Erro na IA"); } finally { setPesquisando(false); }
   };
@@ -120,6 +132,9 @@ export default function Orcamentos() {
                 <td className="px-3 py-3 text-slate-400">{o.ofertas.length} opções</td>
                 <td className="px-3 py-3"><span className="px-2 py-1 bg-amber-500/20 text-amber-400 rounded text-xs font-bold">{o.status}</span></td>
                 <td className="px-3 py-3 flex gap-2">
+                  <Button size="sm" variant="ghost" className="text-amber-400" onClick={() => abrirEdicao(o)} title="Editar">
+                    <Edit className="size-4" />
+                  </Button>
                   <Button size="sm" variant="ghost" className="text-emerald-400" onClick={() => {
                     const vencedor = prompt(`Qual fornecedor venceu?\n${o.ofertas.map((x:any) => x.fornecedor_nome).join("\n")}`);
                     const of = o.ofertas.find((x:any) => x.fornecedor_nome === vencedor);
@@ -137,7 +152,7 @@ export default function Orcamentos() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/30">
-              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2"><Sparkles className="size-5 text-purple-400"/> Novo Orçamento</h2>
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2"><Sparkles className="size-5 text-purple-400"/> {editandoId ? "Editar Orçamento" : "Novo Orçamento"}</h2>
               <Button variant="ghost" size="icon" onClick={() => setModalOpen(false)}><X className="size-5" /></Button>
             </div>
             
@@ -163,10 +178,19 @@ export default function Orcamentos() {
                 {/* BLOCO IA */}
                 <div className="bg-purple-500/10 p-4 rounded-lg border border-purple-500/30">
                   <h3 className="text-sm font-bold text-purple-400 mb-3 flex items-center gap-2"><Sparkles className="size-4"/> Busca com IA</h3>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2">
                     <Input placeholder="Cidade (ex: Contagem)" value={cidade} onChange={e => setCidade(e.target.value)} className="bg-slate-950" />
-                    <Button onClick={pesquisarComIA} disabled={pesquisando} className="bg-purple-600">{pesquisando ? "..." : "Buscar"}</Button>
-                    <Button variant="outline" onClick={() => { setResultadosIA([]); setCidade(""); }} className="border-slate-700 text-slate-400"><X className="size-4"/></Button>
+                    <div className="flex gap-2">
+                      <div className="flex-1 flex gap-2">
+                        <Input type="number" placeholder="Raio (km)" value={raioKm} onChange={e => setRaioKm(e.target.value)} className="bg-slate-950 w-24" />
+                        <select value={condicao} onChange={e => setCondicao(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
+                          <option value="Novo">Novo</option>
+                          <option value="Usado">Usado</option>
+                        </select>
+                      </div>
+                      <Button onClick={pesquisarComIA} disabled={pesquisando} className="bg-purple-600">{pesquisando ? "..." : "Buscar"}</Button>
+                      <Button variant="outline" onClick={() => { setResultadosIA([]); setCidade(""); }} className="border-slate-700 text-slate-400"><X className="size-4"/></Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -186,8 +210,14 @@ export default function Orcamentos() {
                           <p className="font-bold text-slate-200 line-clamp-1">{r.fornecedor_nome}</p>
                           <p className="text-emerald-400 font-bold my-1">{brl(r.preco)}</p>
                           <div className="text-slate-400 space-y-0.5 mb-2 text-[10px]">
-                            <p className="flex items-center gap-1"><MapPin className="size-3"/> {r.distancia}</p>
-                            <p className="flex items-center gap-1"><Phone className="size-3"/> {r.whatsapp}</p>
+                            <p className="flex items-center gap-1"><MapPin className="size-3"/> {r.bairro} - {r.distancia}km</p>
+                            <p className="flex items-center gap-1">
+                              <Phone className="size-3"/> 
+                              {r.whatsapp.replace(/^55/, '')} 
+                              <a href={`https://wa.me/${r.whatsapp}?text=Olá, gostaria de orçar o produto: ${produto}`} target="_blank" rel="noreferrer" className="text-emerald-500 hover:text-emerald-400 ml-1">
+                                <MessageCircle className="size-3" />
+                              </a>
+                            </p>
                           </div>
                           <Button size="sm" onClick={() => adicionarOferta({ fornecedor_nome: r.fornecedor_nome, valor_unitario: r.preco, whatsapp: r.whatsapp, email: r.email, origem: "IA" })} className="w-full bg-emerald-600 hover:bg-emerald-500 h-7 text-xs">Adicionar</Button>
                         </div>

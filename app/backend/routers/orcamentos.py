@@ -74,23 +74,49 @@ async def escolher_vencedor(id: str, payload: dict, _u: dict = Depends(require("
 async def ia_search(payload: dict, _u: dict = Depends(require("read"))):
     produto = payload.get("produto", "").lower()
     cidade = payload.get("cidade", "")
+    raio_km = float(payload.get("raio_km", 100))
+    condicao = payload.get("condicao", "Novo")
     
     nomes_base = ["Distribuidora", "Peças", "Auto", "Atacadão", "Mercado"]
     tipos = ["Silva", "ABC", "Central", "Norte", "Sul"]
+    bairros = ["Centro", "Industrial", "Nossa Senhora", "Riacho", "Eldorado"]
     
-    random.seed(len(produto)) 
+    random.seed(len(produto) + int(raio_km)) 
     resultados = []
-    for i in range(3):
+    for i in range(4):
         nome = f"{random.choice(nomes_base)} {random.choice(tipos)}"
         preco = round(random.uniform(50.0, 500.0), 2)
-        resultados.append({
-            "fornecedor_nome": nome,
-            "cnpj": f"12.345.678/0001-{random.randint(10, 99)}",
-            "preco": preco,
-            "cidade": cidade,
-            "whatsapp": f"(31) 9{random.randint(1000, 9999)}-{random.randint(1000, 9999)}",
-            "email": f"contato@{nome.split()[0].lower()}.com.br",
-            "distancia": f"{random.randint(5, 120)} km da sua empresa",
-            "foto_url": "https://placehold.co/100x100/1e293b/475569?text=Peça" # Foto simulada
-        })
+        dist = random.randint(5, 150)
+        
+        # Filtra pelo raio escolhido
+        if dist <= raio_km:
+            resultados.append({
+                "fornecedor_nome": nome,
+                "cnpj": f"12.345.678/0001-{random.randint(10, 99)}",
+                "preco": preco,
+                "cidade": cidade,
+                "bairro": random.choice(bairros),
+                "condicao": condicao,
+                "whatsapp": f"55319{random.randint(10000000, 99999999)}", # Formato para link do Zap
+                "email": f"contato@{nome.split()[0].lower()}.com.br",
+                "distancia": dist,
+                # Imagem real de peças automotivas
+                "foto_url": "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=100&h=100&fit=crop"
+            })
     return resultados
+
+
+@router.put("/{id}")
+async def editar_orcamento(id: str, payload: OrcamentoCreate, _u: dict = Depends(require("write"))):
+    try:
+        await db.orcamentos.update_one(
+            {"id": id},
+            {"$set": {
+                "produto": payload.produto,
+                "observacoes": payload.observacoes,
+                "ofertas": [item.model_dump() for item in payload.ofertas]
+            }}
+        )
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao editar orçamento: {str(e)}")
