@@ -41,9 +41,10 @@ import ImprimirDanfe from "@/pages/ImprimirDanfe";
 import VisualizadorXML from "@/pages/VisualizadorXML";
 import CadastrosFinanceiros from "@/pages/CadastrosFinanceiros";
 import Estoque from "@/pages/Estoque";
+import GestaoCompras from "@/pages/GestaoCompras";
 import ChecklistViagem from "@/pages/ChecklistViagem";
 import Compras from "@/pages/Compras";
-import GestaoCompras from "@/pages/GestaoCompras";
+
 import RelatorioManutencao from "@/pages/RelatorioManutencao";
 import RelatorioEstoque from "@/pages/RelatorioEstoque";
 import RelatorioFornecedores from "@/pages/RelatorioFornecedores";

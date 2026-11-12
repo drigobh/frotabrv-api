@@ -144,3 +144,30 @@ async def atualizar_permissoes_compras(id: str, payload: dict, _u: dict = Depend
 async def obter_historico_compras(id: str, _u: dict = Depends(require("read"))):
     """Retorna o histórico de alterações de compras de um usuário."""
     return await db.historico_compras.find({"usuario_id": id}, {"_id": 0}).sort("data", -1).to_list(100)
+
+
+@router.delete("/usuarios/{id}")
+async def remover_permissoes_compras(id: str, _u: dict = Depends(require("write"))):
+    """Remove todas as permissões de compras de um usuário e limpa o histórico."""
+    try:
+        user = await db.usuarios.find_one({"id": id})
+        if not user:
+            raise HTTPException(404, "Usuário não encontrado")
+        
+        # Remove as permissões (volta ao padrão)
+        await db.usuarios.update_one(
+            {"id": id},
+            {"$set": {
+                "pode_comprar": False,
+                "limite_compra": 0,
+                "pode_aprovar_compras": False,
+                "limite_aprovacao": 0
+            }}
+        )
+        
+        # Limpa o histórico de compras deste usuário
+        await db.historico_compras.delete_many({"usuario_id": id})
+        
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao remover permissões: {str(e)}")
