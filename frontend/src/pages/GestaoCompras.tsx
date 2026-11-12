@@ -1,0 +1,168 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Search, ShieldCheck, ShoppingCart, Save, X } from "lucide-react";
+import { apiGet, apiPut } from "@/lib/api";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { brl } from "@/lib/format";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+export default function GestaoCompras() {
+  const qc = useQueryClient();
+  const [busca, setBusca] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [usuarioEdicao, setUsuarioEdicao] = useState<any>(null);
+
+  // Estados do Form
+  const [podeComprar, setPodeComprar] = useState(false);
+  const [limiteCompra, setLimiteCompra] = useState(0);
+  const [podeAprovar, setPodeAprovar] = useState(false);
+  const [limiteAprovacao, setLimiteAprovacao] = useState(0);
+
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ["usuarios-compras"],
+    queryFn: () => apiGet<any[]>("/compras/usuarios")
+  });
+
+  const salvar = useMutation({
+    mutationFn: (payload: any) => apiPut(`/compras/usuarios/${usuarioEdicao.id}`, payload),
+    onSuccess: () => {
+      toast.success("Permissões atualizadas!");
+      setModalOpen(false);
+      qc.invalidateQueries({ queryKey: ["usuarios-compras"] });
+    }
+  });
+
+  const abrirEdicao = (u: any) => {
+    setUsuarioEdicao(u);
+    setPodeComprar(u.pode_comprar || false);
+    setLimiteCompra(u.limite_compra || 0);
+    setPodeAprovar(u.pode_aprovar_compras || false);
+    setLimiteAprovacao(u.limite_aprovacao || 0);
+    setModalOpen(true);
+  };
+
+  const handleSalvar = () => {
+    salvar.mutate({
+      pode_comprar: podeComprar,
+      limite_compra: limiteCompra,
+      pode_aprovar_compras: podeAprovar,
+      limite_aprovacao: limiteAprovacao
+    });
+  };
+
+  const filtrados = usuarios.filter((u: any) => 
+    (u.nome || "").toLowerCase().includes(busca.toLowerCase()) || 
+    (u.email || "").toLowerCase().includes(busca.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Administração"
+        title="Cadastro de Compras"
+        description="Gerencie quem pode comprar e quem pode aprovar, com seus respectivos limites."
+        actions={
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+            <Input placeholder="Buscar usuário..." value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-9 h-9 w-64" />
+          </div>
+        }
+      />
+
+      <div className="glass rounded-2xl overflow-hidden border border-slate-800">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-800/50">
+            <tr className="text-[11px] uppercase tracking-wider text-slate-400">
+              <th className="px-5 py-3 font-medium">Usuário</th>
+              <th className="px-3 py-3 font-medium">Comprador</th>
+              <th className="px-3 py-3 font-medium">Limite de Compra</th>
+              <th className="px-3 py-3 font-medium">Aprovador</th>
+              <th className="px-3 py-3 font-medium">Limite de Aprovação</th>
+              <th className="px-3 py-3 text-right font-medium">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {filtrados.map((u: any) => (
+              <tr key={u.id} className="hover:bg-slate-800/30 transition-colors">
+                <td className="px-5 py-3">
+                  <p className="text-slate-200 font-medium">{u.nome}</p>
+                  <p className="text-xs text-slate-400">{u.email}</p>
+                </td>
+                <td className="px-3 py-3">
+                  {u.pode_comprar ? (
+                    <span className="text-emerald-400 font-medium flex items-center gap-1"><ShoppingCart className="size-3"/> Sim</span>
+                  ) : (
+                    <span className="text-slate-600">Não</span>
+                  )}
+                </td>
+                <td className="px-3 py-3 text-slate-300 font-mono">{u.pode_comprar ? brl(u.limite_compra) : "—"}</td>
+                <td className="px-3 py-3">
+                  {u.pode_aprovar_compras ? (
+                    <span className="text-sky-400 font-medium flex items-center gap-1"><ShieldCheck className="size-3"/> Sim</span>
+                  ) : (
+                    <span className="text-slate-600">Não</span>
+                  )}
+                </td>
+                <td className="px-3 py-3 text-slate-300 font-mono">{u.pode_aprovar_compras ? brl(u.limite_aprovacao) : "—"}</td>
+                <td className="px-3 py-3 text-right">
+                  <Button size="sm" variant="ghost" className="text-sky-400 hover:bg-sky-500/10" onClick={() => abrirEdicao(u)}>Gerenciar</Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODAL DE GERENCIAMENTO */}
+      {modalOpen && usuarioEdicao && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-slate-100">Gerenciar: {usuarioEdicao.nome}</h2>
+              <Button variant="ghost" size="icon" onClick={() => setModalOpen(false)}><X className="size-5" /></Button>
+            </div>
+            
+            <div className="space-y-6">
+              {/* COMPRADOR */}
+              <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                <div className="flex items-center gap-2 mb-3">
+                  <input type="checkbox" checked={podeComprar} onChange={(e) => setPodeComprar(e.target.checked)} className="rounded border-slate-700 bg-slate-900 size-4" />
+                  <Label className="text-sm font-bold text-slate-200 m-0">Habilitar como Comprador</Label>
+                </div>
+                {podeComprar && (
+                  <div>
+                    <Label className="text-xs text-slate-400">Limite de Compra (R$)</Label>
+                    <Input type="number" value={limiteCompra} onChange={(e) => setLimiteCompra(parseFloat(e.target.value) || 0)} className="bg-slate-950 mt-1" />
+                  </div>
+                )}
+              </div>
+
+              {/* APROVADOR */}
+              <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                <div className="flex items-center gap-2 mb-3">
+                  <input type="checkbox" checked={podeAprovar} onChange={(e) => setPodeAprovar(e.target.checked)} className="rounded border-slate-700 bg-slate-900 size-4" />
+                  <Label className="text-sm font-bold text-slate-200 m-0">Habilitar como Aprovador</Label>
+                </div>
+                {podeAprovar && (
+                  <div>
+                    <Label className="text-xs text-slate-400">Limite de Aprovação (R$)</Label>
+                    <Input type="number" value={limiteAprovacao} onChange={(e) => setLimiteAprovacao(parseFloat(e.target.value) || 0)} className="bg-slate-950 mt-1" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSalvar} disabled={salvar.isPending} className="bg-emerald-600 hover:bg-emerald-500"><Save className="size-4 mr-2"/> Salvar Permissões</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

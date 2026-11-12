@@ -84,3 +84,27 @@ async def verificar_alcada(_u: dict = Depends(require("read"))):
         "alcada": user.get("alcada_aprovacao", 0.0),
         "nome": user.get("nome", "")
     }
+
+
+@router.get("/usuarios")
+async def listar_usuarios_compras(_u: dict = Depends(require("read"))):
+    """Lista todos os usuários com suas permissões e alçadas de compras."""
+    usuarios = await db.usuarios.find({}, {"_id": 0, "senha": 0}).to_list(1000)
+    return usuarios
+
+@router.put("/usuarios/{id}")
+async def atualizar_permissoes_compras(id: str, payload: dict, _u: dict = Depends(require("write"))):
+    """Atualiza as permissões de compras de um usuário."""
+    try:
+        await db.usuarios.update_one(
+            {"id": id},
+            {"$set": {
+                "pode_comprar": payload.get("pode_comprar", False),
+                "limite_compra": float(payload.get("limite_compra", 0)),
+                "pode_aprovar_compras": payload.get("pode_aprovar_compras", False),
+                "limite_aprovacao": float(payload.get("limite_aprovacao", 0))
+            }}
+        )
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao atualizar permissões: {str(e)}")

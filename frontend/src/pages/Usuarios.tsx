@@ -16,8 +16,7 @@ export default function Usuarios() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState<any>({
-    pode_aprovar_compras: false,
-    alcada_aprovacao: 0, 
+     
     nome: "", email: "", perfil_id: "", setor: "", cargo: "", telefone: "", whatsapp: "", foto_url: "", senha: "",
     notificacoes: { manutencao: true, documentos: true, pneus: true, resumo_semanal: false }
   });

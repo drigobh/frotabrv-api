@@ -6,7 +6,7 @@ import {
   FileText, DollarSign, LogOut, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Briefcase,
   Shield, Bell, UserCog, FileBox, Tag, Building, FolderOpen, Layers, BellRing, Eye, AlertTriangle,
   CheckSquare
-, ShoppingCart } from "lucide-react";
+, ShoppingCart , ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/hooks/useSession";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -28,6 +28,7 @@ const MENUS = [
       { label: "Parametrização", icon: Settings, path: "/admin/parametrizacao" },
       { label: "Segurança", icon: Shield, path: "/admin/seguranca" },
       { label: "Usuários", icon: UserCog, path: "/admin/usuarios" },
+      { label: "Cadastro de Compras", icon: ShieldCheck, path: "/admin/compras" },
       { label: "Perfis de Acesso", icon: Shield, path: "/admin/perfis" },
     ]
   },
