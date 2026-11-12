@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Sparkles, X, Save, Edit, Trash2, MapPin, Phone, Mail, Image as ImageIcon, MessageCircle } from "lucide-react";
+import { Plus, Search, Sparkles, X, Save, Edit, Trash2, MapPin, Phone, Mail, Image as ImageIcon, MessageCircle, Maximize2, Star, History } from "lucide-react";
 import { apiGet, apiPost, apiPatch } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,9 @@ export default function Orcamentos() {
   const [raioKm, setRaioKm] = useState("50");
   const [condicao, setCondicao] = useState("Novo");
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [imagemExpandida, setImagemExpandida] = useState<string | null>(null);
+  const [modalAprovacaoOpen, setModalAprovacaoOpen] = useState(false);
+  const [orcamentoAprovacao, setOrcamentoAprovacao] = useState<any>(null);
 
   // Estados do Fornecedor Cadastrado
   const [modalFornecedorOpen, setModalFornecedorOpen] = useState(false);
@@ -180,16 +183,22 @@ export default function Orcamentos() {
                   <h3 className="text-sm font-bold text-purple-400 mb-3 flex items-center gap-2"><Sparkles className="size-4"/> Busca com IA</h3>
                   <div className="flex flex-col gap-2">
                     <Input placeholder="Cidade (ex: Contagem)" value={cidade} onChange={e => setCidade(e.target.value)} className="bg-slate-950" />
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-end">
                       <div className="flex-1 flex gap-2">
-                        <Input type="number" placeholder="Raio (km)" value={raioKm} onChange={e => setRaioKm(e.target.value)} className="bg-slate-950 w-24" />
-                        <select value={condicao} onChange={e => setCondicao(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-2">
-                          <option value="Novo">Novo</option>
-                          <option value="Usado">Usado</option>
-                        </select>
+                        <div className="flex flex-col gap-1 w-20">
+                          <Label className="text-[10px] text-purple-400">Raio (km)</Label>
+                          <Input type="number" value={raioKm} onChange={e => setRaioKm(e.target.value)} className="bg-slate-950 h-8 text-xs" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label className="text-[10px] text-purple-400">Condição</Label>
+                          <select value={condicao} onChange={e => setCondicao(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md text-xs text-slate-300 px-2 h-8">
+                            <option value="Novo">Novo</option>
+                            <option value="Usado">Usado</option>
+                          </select>
+                        </div>
                       </div>
-                      <Button onClick={pesquisarComIA} disabled={pesquisando} className="bg-purple-600">{pesquisando ? "..." : "Buscar"}</Button>
-                      <Button variant="outline" onClick={() => { setResultadosIA([]); setCidade(""); }} className="border-slate-700 text-slate-400"><X className="size-4"/></Button>
+                      <Button onClick={pesquisarComIA} disabled={pesquisando} className="bg-purple-600 h-8">{pesquisando ? "..." : "Buscar"}</Button>
+                      <Button variant="outline" onClick={() => { setResultadosIA([]); setCidade(""); }} className="border-slate-700 text-slate-400 h-8 px-2"><X className="size-4"/></Button>
                     </div>
                   </div>
                 </div>
@@ -294,6 +303,71 @@ export default function Orcamentos() {
           </div>
         </div>
       )}
+
+      {/* MODAL DE ZOOM DA IMAGEM */}
+      {imagemExpandida && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 cursor-pointer" onClick={() => setImagemExpandida(null)}>
+          <img src={imagemExpandida} alt="Zoom" className="max-w-full max-h-full rounded-lg shadow-2xl" />
+          <Button variant="ghost" size="icon" className="absolute top-4 right-4 text-white"><X className="size-8" /></Button>
+        </div>
+      )}
+
+      {/* MODAL DE APROVAÇÃO (MAPA DE DECISÃO) */}
+      {modalAprovacaoOpen && orcamentoAprovacao && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/30">
+              <div>
+                <h2 className="text-lg font-bold text-slate-100">Análise de Aprovação</h2>
+                <p className="text-sm text-slate-400">Orçamento: {orcamentoAprovacao.numero} | Produto: {orcamentoAprovacao.produto}</p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setModalAprovacaoOpen(false)}><X className="size-5" /></Button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="bg-sky-500/10 border border-sky-500/30 p-4 rounded-lg mb-6 flex gap-3 text-sm text-sky-200">
+                <History className="size-5 shrink-0" />
+                <p>Analise as ofertas abaixo. O sistema destaca o <b>Melhor Preço</b> e a <b>Melhor Classificação</b>. A escolha final é sua.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {orcamentoAprovacao.ofertas.map((of: any, i: number) => {
+                  // Lógica visual para destacar o melhor preço
+                  const menorPreco = Math.min(...orcamentoAprovacao.ofertas.map((x: any) => x.valor_unitario));
+                  const isMenorPreco = of.valor_unitario === menorPreco;
+
+                  return (
+                    <div key={i} className={`p-4 rounded-xl border-2 flex flex-col ${isMenorPreco ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-700 bg-slate-800/50'}`}>
+                      {isMenorPreco && <span className="text-[10px] font-bold uppercase text-emerald-400 mb-2 flex items-center gap-1"><Star className="size-3 fill-emerald-400"/> Melhor Preço</span>}
+                      
+                      <p className="font-bold text-slate-100 text-lg">{of.fornecedor_nome}</p>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-amber-400 flex items-center text-xs"><Star className="size-3 fill-amber-400 mr-1"/>{of.classificacao || 'N/A'}</span>
+                        <span className="text-slate-400 text-xs">({of.compras_realizadas || 0} compras)</span>
+                      </div>
+
+                      <div className="space-y-1 text-xs text-slate-300 mb-4 flex-1">
+                        <p className="flex justify-between"><span className="text-slate-500">Valor Unit.:</span> <span className="font-bold text-slate-100">{brl(of.valor_unitario)}</span></p>
+                        <p className="flex justify-between"><span className="text-slate-500">Qtd:</span> <span>{of.quantidade}</span></p>
+                        <p className="flex justify-between"><span className="text-slate-500">Total:</span> <span className="font-bold text-sky-400">{brl(of.valor_unitario * of.quantidade)}</span></p>
+                        <p className="flex justify-between"><span className="text-slate-500">Entrega:</span> <span>{of.prazo_entrega}</span></p>
+                        <p className="flex justify-between"><span className="text-slate-500">Pagamento:</span> <span>{of.prazo_pagamento} - {of.forma_pagamento}</span></p>
+                        <p className="flex justify-between"><span className="text-slate-500">Origem:</span> <span className={of.origem === "IA" ? "text-purple-400" : "text-slate-400"}>{of.origem}</span></p>
+                      </div>
+
+                      <Button onClick={() => {
+                        escolherVencedor.mutate({ id: orcamentoAprovacao.id, fornecedor_id: of.fornecedor_id, fornecedor_nome: of.fornecedor_nome });
+                        setModalAprovacaoOpen(false);
+                      }} className="w-full bg-sky-600 hover:bg-sky-500">Aprovar este Fornecedor</Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

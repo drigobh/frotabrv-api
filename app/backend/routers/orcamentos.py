@@ -81,31 +81,39 @@ async def ia_search(payload: dict, _u: dict = Depends(require("read"))):
     tipos = ["Silva", "ABC", "Central", "Norte", "Sul"]
     bairros = ["Centro", "Industrial", "Nossa Senhora", "Riacho", "Eldorado"]
     
-    random.seed(len(produto) + int(raio_km)) 
-    resultados = []
-    for i in range(4):
+    # Semente baseada apenas no produto, assim os fornecedores são os mesmos antes do filtro
+    random.seed(len(produto) + 42) 
+    
+    todos_fornecedores = []
+    for i in range(8): # Gera uma base de 8 fornecedores
         nome = f"{random.choice(nomes_base)} {random.choice(tipos)}"
+        dist = random.randint(5, 150) # Distância real
         preco = round(random.uniform(50.0, 500.0), 2)
-        dist = random.randint(5, 150)
         
-        # Filtra pelo raio escolhido
-        if dist <= raio_km:
-            resultados.append({
-                "fornecedor_nome": nome,
-                "cnpj": f"12.345.678/0001-{random.randint(10, 99)}",
-                "preco": preco,
-                "cidade": cidade,
-                "bairro": random.choice(bairros),
-                "condicao": condicao,
-                "whatsapp": f"55319{random.randint(10000000, 99999999)}", # Formato para link do Zap
-                "email": f"contato@{nome.split()[0].lower()}.com.br",
-                "distancia": dist,
-                # Imagem real de peças automotivas
-                "foto_url": "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=100&h=100&fit=crop"
-            })
-    return resultados
-
-
+        todos_fornecedores.append({
+            "fornecedor_nome": nome,
+            "cnpj": f"12.345.678/0001-{random.randint(10, 99)}",
+            "preco": preco,
+            "cidade": cidade,
+            "bairro": random.choice(bairros),
+            "condicao": condicao,
+            "whatsapp": f"55319{random.randint(10000000, 99999999)}",
+            "email": f"contato@{nome.split()[0].lower()}.com.br",
+            "distancia": dist,
+            # Fotos diferentes para cada fornecedor usando Lorem Picsum
+            "foto_url": f"https://picsum.photos/seed/{nome.replace(' ', '')}/200/200",
+            "classificacao": round(random.uniform(3.0, 5.0), 1),
+            "compras_realizadas": random.randint(1, 50),
+            "prazo_entrega": f"{random.randint(2, 15)} dias",
+            "prazo_pagamento": f"{random.choice([15, 30, 45, 60])} dias",
+            "forma_pagamento": random.choice(["Boleto", "Pix", "Cartão"])
+        })
+    
+    # Filtra pelo raio DEPOIS de gerar
+    resultados = [f for f in todos_fornecedores if f["distancia"] <= raio_km]
+    
+    # Retorna no máximo 5
+    return resultados[:5]
 @router.put("/{id}")
 async def editar_orcamento(id: str, payload: OrcamentoCreate, _u: dict = Depends(require("write"))):
     try:
