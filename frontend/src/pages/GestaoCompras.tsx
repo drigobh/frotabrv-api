@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, ShieldCheck, ShoppingCart, Save, X } from "lucide-react";
+import { Search, ShieldCheck, ShoppingCart, Save, X, Edit, Trash2, History, Users, TrendingUp } from "lucide-react";
 import { apiGet, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ export default function GestaoCompras() {
   const [podeComprar, setPodeComprar] = useState(false);
   const [limiteCompra, setLimiteCompra] = useState(0);
   const [podeAprovar, setPodeAprovar] = useState(false);
+  const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
+  const [historico, setHistorico] = useState<any[]>([]);
   const [limiteAprovacao, setLimiteAprovacao] = useState(0);
 
   const { data: usuarios = [] } = useQuery({
@@ -98,8 +100,13 @@ export default function GestaoCompras() {
                   {u.pode_aprovar_compras ? <span className="text-sky-400 font-medium flex items-center gap-1"><ShieldCheck className="size-3"/> Sim</span> : <span className="text-slate-600">Não</span>}
                 </td>
                 <td className="px-3 py-3 text-slate-300 font-mono">{u.pode_aprovar_compras ? brl(u.limite_aprovacao) : "—"}</td>
-                <td className="px-3 py-3 text-right">
-                  <Button size="sm" variant="ghost" className="text-sky-400" onClick={() => abrirEdicao(u)}>Gerenciar</Button>
+                <td className="px-3 py-3 flex gap-1 justify-end">
+                  <Button size="sm" variant="ghost" className="text-sky-400 hover:bg-sky-500/10 h-8 px-2" onClick={() => abrirEdicao(u)} title="Editar">
+                    <Edit className="size-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-purple-400 hover:bg-purple-500/10 h-8 px-2" onClick={() => { apiGet<any[]>(`/compras/historico/${u.id}`).then(setHistorico); setModalHistoricoOpen(true); }} title="Histórico">
+                    <History className="size-4" />
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -150,6 +157,33 @@ export default function GestaoCompras() {
           </div>
         </div>
       )}
+
+      {modalHistoricoOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-slate-100">Histórico de Alterações</h2>
+              <Button variant="ghost" size="icon" onClick={() => setModalHistoricoOpen(false)}><X className="size-5" /></Button>
+            </div>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {historico.length === 0 ? (
+                <p className="text-center text-slate-500 text-sm">Nenhuma alteração registrada.</p>
+              ) : (
+                historico.map((h: any, i: number) => (
+                  <div key={i} className="bg-slate-800/50 p-3 rounded-lg border border-slate-700 text-sm">
+                    <p className="font-bold text-sky-400">{h.alterado_por}</p>
+                    <p className="text-xs text-slate-400">{new Date(h.data).toLocaleString("pt-BR")}</p>
+                    <ul className="mt-2 text-xs text-slate-300 list-disc list-inside">
+                      {h.mudancas.map((m: string, j: number) => <li key={j}>{m}</li>)}
+                    </ul>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

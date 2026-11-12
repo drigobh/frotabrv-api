@@ -28,7 +28,7 @@ const MENUS = [
       { label: "Parametrização", icon: Settings, path: "/admin/parametrizacao" },
       { label: "Segurança", icon: Shield, path: "/admin/seguranca" },
       { label: "Usuários", icon: UserCog, path: "/admin/usuarios" },
-      { label: "Cadastro de Compras", icon: ShieldCheck, path: "/admin/compras" },
+      
       { label: "Perfis de Acesso", icon: Shield, path: "/admin/perfis" },
     ]
   },

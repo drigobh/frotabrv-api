@@ -94,17 +94,53 @@ async def listar_usuarios_compras(_u: dict = Depends(require("read"))):
 
 @router.put("/usuarios/{id}")
 async def atualizar_permissoes_compras(id: str, payload: dict, _u: dict = Depends(require("write"))):
-    """Atualiza as permissões de compras de um usuário."""
+    """Atualiza as permissões de compras de um usuário e registra o histórico."""
     try:
-        await db.usuarios.update_one(
-            {"id": id},
-            {"$set": {
-                "pode_comprar": payload.get("pode_comprar", False),
-                "limite_compra": float(payload.get("limite_compra", 0)),
-                "pode_aprovar_compras": payload.get("pode_aprovar_compras", False),
-                "limite_aprovacao": float(payload.get("limite_aprovacao", 0))
-            }}
-        )
+        user_antigo = await db.usuarios.find_one({"id": id})
+        if not user_antigo:
+            raise HTTPException(404, "Usuário não encontrado")
+        
+        # Pega os valores antigos
+        antigos = {
+            "pode_comprar": user_antigo.get("pode_comprar", False),
+            "limite_compra": user_antigo.get("limite_compra", 0),
+            "pode_aprovar_compras": user_antigo.get("pode_aprovar_compras", False),
+            "limite_aprovacao": user_antigo.get("limite_aprovacao", 0)
+        }
+        
+        novos = {
+            "pode_comprar": payload.get("pode_comprar", False),
+            "limite_compra": float(payload.get("limite_compra", 0)),
+            "pode_aprovar_compras": payload.get("pode_aprovar_compras", False),
+            "limite_aprovacao": float(payload.get("limite_aprovacao", 0))
+        }
+        
+        # Cria o registro de histórico
+        mudancas = []
+        if antigos["pode_comprar"] != novos["pode_comprar"]:
+            mudancas.append(f"Comprador: {antigos['pode_comprar']} -> {novos['pode_comprar']}")
+        if antigos["limite_compra"] != novos["limite_compra"]:
+            mudancas.append(f"Limite de Compra: R$ {antigos['limite_compra']} -> R$ {novos['limite_compra']}")
+        if antigos["pode_aprovar_compras"] != novos["pode_aprovar_compras"]:
+            mudancas.append(f"Aprovador: {antigos['pode_aprovar_compras']} -> {novos['pode_aprovar_compras']}")
+        if antigos["limite_aprovacao"] != novos["limite_aprovacao"]:
+            mudancas.append(f"Limite de Aprovação: R$ {antigos['limite_aprovacao']} -> R$ {novos['limite_aprovacao']}")
+
+        if mudancas:
+            await db.historico_compras.insert_one({
+                "usuario_id": id,
+                "usuario_nome": user_antigo.get("nome", "Desconhecido"),
+                "alterado_por": _u.get("nome", "Sistema"),
+                "data": __import__("datetime").datetime.now().isoformat(),
+                "mudancas": mudancas
+            })
+        
+        await db.usuarios.update_one({"id": id}, {"$set": novos})
         return {"ok": True}
     except Exception as e:
         raise HTTPException(400, f"Erro ao atualizar permissões: {str(e)}")
+
+@router.get("/historico/{id}")
+async def obter_historico_compras(id: str, _u: dict = Depends(require("read"))):
+    """Retorna o histórico de alterações de compras de um usuário."""
+    return await db.historico_compras.find({"usuario_id": id}, {"_id": 0}).sort("data", -1).to_list(100)
