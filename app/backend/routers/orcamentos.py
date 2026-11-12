@@ -48,13 +48,21 @@ async def excluir_orcamento(id: str, _u: dict = Depends(require("write"))):
 @router.put("/{id}")
 async def editar_orcamento(id: str, payload: OrcamentoCreate, _u: dict = Depends(require("write"))):
     try:
-        # Substitui TUDO no banco pelos novos dados que vieram do frontend
+        # Limpa duplicatas do payload antes de salvar
+        vistos = set()
+        ofertas_limpas = []
+        for item in payload.ofertas:
+            chave = item.fornecedor_nome
+            if chave not in vistos:
+                vistos.add(chave)
+                ofertas_limpas.append(item.model_dump())
+        
         resultado = await db.orcamentos.update_one(
             {"id": id},
             {"$set": {
                 "produto": payload.produto,
                 "observacoes": payload.observacoes,
-                "ofertas": [item.model_dump() for item in payload.ofertas]
+                "ofertas": ofertas_limpas
             }}
         )
         if resultado.matched_count == 0:

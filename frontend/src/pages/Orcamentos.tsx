@@ -105,6 +105,12 @@ export default function Orcamentos() {
   const adicionarOferta = async (base: any) => {
     if (!produto) return toast.error("Preencha o produto antes de adicionar fornecedores.");
     
+    // VERIFICA SE O FORNECEDOR JÁ ESTÁ NO ORÇAMENTO
+    const jaExiste = ofertas.find(o => o.fornecedor_nome === base.fornecedor_nome);
+    if (jaExiste) {
+      return toast.error("Este fornecedor já está no orçamento.");
+    }
+    
     if (base.fornecedor_id) {
       try {
         const hist = await apiGet<any>(`/orcamentos/historico-preco?produto=${produto}&fornecedor_id=${base.fornecedor_id}`);
@@ -338,8 +344,8 @@ export default function Orcamentos() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Filtrando ofertas duplicadas por fornecedor_nome + valor para não repetir visualmente */}
-                {orcamentoAprovacao.ofertas.filter((v: any, i: number, a: any[]) => a.findIndex(x => x.fornecedor_nome === v.fornecedor_nome && x.valor_unitario === v.valor_unitario) === i).map((of: any, i: number) => {
+                {/* Filtro de segurança: remove duplicatas que possam ter ficado no banco antigo */}
+                {orcamentoAprovacao.ofertas.filter((v: any, i: number, a: any[]) => a.findIndex(x => x.fornecedor_nome === v.fornecedor_nome) === i).map((of: any, i: number) => {
                   const menorPreco = Math.min(...orcamentoAprovacao.ofertas.map((x: any) => x.valor_unitario));
                   const isMenorPreco = of.valor_unitario === menorPreco;
 
