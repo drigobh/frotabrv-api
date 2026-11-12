@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Sparkles, X, Save, Edit, Trash2, MapPin, Phone, Image as ImageIcon, MessageCircle, Maximize2, Star, History, Eye, Filter } from "lucide-react";
+import { Plus, Search, Sparkles, X, Save, Edit, Trash2, MapPin, Phone, Image as ImageIcon, MessageCircle, Maximize2, Star, History, Eye, Navigation } from "lucide-react";
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,7 @@ export default function Orcamentos() {
   const [filtroAprovador, setFiltroAprovador] = useState("");
 
   const { data: orcamentos = [] } = useQuery({ queryKey: ["orcamentos"], queryFn: () => apiGet<any[]>("/orcamentos") });
+  const { data: empresa } = useQuery({ queryKey: ["empresa"], queryFn: () => apiGet<any>("/empresa") });
   const { data: fornecedores = [] } = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<any[]>("/fornecedores") });
   const { data: tipos = [] } = useQuery({ queryKey: ["tipos-fornecedores"], queryFn: () => apiGet<any[]>("/tipos-fornecedores") });
 
@@ -172,6 +173,9 @@ export default function Orcamentos() {
               <th className="px-5 py-3">Nº Orçamento</th>
               <th className="px-3 py-3">Produto</th>
               <th className="px-3 py-3">Status</th>
+              <th className="px-3 py-3">Fornecedor Ganhador</th>
+              <th className="px-3 py-3 text-center">Qtd. Ofertas</th>
+              <th className="px-3 py-3 text-center">Rota</th>
               <th className="px-3 py-3">Criado por</th>
               <th className="px-3 py-3">Aprovado por</th>
               <th className="px-3 py-3 text-right">Ações</th>
@@ -191,6 +195,31 @@ export default function Orcamentos() {
                     {isAguardando && <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-rose-500/20 text-rose-400 animate-pulse">Aguardando Aprovação</span>}
                     {isFinalizado && <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-sky-500/20 text-sky-400">Finalizado</span>}
                     {isReprovado && <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-purple-500/20 text-purple-400">Reprovado</span>}
+                  </td>
+                  <td className="px-3 py-3 text-emerald-400 font-medium">
+                    {o.ofertas.find((of: any) => of.is_vencedor)?.fornecedor_nome || "—"}
+                  </td>
+                  <td className="px-3 py-3 text-center text-slate-300 font-bold">
+                    {o.ofertas.length}
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    {(() => {
+                      const vencedor = o.ofertas.find((of: any) => of.is_vencedor);
+                      if (!vencedor) return "—";
+                      const destino = vencedor.cidade ? `${vencedor.bairro || ''} ${vencedor.cidade}`.trim() : vencedor.fornecedor_nome;
+                      const origem = empresa?.endereco || empresa?.cidade || "Brasil";
+                      return (
+                        <a 
+                          href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origem)}&destination=${encodeURIComponent(destino)}`} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="inline-flex items-center justify-center p-2 rounded-full bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 transition-colors" 
+                          title="Ver Rota no Mapa"
+                        >
+                          <Navigation className="size-4" />
+                        </a>
+                      )
+                    })()}
                   </td>
                   <td className="px-3 py-3 text-slate-400 text-xs">
                     {o.criado_por}<br/><span className="text-[10px]">{new Date(o.data_criacao).toLocaleString("pt-BR")}</span>
