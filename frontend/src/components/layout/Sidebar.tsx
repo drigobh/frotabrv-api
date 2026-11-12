@@ -55,9 +55,10 @@ const MENUS = [
   
   // Financeiro (Leaf - Link direto)
   { id: "financeiro", label: "Financeiro", icon: DollarSign, items: [
-      { label: "Visão Geral", icon: DollarSign, path: "/financeiro" },
-      { label: "Compras e Orçamentos", icon: ShoppingCart, path: "/compras" },
-    ] },
+        { label: "Visão Geral", icon: DollarSign, path: "/financeiro" },
+        { label: "Orçamentos", icon: FileText, path: "/orcamentos" },
+        { label: "Pedidos de Compra", icon: ShoppingCart, path: "/compras" },
+      ] },
   
   // Frota (Pai)
   {
