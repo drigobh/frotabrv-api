@@ -11,8 +11,11 @@ class Oferta(BaseModel):
     prazo_entrega: str
     prazo_pagamento: str
     forma_pagamento: str
-    origem: str = "Manual" # Manual ou IA
+    parcelas: Optional[str] = "1x"
+    origem: str = "Manual"
     is_vencedor: bool = False
+    classificacao: Optional[float] = 0.0
+    compras_realizadas: Optional[int] = 0
 
 class OrcamentoCreate(BaseModel):
     produto: str

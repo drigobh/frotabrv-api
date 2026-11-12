@@ -43,12 +43,15 @@ async def excluir_orcamento(id: str, _u: dict = Depends(require("write"))):
         await db.orcamentos.delete_one({"id": id})
         return {"ok": True}
     except Exception as e:
-        raise HTTPException(400, f"Erro ao excluir orçamento: {str(e)}")
+        raise HTTPException(400, f"Erro ao excluir: {str(e)}")
 
 @router.put("/{id}")
 async def editar_orcamento(id: str, payload: OrcamentoCreate, _u: dict = Depends(require("write"))):
     try:
-        # Limpa duplicatas do payload antes de salvar
+        orc = await db.orcamentos.find_one({"id": id})
+        if orc.get("status") == "Finalizado":
+            raise HTTPException(400, "Não é possível editar um orçamento finalizado.")
+            
         vistos = set()
         ofertas_limpas = []
         for item in payload.ofertas:
@@ -57,7 +60,7 @@ async def editar_orcamento(id: str, payload: OrcamentoCreate, _u: dict = Depends
                 vistos.add(chave)
                 ofertas_limpas.append(item.model_dump())
         
-        resultado = await db.orcamentos.update_one(
+        await db.orcamentos.update_one(
             {"id": id},
             {"$set": {
                 "produto": payload.produto,
@@ -65,11 +68,10 @@ async def editar_orcamento(id: str, payload: OrcamentoCreate, _u: dict = Depends
                 "ofertas": ofertas_limpas
             }}
         )
-        if resultado.matched_count == 0:
-            raise HTTPException(404, "Orçamento não encontrado")
         return {"ok": True}
     except Exception as e:
-        raise HTTPException(400, f"Erro ao editar orçamento: {str(e)}")
+        raise HTTPException(400, f"Erro ao editar: {str(e)}")
+
 @router.patch("/{id}/escolher-vencedor")
 async def escolher_vencedor(id: str, payload: dict, _u: dict = Depends(require("write"))):
     try:
@@ -85,25 +87,31 @@ async def escolher_vencedor(id: str, payload: dict, _u: dict = Depends(require("
         
         await db.orcamentos.update_one(
             {"id": id}, 
-            {"$set": {"ofertas": orcamento["ofertas"], "status": "Finalizado"}}
+            {"$set": {
+                "ofertas": orcamento["ofertas"], 
+                "status": "Finalizado",
+                "aprovado_por": _u.get("nome", "Sistema"),
+                "data_aprovacao": datetime.now().isoformat()
+            }}
         )
         return {"ok": True}
     except Exception as e:
-        raise HTTPException(400, f"Erro ao escolher vencedor: {str(e)}")
+        raise HTTPException(400, f"Erro ao aprovar: {str(e)}")
 
-@router.get("/historico-preco")
-async def historico_preco(produto: str, fornecedor_id: str, _u: dict = Depends(require("read"))):
-    ultimo = await db.orcamentos.find_one(
-        {"produto": produto, "ofertas.fornecedor_id": fornecedor_id, "ofertas.is_vencedor": True},
-        sort=[("data_criacao", -1)]
-    )
-    if not ultimo:
-        return {"tem_historico": False}
-    
-    oferta = next((o for o in ultimo["ofertas"] if o.get("fornecedor_id") == fornecedor_id and o.get("is_vencedor")), None)
-    if oferta:
-        return {"tem_historico": True, "preco": oferta["valor_unitario"], "usuario": ultimo.get("criado_por"), "data": ultimo.get("data_criacao")}
-    return {"tem_historico": False}
+@router.patch("/{id}/reprovar")
+async def reprovar_orcamento(id: str, _u: dict = Depends(require("write"))):
+    try:
+        await db.orcamentos.update_one(
+            {"id": id}, 
+            {"$set": {
+                "status": "Reprovado",
+                "aprovado_por": _u.get("nome", "Sistema"),
+                "data_aprovacao": datetime.now().isoformat()
+            }}
+        )
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao reprovar: {str(e)}")
 
 @router.post("/ia-search")
 async def ia_search(payload: dict, _u: dict = Depends(require("read"))):
@@ -112,25 +120,24 @@ async def ia_search(payload: dict, _u: dict = Depends(require("read"))):
     raio_km = float(payload.get("raio_km", 100))
     condicao = payload.get("condicao", "Novo")
     
-    # Listas fixas para gerar nomes únicos
-    nomes = ["Auto Peças Silva", "Distribuidora ABC", "Atacadão Central", "Mercado Livre Auto", "Peças Já", "Oficina do Zé"]
+    nomes = ["Auto Peças Silva", "Distribuidora ABC", "Atacadão Central", "Mercado Livre Auto", "Peças Já"]
     bairros = ["Centro", "Industrial", "Nossa Senhora", "Riacho", "Eldorado"]
     
     resultados = []
     for i, nome in enumerate(nomes):
-        dist = 10 + (i * 15) # Distâncias diferentes (10km, 25km, 40km...)
+        dist = 10 + (i * 15)
         if dist <= raio_km:
             resultados.append({
                 "fornecedor_nome": nome,
                 "cnpj": f"12.345.678/0001-{10+i}",
-                "preco": 150.0 + (i * 50.0), # Preços diferentes
+                "preco": 150.0 + (i * 50.0),
                 "cidade": cidade,
                 "bairro": bairros[i % len(bairros)],
                 "condicao": condicao,
-                "whatsapp": "5531999999999", # Número de teste válido
+                "whatsapp": "5531999999999",
                 "email": f"contato@fornecedor{i}.com.br",
                 "distancia": dist,
-                "foto_url": "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=150&h=150&fit=crop", # Foto real
+                "foto_url": "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=150&h=150&fit=crop",
                 "classificacao": 4.5,
                 "compras_realizadas": 12,
                 "prazo_entrega": "5 dias",
