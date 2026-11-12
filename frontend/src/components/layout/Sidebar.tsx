@@ -35,9 +35,10 @@ const MENUS = [
   
   // Cadastro (Pai)
   {
-    id: "cadastros", label: "Cadastro", icon: FolderOpen,
+    id: "cadastros", label: "Cadastros", icon: FolderOpen,
     items: [
       { label: "Cadastro de Planos", icon: Wrench, path: "/cadastros/planos-manutencao" },
+      { label: "Cadastro de Compras", icon: ShieldCheck, path: "/admin/compras" },
       { label: "Medidas de Pneus", icon: Disc, path: "/cadastros/pneu-medidas" },
       { label: "Marcas de Pneus", icon: Tag, path: "/cadastros/pneu-marcas" },
       { label: "Modelos de Pneus", icon: Tag, path: "/cadastros/pneu-modelos" },

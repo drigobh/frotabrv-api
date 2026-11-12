@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, ShieldCheck, ShoppingCart, Save, X, Edit, Trash2, History, Users, TrendingUp } from "lucide-react";
+import { Search, ShieldCheck, ShoppingCart, Save, X, Edit, History } from "lucide-react";
 import { apiGet, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -13,13 +13,13 @@ export default function GestaoCompras() {
   const qc = useQueryClient();
   const [busca, setBusca] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
   const [usuarioEdicao, setUsuarioEdicao] = useState<any>(null);
+  const [historico, setHistorico] = useState<any[]>([]);
 
   const [podeComprar, setPodeComprar] = useState(false);
   const [limiteCompra, setLimiteCompra] = useState(0);
   const [podeAprovar, setPodeAprovar] = useState(false);
-  const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
-  const [historico, setHistorico] = useState<any[]>([]);
   const [limiteAprovacao, setLimiteAprovacao] = useState(0);
 
   const { data: usuarios = [] } = useQuery({
@@ -45,6 +45,15 @@ export default function GestaoCompras() {
     setModalOpen(true);
   };
 
+  const abrirHistorico = (u: any) => {
+    apiGet<any[]>(`/compras/historico/${u.id}`)
+      .then((res) => {
+        setHistorico(res);
+        setModalHistoricoOpen(true);
+      })
+      .catch(() => toast.error("Erro ao carregar histórico"));
+  };
+
   const handleSalvar = () => {
     salvar.mutate({
       pode_comprar: podeComprar,
@@ -54,15 +63,22 @@ export default function GestaoCompras() {
     });
   };
 
-  const filtrados = usuarios.filter((u: any) => 
-    (u.nome || "").toLowerCase().includes(busca.toLowerCase()) || 
+  const filtrados = usuarios.filter((u: any) =>
+    (u.nome || "").toLowerCase().includes(busca.toLowerCase()) ||
     (u.email || "").toLowerCase().includes(busca.toLowerCase())
   );
+
+  // KPIs
+  const total = usuarios.length;
+  const compradores = usuarios.filter((u: any) => u.pode_comprar).length;
+  const aprovadores = usuarios.filter((u: any) => u.pode_aprovar_compras).length;
+  const limiteCompraTotal = usuarios.reduce((acc: number, u: any) => acc + (u.pode_comprar ? u.limite_compra || 0 : 0), 0);
+  const limiteAprovTotal = usuarios.reduce((acc: number, u: any) => acc + (u.pode_aprovar_compras ? u.limite_aprovacao || 0 : 0), 0);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Administração"
+        eyebrow="Cadastros"
         title="Cadastro de Compras"
         description="Gerencie quem pode comprar e quem pode aprovar, com seus respectivos limites."
         actions={
@@ -72,6 +88,30 @@ export default function GestaoCompras() {
           </div>
         }
       />
+
+      {/* KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="glass p-4 rounded-xl border border-slate-800">
+          <p className="text-[11px] uppercase text-slate-400">Total de Usuários</p>
+          <p className="text-2xl font-bold text-slate-200 mt-1">{total}</p>
+        </div>
+        <div className="glass p-4 rounded-xl border border-emerald-500/30">
+          <p className="text-[11px] uppercase text-emerald-400">Compradores</p>
+          <p className="text-2xl font-bold text-emerald-400 mt-1">{compradores}</p>
+        </div>
+        <div className="glass p-4 rounded-xl border border-sky-500/30">
+          <p className="text-[11px] uppercase text-sky-400">Aprovadores</p>
+          <p className="text-2xl font-bold text-sky-400 mt-1">{aprovadores}</p>
+        </div>
+        <div className="glass p-4 rounded-xl border border-amber-500/30">
+          <p className="text-[11px] uppercase text-amber-400">Limite Total Compra</p>
+          <p className="text-2xl font-bold text-amber-400 mt-1">{brl(limiteCompraTotal)}</p>
+        </div>
+        <div className="glass p-4 rounded-xl border border-purple-500/30">
+          <p className="text-[11px] uppercase text-purple-400">Limite Total Aprovação</p>
+          <p className="text-2xl font-bold text-purple-400 mt-1">{brl(limiteAprovTotal)}</p>
+        </div>
+      </div>
 
       <div className="glass rounded-2xl overflow-hidden border border-slate-800">
         <table className="w-full text-left text-sm">
@@ -86,34 +126,39 @@ export default function GestaoCompras() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
-            {filtrados.map((u: any) => (
-              <tr key={u.id} className="hover:bg-slate-800/30">
-                <td className="px-5 py-3">
-                  <p className="text-slate-200 font-medium">{u.nome}</p>
-                  <p className="text-xs text-slate-400">{u.email}</p>
-                </td>
-                <td className="px-3 py-3">
-                  {u.pode_comprar ? <span className="text-emerald-400 font-medium flex items-center gap-1"><ShoppingCart className="size-3"/> Sim</span> : <span className="text-slate-600">Não</span>}
-                </td>
-                <td className="px-3 py-3 text-slate-300 font-mono">{u.pode_comprar ? brl(u.limite_compra) : "—"}</td>
-                <td className="px-3 py-3">
-                  {u.pode_aprovar_compras ? <span className="text-sky-400 font-medium flex items-center gap-1"><ShieldCheck className="size-3"/> Sim</span> : <span className="text-slate-600">Não</span>}
-                </td>
-                <td className="px-3 py-3 text-slate-300 font-mono">{u.pode_aprovar_compras ? brl(u.limite_aprovacao) : "—"}</td>
-                <td className="px-3 py-3 flex gap-1 justify-end">
-                  <Button size="sm" variant="ghost" className="text-sky-400 hover:bg-sky-500/10 h-8 px-2" onClick={() => abrirEdicao(u)} title="Editar">
-                    <Edit className="size-4" />
-                  </Button>
-                  <Button size="sm" variant="ghost" className="text-purple-400 hover:bg-purple-500/10 h-8 px-2" onClick={() => { apiGet<any[]>(`/compras/historico/${u.id}`).then(setHistorico); setModalHistoricoOpen(true); }} title="Histórico">
-                    <History className="size-4" />
-                  </Button>
-                </td>
-              </tr>
-            ))}
+            {filtrados.length === 0 ? (
+              <tr><td colSpan={6} className="p-8 text-center text-slate-400">Nenhum usuário encontrado.</td></tr>
+            ) : (
+              filtrados.map((u: any) => (
+                <tr key={u.id} className="hover:bg-slate-800/30">
+                  <td className="px-5 py-3">
+                    <p className="text-slate-200 font-medium">{u.nome}</p>
+                    <p className="text-xs text-slate-400">{u.email}</p>
+                  </td>
+                  <td className="px-3 py-3">
+                    {u.pode_comprar ? <span className="text-emerald-400 font-medium flex items-center gap-1"><ShoppingCart className="size-3"/> Sim</span> : <span className="text-slate-600">Não</span>}
+                  </td>
+                  <td className="px-3 py-3 text-slate-300 font-mono">{u.pode_comprar ? brl(u.limite_compra) : "—"}</td>
+                  <td className="px-3 py-3">
+                    {u.pode_aprovar_compras ? <span className="text-sky-400 font-medium flex items-center gap-1"><ShieldCheck className="size-3"/> Sim</span> : <span className="text-slate-600">Não</span>}
+                  </td>
+                  <td className="px-3 py-3 text-slate-300 font-mono">{u.pode_aprovar_compras ? brl(u.limite_aprovacao) : "—"}</td>
+                  <td className="px-3 py-3 flex gap-1 justify-end">
+                    <Button size="sm" variant="ghost" className="text-sky-400 hover:bg-sky-500/10 h-8 px-2" onClick={() => abrirEdicao(u)} title="Editar">
+                      <Edit className="size-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-purple-400 hover:bg-purple-500/10 h-8 px-2" onClick={() => abrirHistorico(u)} title="Histórico">
+                      <History className="size-4" />
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
+      {/* MODAL DE GERENCIAMENTO */}
       {modalOpen && usuarioEdicao && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6">
@@ -158,6 +203,7 @@ export default function GestaoCompras() {
         </div>
       )}
 
+      {/* MODAL DE HISTÓRICO */}
       {modalHistoricoOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6">
@@ -183,7 +229,6 @@ export default function GestaoCompras() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
