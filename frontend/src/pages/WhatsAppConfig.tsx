@@ -37,6 +37,14 @@ export default function WhatsAppConfig() {
   };
 
   const conectado = status?.conectado;
+  const statusTraduzido = {
+    "WORKING": "Conectado",
+    "SCAN_QR_CODE": "Aguardando QR Code",
+    "STARTING": "Iniciando...",
+    "STOPPED": "Parado",
+    "FAILED": "Falhou",
+    "UNKNOWN": "Desconhecido"
+  }[status?.status] || status?.status || "Desconhecido";
 
   return (
     <div className="space-y-6">
@@ -61,7 +69,7 @@ export default function WhatsAppConfig() {
         </div>
         <div className="glass p-4 rounded-xl border border-slate-800">
           <div className="flex items-center gap-2 mb-2"><p className="text-[11px] uppercase text-slate-400">Detalhes</p></div>
-          <p className="text-sm text-slate-300">{status?.status || "Sem dados"}</p>
+          <p className="text-sm text-slate-300">{statusTraduzido}</p>
         </div>
       </div>
 
