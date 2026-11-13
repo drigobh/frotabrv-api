@@ -20,27 +20,30 @@ def verificar_status() -> dict:
         return {"conectado": False, "erro": "WAHA_URL não configurada.", "url_conectada": WAHA_URL}
     
     try:
-        # 1. Tenta obter a sessão específica
         url = f"{WAHA_URL}/api/sessions/{WAHA_SESSION}"
-        res = requests.get(url, headers=_headers(), timeout=30) # Timeout maior para cold start
+        res = requests.get(url, headers=_headers(), timeout=30)
         
         if res.status_code == 404:
-            # Sessão não existe, criar
             return criar_e_iniciar_sessao()
         
         data = res.json()
         status = data.get("status", "UNKNOWN")
         
-        # 2. Se a sessão está parada ou desconhecida, tenta iniciar
+        # Se a sessão está parada ou desconhecida, tenta iniciar usando a rota correta
         if status in ["STOPPED", "UNKNOWN"]:
-            requests.post(f"{WAHA_URL}/api/sessions/{WAHA_SESSION}/start", json={}, headers=_headers(), timeout=30)
-            # Aguarda um tempo para o engine inicializar
+            # ROTA CORRETA: POST /api/sessions/start com o nome no corpo
+            requests.post(
+                f"{WAHA_URL}/api/sessions/start",
+                json={"name": WAHA_SESSION},
+                headers=_headers(),
+                timeout=30
+            )
             time.sleep(5)
-            # Re-verifica
             res2 = requests.get(url, headers=_headers(), timeout=30)
             data = res2.json()
             status = data.get("status", "UNKNOWN")
         
+        # Mapear status: SCAN_QR é o status quando precisa escanear o QR
         return {
             "conectado": status == "WORKING",
             "status": status,
@@ -53,15 +56,13 @@ def verificar_status() -> dict:
 
 def criar_e_iniciar_sessao() -> dict:
     try:
-        # Cria a sessão
+        # Cria a sessão (a rota é POST /api/sessions)
         url_create = f"{WAHA_URL}/api/sessions"
         payload = {"name": WAHA_SESSION, "start": True}
         res = requests.post(url_create, json=payload, headers=_headers(), timeout=30)
         
         if res.status_code in [200, 201]:
-            # Aguarda a inicialização
             time.sleep(8)
-            # Verifica o status
             url_status = f"{WAHA_URL}/api/sessions/{WAHA_SESSION}"
             res_status = requests.get(url_status, headers=_headers(), timeout=30)
             data = res_status.json()
@@ -87,7 +88,6 @@ def enviar_mensagem(telefone: str, mensagem: str) -> dict:
     if len(numero_limpo) < 10:
         return {"sucesso": False, "erro": "Número de telefone inválido."}
     
-    # Formato correto do WAHA: {numero}@c.us
     chat_id = f"{numero_limpo}@c.us"
     
     try:
