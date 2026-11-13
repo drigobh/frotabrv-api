@@ -8,3 +8,4 @@ httpx
 bcrypt
 PyJWT
 reportlab
+requests==2.31.0
