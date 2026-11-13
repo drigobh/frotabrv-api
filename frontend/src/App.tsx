@@ -44,6 +44,7 @@ import Estoque from "@/pages/Estoque";
 import GestaoCompras from "@/pages/GestaoCompras";
 import ChecklistViagem from "@/pages/ChecklistViagem";
 import Compras from "@/pages/Compras";
+import WhatsAppConfig from "@/pages/WhatsAppConfig";
 import Orcamentos from "@/pages/Orcamentos";
 
 import RelatorioManutencao from "@/pages/RelatorioManutencao";
@@ -96,6 +97,7 @@ export default function App() {
               <Route path="/operacao/estoque" element={<Estoque />} />
             <Route path="/frota/checklist" element={<ChecklistViagem />} />
             <Route path="/compras" element={<Compras />} />
+            <Route path="/admin/whatsapp" element={<WhatsAppConfig />} />
             <Route path="/orcamentos" element={<Orcamentos />} />
             <Route path="/admin/compras" element={<GestaoCompras />} />
               <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
