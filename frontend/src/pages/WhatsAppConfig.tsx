@@ -66,7 +66,11 @@ export default function WhatsAppConfig() {
       </div>
 
       {status?.erro && (
-        <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-400 text-sm"><b>Erro:</b> {status.erro}</div>
+        <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-400 text-sm">
+          <b>Erro:</b> {status.erro}
+          <br/>
+          <span className="text-xs opacity-70">Tentando conectar em: {status.url_conectada || "Desconhecida"}</span>
+        </div>
       )}
 
       <div className="glass p-6 rounded-2xl border border-slate-800">

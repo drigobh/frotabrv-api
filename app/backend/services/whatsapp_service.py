@@ -3,7 +3,7 @@ import requests
 import urllib.parse
 from datetime import datetime
 
-WAHA_URL = os.getenv("WAHA_URL", "http://localhost:3000")
+WAHA_URL = os.getenv("WAHA_URL", "https://frotabrv-wahazap.onrender.com")
 WAHA_API_KEY = os.getenv("WAHA_API_KEY", "")
 WAHA_SESSION = os.getenv("WAHA_SESSION", "default")
 
@@ -23,10 +23,11 @@ def verificar_status() -> dict:
             "conectado": status == "WORKING",
             "status": status,
             "smartphone_conectado": status == "WORKING",
-            "erro": "" if status == "WORKING" else f"Status: {status}"
+            "erro": "" if status == "WORKING" else f"Status: {status}",
+            "url_conectada": WAHA_URL
         }
     except Exception as e:
-        return {"conectado": False, "erro": str(e)}
+        return {"conectado": False, "erro": str(e), "url_conectada": WAHA_URL}
 
 def enviar_mensagem(telefone: str, mensagem: str) -> dict:
     if not configurado():
