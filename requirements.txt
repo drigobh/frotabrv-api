@@ -1,0 +1,11 @@
+PyJWT
+bcrypt
+fastapi
+httpx
+motor
+pydantic[email]
+pymongo
+python-dotenv
+reportlab
+requests==2.31.0
+uvicorn[standard]
