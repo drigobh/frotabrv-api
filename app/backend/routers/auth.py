@@ -85,7 +85,7 @@ async def atualizar_perfil(body: dict, _u: dict = Depends(require("read"))):
 
 @router.get("/usuarios")
 async def listar_usuarios(_u: dict = Depends(require("read"))):
-    usuarios = await db.usuarios.find({}, USER_RESPONSE_PROJECTION).to_list(1000)
+    usuarios = await db.usuarios.find({"excluido_em": {"$exists": False}}, USER_RESPONSE_PROJECTION).to_list(1000)
     return usuarios
 
 

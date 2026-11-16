@@ -1,5 +1,5 @@
-from fastapi import HTTPException
 from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timezone
 from lib.db import db
 
 router = APIRouter()
@@ -7,12 +7,12 @@ from lib.security import USER_RESPONSE_FIELDS, USER_RESPONSE_PROJECTION, hash_us
 
 @router.get("", dependencies=[Depends(require("admin"))])
 async def listar_usuarios():
-    usuarios = await db.usuarios.find({}, USER_RESPONSE_PROJECTION).to_list(1000)
+    usuarios = await db.usuarios.find({"excluido_em": {"$exists": False}}, USER_RESPONSE_PROJECTION).to_list(1000)
     return usuarios
 
 @router.get("/{id}", dependencies=[Depends(require("admin"))])
 async def obter_usuario(id: str):
-    usuario = await db.usuarios.find_one({"id": id}, USER_RESPONSE_PROJECTION)
+    usuario = await db.usuarios.find_one({"id": id, "excluido_em": {"$exists": False}}, USER_RESPONSE_PROJECTION)
     if not usuario:
         raise HTTPException(404, "Usuário não encontrado.")
     return usuario
@@ -20,7 +20,25 @@ async def obter_usuario(id: str):
 @router.patch("/{id}/status", dependencies=[Depends(require("admin"))])
 async def alterar_status(id: str, body: dict):
     ativo = body.get("ativo", True)
-    await db.usuarios.update_one({"id": id}, {"$set": {"ativo": ativo}})
+    resultado = await db.usuarios.update_one(
+        {"id": id, "excluido_em": {"$exists": False}}, {"$set": {"ativo": ativo}}
+    )
+    if not resultado.matched_count:
+        raise HTTPException(404, "Usuário não encontrado.")
+    return {"status": "ok"}
+
+
+@router.delete("/{id}", dependencies=[Depends(require("admin"))])
+async def excluir_usuario(id: str):
+    alvo = {"id": id, "excluido_em": {"$exists": False}}
+    resultado = await db.usuarios.update_one(
+        {**alvo, "perfil": {"$ne": "admin"}, "perfil_id": {"$ne": "perfil-admin"}},
+        {"$set": {"ativo": False, "excluido_em": datetime.now(timezone.utc).isoformat()}},
+    )
+    if not resultado.matched_count:
+        if await db.usuarios.find_one(alvo, {"_id": 1}):
+            raise HTTPException(409, "Contas administrativas não podem ser excluídas.")
+        raise HTTPException(404, "Usuário não encontrado.")
     return {"status": "ok"}
 
 
@@ -70,8 +88,17 @@ async def atualizar_usuario(id: str, body: dict):
         if not isinstance(email, str) or not email.strip():
             raise HTTPException(400, "E-mail é obrigatório.")
         update["email"] = email.lower().strip()
+    if "nova_senha" in body:
+        update["senha_hash"] = hash_user_password(body["nova_senha"])
     if update:
-        await db.usuarios.update_one({"id": id}, {"$set": update})
+        alteracoes = {"$set": update}
+        if "senha_hash" in update:
+            alteracoes["$unset"] = {"senha": ""}
+        resultado = await db.usuarios.update_one(
+            {"id": id, "excluido_em": {"$exists": False}}, alteracoes
+        )
+        if not resultado.matched_count:
+            raise HTTPException(404, "Usuário não encontrado.")
     return {"status": "ok"}
 
 @router.post("/seed-perfis-padrao", dependencies=[Depends(require("admin"))])
@@ -124,7 +151,8 @@ async def seed_perfis_padrao():
 async def alterar_senha(id: str, body: dict):
     senha_hash = hash_user_password(body.get("nova_senha"))
     resultado = await db.usuarios.update_one(
-        {"id": id}, {"$set": {"senha_hash": senha_hash}, "$unset": {"senha": ""}}
+        {"id": id, "excluido_em": {"$exists": False}},
+        {"$set": {"senha_hash": senha_hash}, "$unset": {"senha": ""}},
     )
     if not resultado.matched_count:
         raise HTTPException(404, "Usuário não encontrado.")

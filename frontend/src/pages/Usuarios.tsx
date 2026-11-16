@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Power, RotateCcw, Search, Shield, X, Check, User, Key, Lock, Users, Bell, UserCheck, ShieldAlert, ShieldCheck, UserX } from "lucide-react";
-import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
+import { Plus, Pencil, Power, RotateCcw, Search, Shield, X, Check, User, Key, Lock, Users, Bell, UserCheck, ShieldAlert, ShieldCheck, UserX, Trash2 } from "lucide-react";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,8 +36,23 @@ export default function Usuarios() {
     }
   });
 
+  const excluir = useMutation({
+    mutationFn: (id: string) => apiDelete(`/usuarios/${id}`),
+    onSuccess: () => {
+      toast.success("Usuário excluído.");
+      qc.invalidateQueries({ queryKey: ["usuarios"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Erro ao excluir o usuário."),
+  });
+
   const salvar = useMutation({
-    mutationFn: (payload: any) => editando ? apiPut(`/usuarios/${editando.id}`, payload) : apiPost("/usuarios", payload),
+    mutationFn: (payload: any) => {
+      const { senha, ...dados } = payload;
+      if (editando) {
+        return apiPut(`/usuarios/${editando.id}`, senha ? { ...dados, nova_senha: senha } : dados);
+      }
+      return apiPost("/usuarios", { ...dados, senha });
+    },
     onSuccess: () => {
       toast.success(editando ? "Usuário atualizado!" : "Usuário criado!");
       setModalOpen(false);
@@ -61,6 +76,10 @@ export default function Usuarios() {
     });
     setModalOpen(true);
   };
+
+  const senhaValida = form.senha === ""
+    ? Boolean(editando)
+    : Array.from(form.senha).length >= 6 && new TextEncoder().encode(form.senha).length <= 72;
 
   // KPIs
   const total = usuarios.length;
@@ -126,8 +145,8 @@ export default function Usuarios() {
         </div>
       </div>
 
-      <div className="glass rounded-2xl overflow-hidden border border-slate-800">
-        <table className="w-full text-left text-sm">
+      <div className="glass rounded-2xl overflow-x-auto border border-slate-800">
+        <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="bg-slate-800/50">
             <tr className="text-[11px] uppercase tracking-wider text-slate-500">
               <th className="px-5 py-3 font-medium">Usuário</th>
@@ -137,7 +156,7 @@ export default function Usuarios() {
               <th className="px-3 py-3 font-medium">Cadastro</th>
               <th className="px-3 py-3 font-medium">Último Acesso</th>
               <th className="px-3 py-3 font-medium">Status</th>
-              <th className="px-3 py-3 text-right font-medium">Ações</th>
+              <th className="sticky right-0 bg-slate-800 px-3 py-3 text-right font-medium">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
@@ -185,14 +204,31 @@ export default function Usuarios() {
                   <td className="px-3 py-3">
                     <Badge>{u.ativo ? "Ativo" : "Inativo"}</Badge>
                   </td>
-                  <td className="px-3 py-3 text-right flex justify-end gap-1">
-                    <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(u)}><Pencil className="size-4 text-sky-400" /></Button>
+                  <td className="sticky right-0 bg-slate-900 px-3 py-3 text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button size="icon-sm" variant="ghost" title="Editar usuário" aria-label="Editar usuário" onClick={() => abrirEdicao(u)}><Pencil className="size-4 text-sky-400" /></Button>
                     <Button size="icon-sm" variant="ghost" onClick={() => destravar.mutate(u.id)} title="Destravar Login">
                       <ShieldAlert className="size-4 text-amber-400" />
                     </Button>
                     <Button size="icon-sm" variant="ghost" onClick={() => toggleStatus.mutate({ id: u.id, ativo: !u.ativo })} className={u.ativo ? "text-amber-400" : "text-emerald-400"}>
-                      {u.ativo ? <Power className="size-4" /> : <RotateCcw className="size-4" />}
-                    </Button>
+                        {u.ativo ? <Power className="size-4" /> : <RotateCcw className="size-4" />}
+                      </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        className="text-rose-400"
+                        title="Excluir usuário"
+                        aria-label="Excluir usuário"
+                        disabled={excluir.isPending || u.perfil === "admin" || u.perfil_id === "perfil-admin"}
+                        onClick={() => {
+                          if (window.confirm(`Excluir "${u.nome}" da lista e bloquear o acesso?`)) {
+                            excluir.mutate(u.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -233,6 +269,21 @@ export default function Usuarios() {
                     <Input type="email" value={form.email} onChange={(e) => setForm((s: any) => ({ ...s, email: e.target.value }))} />
                   </div>
                   <div className="grid gap-1.5">
+                    <Label htmlFor="usuario-senha" className="text-xs text-slate-400">
+                      {editando ? "Nova senha (opcional)" : "Senha inicial *"}
+                    </Label>
+                    <Input
+                      id="usuario-senha"
+                      type="password"
+                      autoComplete="new-password"
+                      value={form.senha}
+                      onChange={(e) => setForm((s: any) => ({ ...s, senha: e.target.value }))}
+                    />
+                    <p className="text-xs text-slate-400">
+                      {editando && !form.senha ? "Deixe em branco para manter a senha atual." : "Mínimo de 6 caracteres e máximo de 72 bytes."}
+                    </p>
+                  </div>
+                  <div className="grid gap-1.5">
                     <Label className="text-xs text-slate-400">Telefone</Label>
                     <Input value={form.telefone} onChange={(e) => setForm((s: any) => ({ ...s, telefone: e.target.value }))} />
                   </div>
@@ -258,29 +309,20 @@ export default function Usuarios() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="grid gap-1.5">
-                    <Label className="text-xs text-slate-400">Perfil de Acesso (RBAC) *</Label>
-                    
+                    <Label htmlFor="usuario-perfil" className="text-xs text-slate-400">Perfil de acesso *</Label>
+                    <select id="usuario-perfil" value={form.perfil_id} onChange={(e) => setForm((s: any) => ({ ...s, perfil_id: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
+                      <option value="">Selecione um perfil...</option>
+                      {perfis.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                    </select>
                   </div>
                   <div className="grid gap-1.5">
-                    <Label className="text-xs text-slate-400">Ativação (Automático)</Label>
+                    <Label className="text-xs text-slate-400">Data de cadastro</Label>
                     <Input 
                       value={editando && editando.data_cadastro ? new Date(editando.data_cadastro).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : (new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }))} 
                       disabled 
                       className="bg-slate-900/50 border-slate-800 text-slate-400 font-mono" 
                     />
                   </div>
-                  <div className="grid gap-1.5">
-                    <select value={form.perfil_id} onChange={(e) => setForm((s: any) => ({ ...s, perfil_id: e.target.value }))} className="h-10 bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-300 px-3">
-                      <option value="">Selecione um perfil...</option>
-                      {perfis.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                    </select>
-                  </div>
-                  {!editando && (
-                    <div className="grid gap-1.5">
-                      <Label className="text-xs text-slate-400">Senha Inicial *</Label>
-                      <Input type="password" value={form.senha} onChange={(e) => setForm((s: any) => ({ ...s, senha: e.target.value }))} />
-                    </div>
-                  )}
                   
                 </div>
               </div>
@@ -316,7 +358,7 @@ export default function Usuarios() {
 
             <div className="flex justify-end gap-3 border-t border-slate-800 px-6 py-4 shrink-0">
               <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
-              <Button onClick={() => salvar.mutate(form)} disabled={salvar.isPending || !form.nome || !form.email || !form.perfil_id} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6">
+              <Button onClick={() => salvar.mutate(form)} disabled={salvar.isPending || !form.nome.trim() || !form.email.trim() || !form.perfil_id || !senhaValida} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6">
                 <Check className="size-4 mr-2" /> Salvar Usuário
               </Button>
             </div>
