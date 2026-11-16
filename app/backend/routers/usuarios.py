@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from lib.db import db
 
 router = APIRouter()
-from lib.security import USER_RESPONSE_FIELDS, USER_RESPONSE_PROJECTION, require
+from lib.security import USER_RESPONSE_FIELDS, USER_RESPONSE_PROJECTION, hash_user_password, require
 
 @router.get("", dependencies=[Depends(require("admin"))])
 async def listar_usuarios():
@@ -26,24 +26,30 @@ async def alterar_status(id: str, body: dict):
 
 @router.post("", dependencies=[Depends(require("admin"))])
 async def criar_usuario(body: dict):
-    import bcrypt
     import uuid
     from datetime import datetime
     
-    senha_hash = bcrypt.hashpw(body.get("senha", "").encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    email = body.get("email")
+    nome = body.get("nome")
+    if not isinstance(email, str) or not email.strip() or not isinstance(nome, str) or not nome.strip():
+        raise HTTPException(400, "Nome e e-mail são obrigatórios.")
+    senha_hash = hash_user_password(body.get("senha"))
+    data_cadastro = datetime.now().isoformat()
     novo = {
         "id": str(uuid.uuid4()),
-        "nome": body.get("nome"),
-        "email": body.get("email"),
+        "nome": nome,
+        "email": email.lower().strip(),
+        "perfil": "operador",
         "perfil_id": body.get("perfil_id"),
         "setor": body.get("setor", ""),
         "cargo": body.get("cargo", ""),
         "telefone": body.get("telefone", ""),
         "whatsapp": body.get("whatsapp", ""),
         "foto_url": body.get("foto_url", ""),
-        "senha": senha_hash,
+        "senha_hash": senha_hash,
         "ativo": True,
-        "data_cadastro": datetime.now().isoformat(),
+        "created_at": data_cadastro,
+        "data_cadastro": data_cadastro,
         "ultimo_acesso": None,
         "two_factor_enabled": False,
         "two_factor_secret": None,
@@ -59,6 +65,11 @@ async def atualizar_usuario(id: str, body: dict):
         if campo in body:
             update[campo] = body[campo]
     
+    if "email" in update:
+        email = update["email"]
+        if not isinstance(email, str) or not email.strip():
+            raise HTTPException(400, "E-mail é obrigatório.")
+        update["email"] = email.lower().strip()
     if update:
         await db.usuarios.update_one({"id": id}, {"$set": update})
     return {"status": "ok"}
@@ -111,12 +122,12 @@ async def seed_perfis_padrao():
 
 @router.patch("/{id}/senha", dependencies=[Depends(require("admin"))])
 async def alterar_senha(id: str, body: dict):
-    import bcrypt
-    nova_senha = body.get("nova_senha", "")
-    if len(nova_senha) < 6:
-        raise HTTPException(400, "Senha muito curta.")
-    senha_hash = bcrypt.hashpw(nova_senha.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    await db.usuarios.update_one({"id": id}, {"$set": {"senha": senha_hash}})
+    senha_hash = hash_user_password(body.get("nova_senha"))
+    resultado = await db.usuarios.update_one(
+        {"id": id}, {"$set": {"senha_hash": senha_hash}, "$unset": {"senha": ""}}
+    )
+    if not resultado.matched_count:
+        raise HTTPException(404, "Usuário não encontrado.")
     return {"status": "ok", "message": "Senha atualizada."}
 
 @router.patch("/{id}/2fa", dependencies=[Depends(require("admin"))])

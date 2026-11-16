@@ -38,11 +38,23 @@ def hash_password(senha: str) -> str:
     return bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
 
 
+def hash_user_password(senha: str) -> str:
+    if not isinstance(senha, str) or len(senha) < 6 or len(senha.encode()) > 72:
+        raise HTTPException(400, "A senha precisa ter no mínimo 6 caracteres e no máximo 72 bytes.")
+    return hash_password(senha)
+
+
 def verify_password(senha: str, senha_hash: str) -> bool:
+    if not isinstance(senha_hash, str):
+        return False
     try:
         return bcrypt.checkpw(senha.encode(), senha_hash.encode())
     except ValueError:
         return False
+
+
+def user_role(user: dict) -> str:
+    return user.get("perfil", "operador")
 
 
 def create_token(user_id: str) -> str:
@@ -68,7 +80,7 @@ async def current_user(request: Request) -> dict:
 
 def require(acao: str):
     async def dep(user: dict = Depends(current_user)) -> dict:
-        if acao not in PERMISSOES.get(user.get("perfil", ""), set()):
+        if acao not in PERMISSOES.get(user_role(user), set()):
             raise HTTPException(status_code=403, detail="Seu perfil não tem permissão para esta ação")
         return user
 

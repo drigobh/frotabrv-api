@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
-from lib.security import USER_RESPONSE_PROJECTION, require
+from lib.security import USER_RESPONSE_FIELDS, USER_RESPONSE_PROJECTION, hash_user_password, require, user_role
 from lib.db import db
 from lib.security import verify_password, create_token, current_user, COOKIE_NAME, TOKEN_TTL_HOURS
 from models.auth import LoginIn, LoginOut
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def login(body: LoginIn, response: Response):
     # Busca o usuário pelo email
     user = await db.usuarios.find_one({"email": body.email.lower().strip()})
-    if not user or not verify_password(body.senha, user.get("senha_hash", "")):
+    if not user or not verify_password(body.senha, user.get("senha_hash", user.get("senha"))):
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
     
     if not user.get("ativo"):
@@ -20,8 +20,13 @@ async def login(body: LoginIn, response: Response):
 
     # (Opcional: Aqui entraria a lógica de 2FA se o usuário tiver totp_enabled)
 
-    # Cria o token JWT e salva no cookie httpOnly
+    login_user = {
+        **{campo: user[campo] for campo in USER_RESPONSE_FIELDS if campo in user},
+        "perfil": user_role(user),
+        "created_at": user.get("created_at") or user.get("data_cadastro") or "",
+    }
     token = create_token(user["id"])
+    result = LoginOut(requires_2fa=False, user=login_user, token=token)
     response.set_cookie(
         key=COOKIE_NAME, 
         value=token, 
@@ -30,7 +35,7 @@ async def login(body: LoginIn, response: Response):
         samesite="none",
         secure=True # Como estamos no Render (HTTPS), deve ser True
     )
-    return LoginOut(requires_2fa=False, user=user, token=token)
+    return result
 
 @router.get("/me")
 async def me(_u: dict = Depends(require("read"))):
@@ -46,6 +51,7 @@ async def me(_u: dict = Depends(require("read"))):
             usuario["perfil_nome"] = perfil.get("nome", "")
             timeout = perfil.get("timeout_minutos", 30)
     
+    usuario["perfil"] = user_role(usuario)
     usuario["timeout_minutos"] = timeout
     return usuario
 
@@ -66,13 +72,14 @@ async def atualizar_perfil(body: dict, _u: dict = Depends(require("read"))):
         if campo in body:
             update_data[campo] = body[campo]
     
-    if "nova_senha" in body and body["nova_senha"]:
-        import bcrypt
-        senha_hash = bcrypt.hashpw(body["nova_senha"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        update_data["senha"] = senha_hash
-    
+    if body.get("nova_senha"):
+        update_data["senha_hash"] = hash_user_password(body["nova_senha"])
+
     if update_data:
-        await db.usuarios.update_one({"id": _u["id"]}, {"$set": update_data})
+        update = {"$set": update_data}
+        if "senha_hash" in update_data:
+            update["$unset"] = {"senha": ""}
+        await db.usuarios.update_one({"id": _u["id"]}, update)
     
     return {"status": "ok", "message": "Perfil atualizado!"}
 
