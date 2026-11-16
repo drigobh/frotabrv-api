@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Pencil, Plus, Power, RotateCcw, Search, X } from "lucide-react";
+import { Check, Pencil, Plus, Power, RotateCcw, Search, ShieldAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import { errMsg } from "@/lib/format";
@@ -132,6 +132,7 @@ export function CadastroTable<T extends CadastroRow>({ title, description, endpo
   const [editValues, setEditValues] = useState<FormValues>({});
   const [pulseId, setPulseId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [createValues, setCreateValues] = useState<FormValues>(() => emptyValues(columns));
 
   const list = useQuery({ queryKey: [queryKey, inativos], queryFn: () => apiGet<T[]>(`${endpoint}?inativos=${inativos}`) });
@@ -149,7 +150,10 @@ export function CadastroTable<T extends CadastroRow>({ title, description, endpo
       setCreateValues(emptyValues(columns));
       invalidate();
     },
-    onError: (e) => toast.error(errMsg(e)),
+    onError: (e) => {
+      const mensagem = errMsg(e);
+      setCreateError(mensagem === "Placa já cadastrado(a)" ? "Esta placa já está cadastrada." : mensagem);
+    },
   });
 
   const updateMut = useMutation({
@@ -182,9 +186,10 @@ export function CadastroTable<T extends CadastroRow>({ title, description, endpo
   }, [list.data, list.isError, busca, searchKeys]);
 
   const submitCreate = () => {
+    if (createMut.isPending) return;
     const err = missingRequired(createValues, columns);
-    if (err) return void toast.error(err);
-    createMut.mutate(createValues);
+    setCreateError(err || null);
+    if (!err) createMut.mutate(createValues);
   };
 
   const saveEdit = () => {
@@ -216,7 +221,7 @@ export function CadastroTable<T extends CadastroRow>({ title, description, endpo
               <Checkbox checked={inativos} onCheckedChange={(c) => setInativos(Boolean(c))} data-testid={`${testPrefix}-toggle-inativos`} />
               Mostrar inativos
             </label>
-            <Button onClick={() => setCreateOpen(true)} data-testid={`${testPrefix}-new-button`}>
+            <Button onClick={() => { setCreateError(null); setCreateOpen(true); }} data-testid={`${testPrefix}-new-button`}>
               <Plus className="size-4" /> Novo {entityLabel}
             </Button>
           </>
@@ -343,11 +348,20 @@ export function CadastroTable<T extends CadastroRow>({ title, description, endpo
                 <FieldInput
                   col={c}
                   value={createValues[c.key] ?? ""}
-                  onChange={(v) => setCreateValues((s) => ({ ...s, [c.key]: v }))}
+                  onChange={(v) => {
+                    setCreateError(null);
+                    setCreateValues((s) => ({ ...s, [c.key]: v }));
+                  }}
                   testId={`${testPrefix}-form-${c.key}`}
                 />
               </div>
             ))}
+            {createError && (
+              <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+                <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                <p>{createError}</p>
+              </div>
+            )}
             <DialogFooter className="mt-2">
               <Button type="submit" disabled={createMut.isPending} data-testid={`${testPrefix}-form-submit`}>
                 Salvar
