@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Power, RotateCcw, Search, Shield, X, Check, User, Key, Lock, Users, Bell, UserCheck, ShieldAlert, ShieldCheck, UserX, Trash2 } from "lucide-react";
-import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,16 +58,21 @@ export default function Usuarios() {
       setModalOpen(false);
       qc.invalidateQueries({ queryKey: ["usuarios"] });
     },
-    onError: (e: any) => toast.error(e.message || "Erro ao salvar.")
   });
 
+  const erroSalvar = salvar.error;
+  const emailDuplicado = erroSalvar instanceof ApiError && erroSalvar.status === 409
+    && erroSalvar.message === "Este e-mail já está cadastrado.";
+
   const abrirNovo = () => {
+    salvar.reset();
     setEditando(null);
     setForm({ nome: "", email: "", perfil_id: "", setor: "", cargo: "", telefone: "", whatsapp: "", foto_url: "", senha: "", notificacoes: { manutencao: true, documentos: true, pneus: true, resumo_semanal: false } });
     setModalOpen(true);
   };
 
   const abrirEdicao = (u: any) => {
+    salvar.reset();
     setEditando(u);
     setForm({ 
       nome: u.nome || "", email: u.email || "", perfil_id: u.perfil_id || "", setor: u.setor || "", cargo: u.cargo || "", 
@@ -275,8 +280,19 @@ export default function Usuarios() {
                     <Input value={form.foto_url} onChange={(e) => setForm((s: any) => ({ ...s, foto_url: e.target.value }))} placeholder="https://..." />
                   </div>
                   <div className="grid gap-1.5 md:col-span-2">
-                    <Label className="text-xs text-slate-400">E-mail *</Label>
-                    <Input type="email" autoComplete="username" value={form.email} onChange={(e) => setForm((s: any) => ({ ...s, email: e.target.value }))} />
+                    <Label htmlFor="usuario-email" className="text-xs text-slate-400">E-mail *</Label>
+                    <Input
+                      id="usuario-email"
+                      type="email"
+                      autoComplete="username"
+                      aria-invalid={emailDuplicado || undefined}
+                      aria-describedby={emailDuplicado ? "usuario-erro-salvar" : undefined}
+                      value={form.email}
+                      onChange={(e) => {
+                        if (emailDuplicado) salvar.reset();
+                        setForm((s: any) => ({ ...s, email: e.target.value }));
+                      }}
+                    />
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="usuario-senha" className="text-xs text-slate-400">
@@ -365,6 +381,16 @@ export default function Usuarios() {
                 </div>
               </div>
             </div>
+
+            {erroSalvar && (
+              <div id="usuario-erro-salvar" role="alert" className="mx-6 mb-3 flex shrink-0 items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+                <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                <div>
+                  <p className="font-semibold">{erroSalvar.message || "Não foi possível salvar o usuário."}</p>
+                  {emailDuplicado && <p className="mt-1">Use outro e-mail ou edite o cadastro existente.</p>}
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 border-t border-slate-800 px-6 py-4 shrink-0">
               <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
