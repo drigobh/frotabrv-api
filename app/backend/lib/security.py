@@ -64,7 +64,13 @@ def create_token(user_id: str) -> str:
 
 
 async def current_user(request: Request) -> dict:
-    token = request.cookies.get(COOKIE_NAME)
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, credentials = authorization.partition(" ")
+    token = (
+        credentials.strip()
+        if scheme.lower() == "bearer"
+        else request.cookies.get(COOKIE_NAME)
+    )
     if not token:
         raise HTTPException(status_code=401, detail="Não autenticado")
     try:
