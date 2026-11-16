@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from pymongo.errors import DuplicateKeyError
 
 from lib.audit import audit
 from lib.dates import now_iso
@@ -41,6 +42,11 @@ def build_cadastro_router(
     router = APIRouter(prefix=prefix, tags=[entidade])
     coll = db[collection]
 
+    def conflito_cadastro(erro: DuplicateKeyError) -> str:
+        if unique_field in (erro.details or {}).get("keyPattern", {}):
+            return f"{unique_label} já cadastrado(a)"
+        return "O cadastro conflita com um registro existente."
+
     def _out(doc: dict, em_uso: set[str]) -> Any:
         return out_model(**doc, acoplado=doc["id"] in em_uso)
 
@@ -63,7 +69,11 @@ def build_cadastro_router(
         if await coll.find_one({unique_field: data[unique_field]}):
             raise HTTPException(status_code=409, detail=f"{unique_label} já cadastrado(a)")
         doc = {"id": str(uuid.uuid4()), **data, "ativo": True, "created_at": now_iso(), "created_by": user["nome"]}
-        await coll.insert_one(dict(doc))
+        try:
+            await coll.insert_one(dict(doc))
+        except DuplicateKeyError as erro:
+            detail = conflito_cadastro(erro)
+            raise HTTPException(status_code=409, detail=detail) from None
         await audit(user, "criar", collection, doc["id"], f"{unique_label}: {data[unique_field]}", request)
         return _out(doc, set())
 
@@ -74,7 +84,11 @@ def build_cadastro_router(
         if await coll.find_one({unique_field: data[unique_field], "id": {"$ne": item_id}}):
             raise HTTPException(status_code=409, detail=f"{unique_label} já cadastrado(a)")
         mudancas = [f"{k}: {atual.get(k)!s} → {v!s}" for k, v in data.items() if atual.get(k) != v]
-        await coll.update_one({"id": item_id}, {"$set": data})
+        try:
+            await coll.update_one({"id": item_id}, {"$set": data})
+        except DuplicateKeyError as erro:
+            detail = conflito_cadastro(erro)
+            raise HTTPException(status_code=409, detail=detail) from None
         await audit(user, "editar", collection, item_id, "; ".join(mudancas) or "sem alterações", request)
         return _out({**atual, **data}, await ids_em_uso(acop_field))
 
