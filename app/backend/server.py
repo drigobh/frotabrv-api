@@ -12,7 +12,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="FrotaBrv API", lifespan=lifespan)
 
-origins = os.environ.get("CORS_ORIGINS", "*").split(",")
+# Cookies de sessão exigem origens explícitas.
+DEFAULT_CORS_ORIGIN = "https://frotabrv.onrender.com"
+origins = [
+    origin
+    for value in os.environ.get("CORS_ORIGINS", "").split(",")
+    if (origin := value.strip()) and "*" not in origin
+] or [DEFAULT_CORS_ORIGIN]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
