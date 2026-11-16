@@ -18,6 +18,16 @@ COOKIE_NAME = "frota_session_v2"
 TOKEN_TTL_HOURS = 12
 _ALG = "HS256"
 
+# Allowlist dos campos de cadastro presentes nas respostas de usuários.
+USER_RESPONSE_FIELDS = (
+    "id", "nome", "email", "perfil", "perfil_id", "ativo", "cargo",
+    "setor", "telefone", "whatsapp", "foto_url", "data_cadastro",
+    "created_at", "ultimo_acesso", "notificacoes", "limite_aprovacao",
+    "limite_compra", "pode_aprovar_compras", "pode_comprar",
+    "totp_enabled", "two_factor_enabled",
+)
+USER_RESPONSE_PROJECTION = {"_id": 0, **dict.fromkeys(USER_RESPONSE_FIELDS, 1)}
+
 PERMISSOES: dict[str, set[str]] = {
     "admin": {"read", "write", "delete", "admin"},
     "operador": {"read", "write"},

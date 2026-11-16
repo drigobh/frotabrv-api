@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
-from lib.security import require
+from lib.security import USER_RESPONSE_PROJECTION, require
 from lib.db import db
 from lib.security import verify_password, create_token, current_user, COOKIE_NAME, TOKEN_TTL_HOURS
 from models.auth import LoginIn, LoginOut
@@ -34,7 +34,7 @@ async def login(body: LoginIn, response: Response):
 
 @router.get("/me")
 async def me(_u: dict = Depends(require("read"))):
-    usuario = await db.usuarios.find_one({"id": _u["id"]}, {"_id": 0, "senha": 0})
+    usuario = await db.usuarios.find_one({"id": _u["id"]}, USER_RESPONSE_PROJECTION)
     if not usuario:
         raise HTTPException(404, "Usuário não encontrado.")
     
@@ -78,7 +78,7 @@ async def atualizar_perfil(body: dict, _u: dict = Depends(require("read"))):
 
 @router.get("/usuarios")
 async def listar_usuarios(_u: dict = Depends(require("read"))):
-    usuarios = await db.usuarios.find({}, {"_id": 0, "senha": 0}).to_list(1000)
+    usuarios = await db.usuarios.find({}, USER_RESPONSE_PROJECTION).to_list(1000)
     return usuarios
 
 
