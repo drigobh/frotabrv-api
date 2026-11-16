@@ -276,7 +276,7 @@ export default function Usuarios() {
                   </div>
                   <div className="grid gap-1.5 md:col-span-2">
                     <Label className="text-xs text-slate-400">E-mail *</Label>
-                    <Input type="email" value={form.email} onChange={(e) => setForm((s: any) => ({ ...s, email: e.target.value }))} />
+                    <Input type="email" autoComplete="username" value={form.email} onChange={(e) => setForm((s: any) => ({ ...s, email: e.target.value }))} />
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="usuario-senha" className="text-xs text-slate-400">
