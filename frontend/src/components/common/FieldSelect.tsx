@@ -11,7 +11,7 @@ interface Props {
   onChange: (value: string) => void;
   options: Option[];
   placeholder?: string;
-  testId: string;
+  testId?: string;
   className?: string;
 }
 

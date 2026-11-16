@@ -74,12 +74,12 @@ export default function Dashboard() {
             <p className="text-[11px] uppercase tracking-widest text-slate-400 font-medium">Custo por KM</p>
             <DollarSign className="size-4 text-amber-400" />
           </div>
-          <p className="mt-3 font-mono text-2xl font-bold text-slate-100">{brl(custoKm, 2)}</p>
+          <p className="mt-3 font-mono text-2xl font-bold text-slate-100">{brl(custoKm)}</p>
           <div className="mt-2 flex items-center gap-2 text-xs">
             <span className="flex items-center gap-1 text-emerald-400 font-medium">
               <TrendingDown className="size-3.5" /> -3.1%
             </span>
-            <span className="text-slate-500">meta {brl(2.70, 2)}</span>
+            <span className="text-slate-500">meta {brl(2.70)}</span>
           </div>
         </div>
 
@@ -164,7 +164,7 @@ export default function Dashboard() {
                         {num(v.consumo_km_l || 0, 2)}
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-slate-400">
-                        {brl(2.50, 2)}
+                        {brl(2.50)}
                       </td>
                     </tr>
                   ))

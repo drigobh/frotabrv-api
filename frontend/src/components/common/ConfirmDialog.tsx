@@ -5,12 +5,12 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: string;
+  description?: string;
   confirmLabel: string;
   onConfirm: () => void;
   destructive?: boolean;
   pending?: boolean;
-  testId: string;
+  testId?: string;
 }
 
 export function ConfirmDialog({ open, onOpenChange, title, description, confirmLabel, onConfirm, destructive, pending, testId }: Props) {

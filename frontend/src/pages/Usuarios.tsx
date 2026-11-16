@@ -183,7 +183,7 @@ export default function Usuarios() {
                     {u.ultimo_acesso ? new Date(u.ultimo_acesso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "—"}
                   </td>
                   <td className="px-3 py-3">
-                    <Badge tone={u.ativo ? "ativo" : "inativo"}>{u.ativo ? "Ativo" : "Inativo"}</Badge>
+                    <Badge>{u.ativo ? "Ativo" : "Inativo"}</Badge>
                   </td>
                   <td className="px-3 py-3 text-right flex justify-end gap-1">
                     <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(u)}><Pencil className="size-4 text-sky-400" /></Button>

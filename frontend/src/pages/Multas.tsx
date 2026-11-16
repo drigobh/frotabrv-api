@@ -129,7 +129,7 @@ export default function Multas() {
                   <td className="px-3 py-3 font-mono text-rose-400">{brl(m.valor)}</td>
                   <td className="px-3 py-3 font-mono text-amber-400">{m.pontos}</td>
                   <td className="px-3 py-3">
-                    <Badge tone={m.status === "Pago" ? "ativo" : m.status === "Recurso" ? "warning" : "inativo"}>
+                    <Badge>
                       {m.status}
                     </Badge>
                   </td>
