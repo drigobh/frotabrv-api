@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime, timezone
+from pymongo.errors import DuplicateKeyError
 from lib.db import db
 
 router = APIRouter()
@@ -73,7 +74,11 @@ async def criar_usuario(body: dict):
         "two_factor_secret": None,
         "notificacoes": body.get("notificacoes", {"manutencao": True, "documentos": True, "pneus": True, "resumo_semanal": False}),
     }
-    await db.usuarios.insert_one(novo)
+    try:
+        await db.usuarios.insert_one(novo)
+    except DuplicateKeyError as erro:
+        detalhe = "Este e-mail já está cadastrado." if "email" in (erro.details or {}).get("keyPattern", {}) else "O cadastro conflita com um usuário existente."
+        raise HTTPException(409, detalhe) from None
     return {campo: novo[campo] for campo in USER_RESPONSE_FIELDS if campo in novo}
 
 @router.put("/{id}", dependencies=[Depends(require("admin"))])
@@ -94,9 +99,13 @@ async def atualizar_usuario(id: str, body: dict):
         alteracoes = {"$set": update}
         if "senha_hash" in update:
             alteracoes["$unset"] = {"senha": ""}
-        resultado = await db.usuarios.update_one(
-            {"id": id, "excluido_em": {"$exists": False}}, alteracoes
-        )
+        try:
+            resultado = await db.usuarios.update_one(
+                {"id": id, "excluido_em": {"$exists": False}}, alteracoes
+            )
+        except DuplicateKeyError as erro:
+            detalhe = "Este e-mail já está cadastrado." if "email" in (erro.details or {}).get("keyPattern", {}) else "O cadastro conflita com um usuário existente."
+            raise HTTPException(409, detalhe) from None
         if not resultado.matched_count:
             raise HTTPException(404, "Usuário não encontrado.")
     return {"status": "ok"}

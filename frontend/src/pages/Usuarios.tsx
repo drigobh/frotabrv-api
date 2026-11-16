@@ -81,6 +81,10 @@ export default function Usuarios() {
     ? Boolean(editando)
     : Array.from(form.senha).length >= 6 && new TextEncoder().encode(form.senha).length <= 72;
 
+  const podeSalvar = !salvar.isPending && Boolean(
+    form.nome.trim() && form.email.trim() && form.perfil_id && senhaValida
+  );
+
   // KPIs
   const total = usuarios.length;
   const ativos = usuarios.filter((u: any) => u.ativo).length;
@@ -240,13 +244,19 @@ export default function Usuarios() {
       {/* Modal Completo */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+          <form
+            className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (podeSalvar) salvar.mutate(form);
+            }}
+          >
             <div className="flex justify-between items-center border-b border-slate-800 px-6 py-4 shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-slate-100">{editando ? "Editar Usuário" : "Novo Usuário"}</h2>
                 <p className="text-xs text-slate-400 mt-1">Preencha as informações e defina o perfil de acesso.</p>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setModalOpen(false)}><X className="size-5" /></Button>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setModalOpen(false)}><X className="size-5" /></Button>
             </div>
 
             <div className="p-6 space-y-6 overflow-y-auto flex-1">
@@ -357,12 +367,12 @@ export default function Usuarios() {
             </div>
 
             <div className="flex justify-end gap-3 border-t border-slate-800 px-6 py-4 shrink-0">
-              <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
-              <Button onClick={() => salvar.mutate(form)} disabled={salvar.isPending || !form.nome.trim() || !form.email.trim() || !form.perfil_id || !senhaValida} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6">
+              <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={!podeSalvar} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6">
                 <Check className="size-4 mr-2" /> Salvar Usuário
               </Button>
             </div>
-          </div>
+          </form>
         </div>
       )}
     </div>
