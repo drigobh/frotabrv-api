@@ -225,7 +225,7 @@ export default function Usuarios() {
                         aria-label="Excluir usuário"
                         disabled={excluir.isPending || u.perfil === "admin" || u.perfil_id === "perfil-admin"}
                         onClick={() => {
-                          if (window.confirm(`Excluir "${u.nome}" da lista e bloquear o acesso?`)) {
+                          if (window.confirm(`Excluir definitivamente o cadastro de "${u.nome}" e liberar o e-mail?`)) {
                             excluir.mutate(u.id);
                           }
                         }}
