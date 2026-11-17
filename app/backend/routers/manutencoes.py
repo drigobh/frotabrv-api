@@ -20,9 +20,70 @@ from pydantic import BaseModel, Field
 router = APIRouter(prefix="/manutencoes", tags=["manutencoes"])
 
 
+def evento_os(acao: str, usuario: dict, alteracoes: list[dict]) -> dict:
+    return {
+        "id": str(uuid.uuid4()),
+        "acao": acao,
+        "data": now_iso(),
+        "autor": usuario.get("nome") or usuario.get("id") or "Sistema",
+        "alteracoes": alteracoes,
+    }
+
+
+def valor_historico(os: dict):
+    custo = os.get("custo")
+    return os.get("valor") if custo is None else custo
+
+
+def fornecedor_historico(os: dict):
+    return os.get("fornecedor_nome") or os.get("fornecedor_id")
+
+
+def alteracoes_os(anterior: dict, dados: dict) -> list[dict]:
+    atual = {**anterior, **dados}
+    comparacoes = [
+        ("status", anterior.get("status"), atual.get("status")),
+        ("valor", valor_historico(anterior), valor_historico(atual)),
+    ]
+    if anterior.get("fornecedor_id") != atual.get("fornecedor_id"):
+        comparacoes.append(("fornecedor", fornecedor_historico(anterior), fornecedor_historico(atual)))
+    return [
+        {"campo": campo, "antes": antes, "depois": depois}
+        for campo, antes, depois in comparacoes if antes != depois
+    ]
+
+
+def escrita_os(anterior: dict, dados: dict, usuario: dict) -> dict:
+    escrita = {"$set": dados}
+    alteracoes = alteracoes_os(anterior, dados)
+    if alteracoes:
+        escrita["$push"] = {"historico_os": evento_os("alteracao", usuario, alteracoes)}
+    return escrita
+
+
+@router.get("/{id}/historico")
+async def historico_os(id: str, _u: dict = Depends(require("read"))):
+    os = await db.manutencoes.find_one(
+        {"id": id}, {"_id": 0, "historico_os": 1, "criado_por": 1, "created_at": 1},
+    )
+    if os is None:
+        raise HTTPException(404, "Ordem de serviço não encontrada.")
+    eventos = list(os.get("historico_os") or [])
+    abertura_registrada = any(evento.get("acao") == "abertura" for evento in eventos)
+    if not abertura_registrada and os.get("created_at"):
+        eventos.insert(0, {
+            "id": "abertura-original",
+            "acao": "abertura",
+            "data": os["created_at"],
+            "autor": os.get("criado_por") or "Autor não registrado",
+            "alteracoes": [],
+        })
+    return {"eventos": eventos, "anterior_ao_historico": not abertura_registrada}
+
+
 @router.get("", response_model=None)
 async def listar(_u: dict = Depends(require("read"))):
-    docs = await db.manutencoes.find({}, {"_id": 0}).sort("data", -1).to_list(2000)
+    docs = await db.manutencoes.find({}, {"_id": 0, "historico_os": 0}).sort("data", -1).to_list(2000)
     return docs
 
 @router.post("", response_model=Manutencao, status_code=201)
@@ -53,6 +114,13 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     doc["criado_por"] = user.get("nome", user.get("email", "Sistema"))
     doc["created_at"] = now_iso()
 
+    abertura = [
+        {"campo": "status", "antes": None, "depois": doc.get("status")},
+        {"campo": "valor", "antes": None, "depois": valor_historico(doc)},
+    ]
+    if doc.get("fornecedor_id"):
+        abertura.append({"campo": "fornecedor", "antes": None, "depois": fornecedor_historico(doc)})
+    doc["historico_os"] = [evento_os("abertura", user, abertura)]
     await db.manutencoes.insert_one(doc)
     
     # BAIXA DE ESTOQUE DIRETA
@@ -244,7 +312,7 @@ FORNECEDOR_PAINEL = [
         {"$set": {"fornecedor_nome": {"$ifNull": [
             "$fornecedor_nome", {"$arrayElemAt": ["$fornecedor_atual.nome", 0]}
         ]}}},
-        {"$project": {"_id": 0, "fornecedor_atual": 0}},
+        {"$project": {"_id": 0, "fornecedor_atual": 0, "historico_os": 0}},
 ]
 
 
@@ -403,7 +471,7 @@ class ManutencaoEdicao(BaseModel):
 
 
 @router.patch("/{id}/dados")
-async def editar_dados(id: str, body: ManutencaoEdicao, _u: dict = Depends(require("write"))):
+async def editar_dados(id: str, body: ManutencaoEdicao, user: dict = Depends(require("write"))):
     atual = await db.manutencoes.find_one({"id": id})
     if atual is None:
         raise HTTPException(404, "Ordem de serviço não encontrada.")
@@ -429,6 +497,10 @@ async def editar_dados(id: str, body: ManutencaoEdicao, _u: dict = Depends(requi
             fornecedor_nome = cadastro.get("nome") if cadastro else None
     else:
         fornecedor_nome = await nome_fornecedor(fornecedor)
+        if atual.get("fornecedor_id") and not atual.get("fornecedor_nome"):
+            anterior = await db.fornecedores.find_one({"id": atual["fornecedor_id"]}, {"nome": 1})
+            if anterior:
+                atual["fornecedor_nome"] = anterior.get("nome")
     dados = {
         "veiculo_id": body.veiculo_id,
         "tipo": tipo,
@@ -448,7 +520,7 @@ async def editar_dados(id: str, body: ManutencaoEdicao, _u: dict = Depends(requi
         dados["status"] = body.status
         if body.status == "Concluída" and etapa_atual(status_atual) != "Concluída" and not atual.get("data_fim"):
             dados["data_fim"] = hoje_manutencao().isoformat()
-    resposta = await db.manutencoes.update_one(filtro, {"$set": dados})
+    resposta = await db.manutencoes.update_one(filtro, escrita_os(atual, dados, user))
     if not resposta.matched_count:
         raise HTTPException(409, "A OS mudou enquanto você editava. Atualize a lista e tente novamente.")
     return {"id": id}
@@ -460,7 +532,7 @@ class ManutencaoStatusUpdate(BaseModel):
 
 @router.patch("/{id}/status")
 async def atualizar_status(
-    id: str, body: ManutencaoStatusUpdate, _u: dict = Depends(require("write"))
+    id: str, body: ManutencaoStatusUpdate, user: dict = Depends(require("write"))
 ):
     atual = await db.manutencoes.find_one({"id": id}, {"status": 1, "data_fim": 1})
     if atual is None:
@@ -472,7 +544,7 @@ async def atualizar_status(
         dados["data_fim"] = hoje_manutencao().isoformat()
     resultado = await db.manutencoes.update_one(
         {"_id": atual["_id"], "status": origem},
-        {"$set": dados},
+        escrita_os(atual, dados, user),
     )
     if not resultado.matched_count:
         raise HTTPException(409, "A OS mudou durante a atualização. Confira o status atual.")
@@ -481,54 +553,57 @@ async def atualizar_status(
 
 @router.put("/{id}", response_model=Manutencao)
 async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dict = Depends(require("write"))):
-    existe = await db.manutencoes.find_one({"id": id})
-    if not existe:
-        raise HTTPException(404, "Manutenção não encontrada")
+    async def salvar(session):
+        existe = await db.manutencoes.find_one({"id": id}, session=session)
+        if not existe:
+            raise HTTPException(404, "Manutenção não encontrada")
 
-    veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
-    if not veiculo:
-        raise HTTPException(404, "Veículo não encontrado")
+        veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0}, session=session)
+        if not veiculo:
+            raise HTTPException(404, "Veículo não encontrado")
 
-    # 1. Estorna o estoque antigo para poder validar o novo
-    if existe.get("pecas_utilizadas"):
-        for p in existe["pecas_utilizadas"]:
+        for peca in existe.get("pecas_utilizadas") or []:
             await db.pecas.update_one(
-                {"id": p.get("peca_id")},
-                {"$inc": {"quantidade_atual": int(p.get("quantidade", 0))}}
+                {"id": peca.get("peca_id")},
+                {"$inc": {"quantidade_atual": int(peca.get("quantidade", 0))}},
+                session=session,
             )
 
-    # 2. Valida o novo estoque
-    if body.pecas_utilizadas:
-        for p in body.pecas_utilizadas:
-            peca = await db.pecas.find_one({"id": p.get("peca_id")})
+        for item in body.pecas_utilizadas or []:
+            quantidade = int(item.get("quantidade", 0))
+            peca = await db.pecas.find_one({"id": item.get("peca_id")}, session=session)
             if not peca:
-                # Se der erro, precisamos desfazer o estorno, mas para simplificar, assumimos que o frontend envia IDs válidos
-                raise HTTPException(404, f"Peça {p.get('nome')} não encontrada.")
-            qtd_solicitada = int(p.get("quantidade", 0))
-            if peca.get("quantidade_atual", 0) < qtd_solicitada:
-                # Desfaz o estorno caso falhe
-                if existe.get("pecas_utilizadas"):
-                    for p_old in existe["pecas_utilizadas"]:
-                        await db.pecas.update_one({"id": p_old.get("peca_id")}, {"$inc": {"quantidade_atual": -int(p_old.get("quantidade", 0))}})
-                raise HTTPException(400, f"Estoque insuficiente para {peca.get('nome')}. Disponível: {peca.get('quantidade_atual')}, Solicitado: {qtd_solicitada}")
-
-    doc = body.model_dump()
-    doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
-    doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
-    doc["created_at"] = existe.get("created_at", now_iso())
-
-    await db.manutencoes.update_one({"id": id}, {"$set": doc})
-    
-    # 3. Baixa do novo estoque
-    if body.pecas_utilizadas:
-        for p in body.pecas_utilizadas:
+                raise HTTPException(404, f"Peça {item.get('nome')} não encontrada.")
+            if peca.get("quantidade_atual", 0) < quantidade:
+                raise HTTPException(400, f"Estoque insuficiente para {peca.get('nome')}.")
             await db.pecas.update_one(
-                {"id": p.get("peca_id")},
-                {"$inc": {"quantidade_atual": -int(p.get("quantidade", 0))}}
+                {"id": item.get("peca_id")}, {"$inc": {"quantidade_atual": -quantidade}}, session=session,
             )
-            
-    doc["id"] = id
-    return doc
+
+        doc = body.model_dump()
+        if doc.get("fornecedor_id") != existe.get("fornecedor_id"):
+            fornecedor = await db.fornecedores.find_one(
+                {"id": doc["fornecedor_id"]}, {"nome": 1}, session=session,
+            ) if doc.get("fornecedor_id") else None
+            doc["fornecedor_nome"] = fornecedor.get("nome") if fornecedor else None
+            if existe.get("fornecedor_id") and not existe.get("fornecedor_nome"):
+                anterior = await db.fornecedores.find_one(
+                    {"id": existe["fornecedor_id"]}, {"nome": 1}, session=session,
+                )
+                if anterior:
+                    existe["fornecedor_nome"] = anterior.get("nome")
+        doc["veiculo_label"] = f"{veiculo['placa']} · {veiculo['modelo']}"
+        doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
+        doc["created_at"] = existe.get("created_at", now_iso())
+        doc["versao_dados"] = str(uuid.uuid4())
+        await db.manutencoes.update_one(
+            {"_id": existe["_id"]}, escrita_os(existe, doc, user), session=session,
+        )
+        return {**doc, "id": id}
+
+    async with await client.start_session() as session:
+        return await session.with_transaction(salvar)
+
 
 @router.delete("/{id}")
 async def excluir(id: str, _u: dict = Depends(require("delete"))):

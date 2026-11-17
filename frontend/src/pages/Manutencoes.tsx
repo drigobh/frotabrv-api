@@ -234,6 +234,86 @@ function FormularioOS({ os, fechar, atualizar }: { os?: Ordem; fechar: () => voi
   );
 }
 
+type EventoOS = {
+  id: string;
+  acao: "abertura" | "alteracao";
+  data: string;
+  autor: string;
+  alteracoes: { campo: "status" | "valor" | "fornecedor"; antes: string | number | null; depois: string | number | null }[];
+};
+type HistoricoOS = { eventos: EventoOS[]; anterior_ao_historico: boolean };
+
+const ROTULOS_HISTORICO = { status: "Status", valor: "Valor", fornecedor: "Fornecedor" } as const;
+
+function exibirAlteracao(campo: keyof typeof ROTULOS_HISTORICO, valor: string | number | null) {
+  if (valor === null || valor === "") return "—";
+  const numero = Number(valor);
+  return campo === "valor" && Number.isFinite(numero) ? brl(numero) : String(valor);
+}
+
+function DialogoHistorico({ os, fechar }: { os: Ordem; fechar: () => void }) {
+  const consulta = useQuery({
+    queryKey: ["manutencoes-historico", os.id],
+    queryFn: () => apiGet<HistoricoOS>("/manutencoes/" + encodeURIComponent(os.id) + "/historico"),
+  });
+  const dataHora = new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo",
+  });
+
+  return (
+    <Dialog open onOpenChange={(aberto) => { if (!aberto) fechar(); }}>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Histórico da OS {codigo(os)}</DialogTitle>
+          <DialogDescription>{os.descricao || veiculoDa(os)}</DialogDescription>
+        </DialogHeader>
+        {consulta.isPending ? <p role="status">Carregando histórico…</p> : consulta.isError ? (
+          <div role="alert" className="flex flex-wrap items-center gap-3">
+            <span>{consulta.error.message}</span>
+            <Button size="sm" variant="outline" onClick={() => consulta.refetch()}>Tentar novamente</Button>
+          </div>
+        ) : (
+          <>
+            {consulta.data.anterior_ao_historico && (
+              <p className="text-sm text-slate-400">Alterações anteriores à ativação do histórico não foram registradas.</p>
+            )}
+            {consulta.data.eventos.length === 0 ? <p className="text-sm text-slate-400">Nenhum evento registrado.</p> : (
+              <ol className="space-y-3">
+                {consulta.data.eventos.map((evento) => {
+                  const data = new Date(evento.data);
+                  return (
+                    <li key={evento.id} className="rounded-lg border border-slate-800 p-4">
+                      <div className="flex flex-wrap justify-between gap-2">
+                        <span className="font-medium">{evento.acao === "abertura" ? "OS aberta" : "OS alterada"}</span>
+                        <span className="text-sm text-slate-400">{Number.isNaN(data.getTime()) ? evento.data : dataHora.format(data)}</span>
+                      </div>
+                      <p className="mt-1 break-words text-sm text-slate-400">{evento.autor}</p>
+                      {evento.alteracoes.length > 0 && (
+                        <dl className="mt-3 space-y-2 border-t border-slate-800 pt-3 text-sm">
+                          {evento.alteracoes.map(({ campo, antes, depois }) => (
+                            <div key={campo}>
+                              <dt className="font-medium">{ROTULOS_HISTORICO[campo]}</dt>
+                              <dd className="break-words text-slate-300">
+                                {evento.acao !== "abertura" && <>{exibirAlteracao(campo, antes)} → </>}
+                                {exibirAlteracao(campo, depois)}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 export default function Manutencoes() {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
@@ -260,6 +340,7 @@ export default function Manutencoes() {
     aplicarPeriodo(inicio, fim);
   }
   const [edicao, setEdicao] = useState<Ordem>();
+  const [historico, setHistorico] = useState<Ordem>();
   const [exclusao, setExclusao] = useState<Ordem>();
   const nova = params.get("nova-os") === "1";
 
@@ -311,6 +392,7 @@ export default function Manutencoes() {
 
   function atualizar() {
     void qc.invalidateQueries({ queryKey: ["manutencoes-painel"] });
+    void qc.invalidateQueries({ queryKey: ["manutencoes-historico"] });
     void qc.invalidateQueries({ queryKey: ["manutencoes"] });
     void qc.invalidateQueries({ queryKey: ["acoplamentos"] });
   }
@@ -424,6 +506,7 @@ export default function Manutencoes() {
                   <span className={cn("w-fit rounded-md px-2 py-1 text-xs font-medium", CORES[os.etapa] || "bg-slate-800 text-slate-300")}>{statusDa(os)}</span>
                   <p className="font-mono text-slate-100">{brl(os.custo ?? os.valor ?? 0)}</p>
                   <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => setHistorico(os)} aria-label={"Histórico da OS " + codigo(os)}>Histórico</Button>
                     <Button size="sm" variant="outline" onClick={() => setEdicao(os)} aria-label={"Editar OS " + codigo(os)}>Editar</Button>
                     <Button size="sm" variant="ghost" className="text-rose-300" aria-label={"Excluir OS " + codigo(os)}
                       onClick={() => { remover.reset(); setExclusao(os); }}>Excluir</Button>
@@ -449,6 +532,7 @@ export default function Manutencoes() {
           if (nova) abrirNova(false);
         }} />
       )}
+      {historico && <DialogoHistorico os={historico} fechar={() => setHistorico(undefined)} />}
       {exclusao && (
         <Dialog open onOpenChange={(aberto) => { if (!aberto && !remover.isPending) setExclusao(undefined); }}>
           <DialogContent>
