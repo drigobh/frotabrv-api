@@ -1,307 +1,335 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Plus } from "lucide-react";
-import { toast } from "sonner";
+import { useEffect, useState, type FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Plus, Search, Wrench } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
-import { apiGet, apiPatch, apiPost } from "@/lib/api";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { brl } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-const COLUNAS = [
-  { id: "Aguardando aprovação", label: "Aguardando Aprovação", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/30" },
-  { id: "Aguardando peça", label: "Aguardando Peça", color: "text-sky-500", bg: "bg-sky-500/10", border: "border-sky-500/30" },
-  { id: "Em execução", label: "Em Execução", color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/30" },
-  { id: "Concluída", label: "Concluída", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
-  { id: "Cancelada", label: "Cancelada", color: "text-rose-300", bg: "bg-rose-500/5", border: "border-rose-500/25" },
-];
+const ETAPAS = [
+  "Todas", "Aguardando aprovação", "Aguardando peça", "Em execução", "Concluída", "Cancelada", "Outras",
+] as const;
+type Etapa = typeof ETAPAS[number];
+
+const PROXIMAS: Partial<Record<Etapa, Etapa[]>> = {
+  "Aguardando aprovação": ["Em execução", "Cancelada"],
+  "Aguardando peça": ["Em execução", "Cancelada"],
+  "Em execução": ["Aguardando peça", "Concluída", "Cancelada"],
+  Outras: ["Aguardando aprovação"],
+};
+
+const CORES: Partial<Record<Etapa, string>> = {
+  "Aguardando aprovação": "bg-amber-500/10 text-amber-300",
+  "Aguardando peça": "bg-violet-500/10 text-violet-300",
+  "Em execução": "bg-sky-500/10 text-sky-300",
+  "Concluída": "bg-emerald-500/10 text-emerald-300",
+  "Cancelada": "bg-rose-500/10 text-rose-300",
+};
 
 type Ordem = {
   id: string;
-  descricao?: string;
+  etapa: Etapa;
+  status?: string;
+  versao_dados?: string;
+  veiculo_id?: string;
   veiculo_label?: string;
   veiculo_placa?: string;
   tipo?: string;
-  status?: string;
   data?: string;
-  oficina?: string;
-  fornecedor_nome?: string;
+  descricao?: string;
   custo?: number;
   valor?: number;
+  fornecedor_id?: string;
+  fornecedor_nome?: string;
+  oficina?: string;
+  pecas_utilizadas?: unknown[];
 };
+type Painel = { itens: Ordem[]; contagens: Record<Etapa, number>; total: number; por_pagina: number };
+type Veiculo = { id: string; placa: string; modelo: string; ativo?: boolean };
+type Fornecedor = { id: string; nome: string };
 
-const ACOES: Record<string, { nome: string; destino: string }[]> = {
-  "Aguardando aprovação": [
-    { nome: "Aprovar", destino: "Em execução" },
-    { nome: "Cancelar OS", destino: "Cancelada" },
-  ],
-  "Em execução": [
-    { nome: "Aguardar peça", destino: "Aguardando peça" },
-    { nome: "Concluir", destino: "Concluída" },
-    { nome: "Cancelar OS", destino: "Cancelada" },
-  ],
-  "Aguardando peça": [
-    { nome: "Retomar", destino: "Em execução" },
-    { nome: "Cancelar OS", destino: "Cancelada" },
-  ],
-};
-
-const campo = "w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm";
-const normalizar = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const campo = "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm";
+const codigo = (os: Ordem) => os.id.slice(0, 8).toUpperCase();
 const veiculoDa = (os: Ordem) => os.veiculo_label || os.veiculo_placa || "Veículo sem identificação";
-const numeroDa = (os: Ordem) => os.id.slice(0, 6).toUpperCase();
-function dataDa(os: Ordem) {
-  const partes = os.data?.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return partes ? `${partes[3]}/${partes[2]}/${partes[1]}` : "—";
+const statusDa = (os: Ordem) => os.etapa === "Outras" ? os.status || "Sem status" : os.etapa;
+const dataISO = (data?: string) => data?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] || "";
+const dataBR = (data?: string) => dataISO(data).split("-").reverse().join("/") || "—";
+const hoje = () => new Date().toLocaleDateString("sv-SE");
+
+function FormularioOS({ os, fechar, atualizar }: { os?: Ordem; fechar: () => void; atualizar: () => void }) {
+  const veiculos = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<Veiculo[]>("/veiculos") });
+  const fornecedores = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<Fornecedor[]>("/fornecedores") });
+  const opcoesVeiculos = (veiculos.data ?? []).filter((v) => v.ativo !== false || v.id === os?.veiculo_id);
+  const opcoesFornecedores = fornecedores.data ?? [];
+  const [status, setStatus] = useState("");
+  const salvar = useMutation({
+    mutationFn: (form: FormData) => {
+      const descricao = String(form.get("descricao") ?? "").trim();
+      if (!descricao) throw new Error("Descreva o serviço.");
+      const valor = String(form.get("custo") ?? "").trim().replace(",", ".");
+      if (valor && (!/^\d+(?:\.\d{1,2})?$/.test(valor) || !Number.isFinite(Number(valor)))) {
+        throw new Error("Informe um valor em reais, como 1250,50.");
+      }
+      const dados = {
+        veiculo_id: String(form.get("veiculo") ?? ""),
+        tipo: String(form.get("tipo") ?? ""),
+        data: String(form.get("data") ?? ""),
+        descricao,
+        custo: valor ? Number(valor) : 0,
+        fornecedor_id: String(form.get("fornecedor") ?? "") || null,
+        oficina: String(form.get("oficina") ?? "").trim() || null,
+      };
+      if (!os) return apiPost("/manutencoes", { ...dados, status: "Aguardando aprovação" });
+      const transicao = status ? { status, status_original: os.status ?? null } : {};
+      return apiPatch("/manutencoes/" + os.id + "/dados", { ...dados, ...transicao, versao: os.versao_dados ?? null });
+    },
+    onSuccess: () => {
+      atualizar();
+      fechar();
+      toast.success(os ? "Ordem atualizada." : "Ordem aberta.");
+    },
+    onError: atualizar,
+  });
+
+  function enviar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!salvar.isPending) salvar.mutate(new FormData(event.currentTarget));
+  }
+
+  return (
+    <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvar.isPending) fechar(); }}>
+      <DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{os ? "Editar OS " + codigo(os) : "Nova ordem de serviço"}</DialogTitle>
+          <DialogDescription>{os ? veiculoDa(os) : "A nova OS entra em Aguardando aprovação."}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={enviar} className="flex min-h-0 flex-col gap-4">
+          <div className="grid min-h-0 gap-3 overflow-y-auto px-0.5 pb-1 sm:grid-cols-2">
+            <label className="space-y-1 text-sm sm:col-span-2">
+              <span>Veículo</span>
+              <select name="veiculo" className={campo} required defaultValue={os?.veiculo_id ?? ""}>
+                <option value="" disabled>{veiculos.isPending ? "Carregando veículos…" : "Selecione um veículo"}</option>
+                {os?.veiculo_id && !opcoesVeiculos.some((v) => v.id === os.veiculo_id) && <option value={os.veiculo_id}>{veiculoDa(os)}</option>}
+                {opcoesVeiculos.map((v) => <option key={v.id} value={v.id}>{v.placa} · {v.modelo}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>Tipo de manutenção</span>
+              <select name="tipo" className={campo} defaultValue={os?.tipo || "Corretiva"} required>
+                {os?.tipo && !["Corretiva", "Preventiva"].includes(os.tipo) && <option>{os.tipo}</option>}
+                <option>Corretiva</option><option>Preventiva</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>Data de abertura</span>
+              <Input name="data" type="date" required defaultValue={dataISO(os?.data) || (os ? "" : hoje())} />
+            </label>
+            <label className="space-y-1 text-sm sm:col-span-2">
+              <span>Descrição do serviço</span>
+              <textarea name="descricao" className={campo} rows={3} required maxLength={4000} defaultValue={os?.descricao} />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>Fornecedor</span>
+              <select name="fornecedor" className={campo} defaultValue={os?.fornecedor_id || ""}>
+                <option value="">{fornecedores.isPending ? "Carregando fornecedores…" : "Sem fornecedor"}</option>
+                {os?.fornecedor_id && !opcoesFornecedores.some((f) => f.id === os.fornecedor_id) && (
+                  <option value={os.fornecedor_id}>{os.fornecedor_nome || "Fornecedor vinculado"}</option>
+                )}
+                {opcoesFornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>Oficina</span>
+              <Input name="oficina" maxLength={200} defaultValue={os?.oficina ?? ""} />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>Valor (R$)</span>
+              <Input name="custo" inputMode="decimal" placeholder="0,00" defaultValue={os ? String(os.custo ?? os.valor ?? 0).replace(".", ",") : ""} />
+            </label>
+            {os && (
+              <label className="space-y-1 text-sm">
+                <span>Status</span>
+                <select aria-label="Status" className={campo} value={status} onChange={(event) => setStatus(event.target.value)}>
+                  <option value="">{statusDa(os)} (atual)</option>
+                  {(PROXIMAS[os.etapa] ?? []).map((etapa) => <option key={etapa}>{etapa}</option>)}
+                </select>
+              </label>
+            )}
+            {veiculos.isError && <p role="alert" className="text-sm text-rose-300">Falha ao carregar veículos. <button type="button" className="underline" onClick={() => veiculos.refetch()}>Recarregar</button></p>}
+            {fornecedores.isError && <p role="alert" className="text-sm text-rose-300">Falha ao carregar fornecedores. <button type="button" className="underline" onClick={() => fornecedores.refetch()}>Recarregar</button></p>}
+          </div>
+          {salvar.isError && <p role="alert" className="text-sm text-rose-300">{salvar.error.message}</p>}
+          <div className="flex justify-end gap-2 border-t border-border pt-4">
+            <Button type="button" variant="outline" disabled={salvar.isPending} onClick={fechar}>Fechar</Button>
+            <Button type="submit" disabled={salvar.isPending}>{salvar.isPending ? "Salvando…" : "Salvar OS"}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function Manutencoes() {
   const qc = useQueryClient();
-  const consulta = useQuery({ queryKey: ["manutencoes"], queryFn: () => apiGet<Ordem[]>("/manutencoes") });
-  const manutencoes = consulta.data ?? [];
-  const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState("");
-  const [modo, setModo] = useState<"quadro" | "lista">("quadro");
-
   const [params, setParams] = useSearchParams();
-  const novaOS = params.get("nova-os") === "1";
-  const veiculos = useQuery({
-    queryKey: ["veiculos"],
-    queryFn: () => apiGet<{ id: string; placa: string; modelo: string; ativo?: boolean }[]>("/veiculos"),
-    enabled: novaOS,
-  });
-  const veiculosAtivos = (veiculos.data ?? []).filter((veiculo) => veiculo.ativo !== false);
+  const [etapa, setEtapa] = useState<Etapa>("Todas");
+  const [entrada, setEntrada] = useState("");
+  const [busca, setBusca] = useState("");
+  const [pagina, setPagina] = useState(1);
+  const [edicao, setEdicao] = useState<Ordem>();
+  const [exclusao, setExclusao] = useState<Ordem>();
+  const nova = params.get("nova-os") === "1";
 
-  function abrirFormulario(open: boolean) {
-    criarOS.reset();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setBusca(entrada.trim());
+      setPagina(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [entrada]);
+
+  const consulta = useQuery({
+    queryKey: ["manutencoes-painel", etapa, busca, pagina],
+    queryFn: () => {
+      const filtros = new URLSearchParams({ etapa, busca, pagina: String(pagina) });
+      return apiGet<Painel>("/manutencoes/painel?" + filtros);
+    },
+  });
+  const painel = consulta.data;
+  const paginas = Math.max(1, Math.ceil((painel?.total ?? 0) / (painel?.por_pagina ?? 12)));
+
+  useEffect(() => {
+    if (painel && pagina > paginas) setPagina(paginas);
+  }, [painel, pagina, paginas]);
+
+  function atualizar() {
+    void qc.invalidateQueries({ queryKey: ["manutencoes-painel"] });
+    void qc.invalidateQueries({ queryKey: ["manutencoes"] });
+    void qc.invalidateQueries({ queryKey: ["acoplamentos"] });
+  }
+
+  function abrirNova(aberto: boolean) {
     setParams((atuais) => {
       const proximos = new URLSearchParams(atuais);
-      if (open) proximos.set("nova-os", "1");
+      if (aberto) proximos.set("nova-os", "1");
       else proximos.delete("nova-os");
       return proximos;
     }, { replace: true });
   }
 
-  const criarOS = useMutation({
-    mutationFn: (dados: { veiculo_id: string; tipo: string; data: string; descricao: string; status: string }) =>
-      apiPost("/manutencoes", dados),
+  const remover = useMutation({
+    mutationFn: (id: string) => apiDelete("/manutencoes/" + id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["manutencoes"] });
-      qc.invalidateQueries({ queryKey: ["acoplamentos"] });
-      abrirFormulario(false);
-      toast.success("Ordem de serviço aberta.");
+      atualizar();
+      setExclusao(undefined);
+      toast.success("Ordem excluída.");
     },
   });
-
-  const alterarStatus = useMutation({
-    mutationFn: ({ id, novo_status }: { id: string, novo_status: string }) => {
-      return apiPatch(`/manutencoes/${id}/status`, { status: novo_status });
-    },
-    onSuccess: () => {
-      toast.success("Status atualizado com sucesso!");
-      qc.invalidateQueries({ queryKey: ["manutencoes"] });
-      qc.invalidateQueries({ queryKey: ["acoplamentos"] });
-    },
-    onError: (erro: Error) => {
-      qc.invalidateQueries({ queryKey: ["manutencoes"] });
-      toast.error(erro.message || "Erro ao atualizar.");
-    }
-  });
-
-  const termo = normalizar(busca);
-  const statusDa = (os: Ordem) => os.status?.trim() || "Sem status";
-  const etapas = [
-    ...COLUNAS,
-    ...Array.from(new Set(manutencoes.map(statusDa)))
-      .filter((status) => !COLUNAS.some((etapa) => etapa.id === status))
-      .map((status) => ({ id: status, label: status, color: "text-slate-300", bg: "bg-slate-900/60", border: "border-slate-800" })),
-  ];
-  const filtradas = manutencoes.filter((os) => {
-    const texto = [os.id, os.descricao, veiculoDa(os), os.veiculo_placa, os.tipo, os.oficina].join(" ");
-    return (!filtro || statusDa(os) === filtro) && normalizar(texto).includes(termo);
-  });
-
-  function renderAcoes(os: Ordem) {
-    const acoes = ACOES[os.status ?? ""] ?? [];
-    if (!acoes.length) return null;
-    return (
-      <div className="flex flex-wrap gap-1.5">
-        {acoes.map(({ nome, destino }) => (
-          <Button key={nome} size="sm" variant="outline"
-            className={destino === "Cancelada" ? "text-rose-300" : undefined}
-            disabled={alterarStatus.isPending}
-            aria-label={`${nome} · OS ${numeroDa(os)}`}
-            onClick={() => {
-              if (destino === "Cancelada" && !window.confirm(`Cancelar a OS ${numeroDa(os)}?`)) return;
-              alterarStatus.mutate({ id: os.id, novo_status: destino });
-            }}>
-            {nome}
-          </Button>
-        ))}
-      </div>
-    );
-  }
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Administração"
-        title="Gestão de Manutenção"
-        description="Aprove ordens de serviço, acompanhe peças e libere veículos."
-        actions={
-          <Button className="bg-sky-600 hover:bg-sky-500 h-9" onClick={() => abrirFormulario(true)}>
-            <Plus className="size-4 mr-2" /> Nova OS
-          </Button>
-        }
-      />
-
-      <Dialog open={novaOS} onOpenChange={(open) => {
-        if (!criarOS.isPending) abrirFormulario(open);
-      }}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Nova ordem de serviço</DialogTitle>
-            <DialogDescription>A ordem será aberta como Aguardando aprovação.</DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={(event) => {
-            event.preventDefault();
-            if (criarOS.isPending) return;
-            const dados = new FormData(event.currentTarget);
-            const descricao = String(dados.get("descricao") ?? "").trim();
-            if (!descricao) {
-              toast.error("Informe a descrição do serviço.");
-              return;
-            }
-            criarOS.mutate({
-              veiculo_id: String(dados.get("veiculo_id") ?? ""),
-              tipo: String(dados.get("tipo") ?? ""),
-              data: String(dados.get("data") ?? ""),
-              descricao,
-              status: "Aguardando aprovação",
-            });
-          }}>
-            <label className="block space-y-1">
-              <span>Veículo</span>
-              <select name="veiculo_id" required defaultValue="" className="w-full rounded-lg border bg-background px-2 py-2">
-                <option value="" disabled>Selecione o veículo</option>
-                {veiculosAtivos.map(({ id, placa, modelo }) => (
-                  <option key={id} value={id}>{placa} · {modelo}</option>
-                ))}
-              </select>
-            </label>
-            {veiculos.isError && <p role="alert">Falha ao carregar veículos.</p>}
-            {veiculos.isPending && <p role="status">Carregando veículos…</p>}
-            {veiculos.isSuccess && veiculosAtivos.length === 0 && <p role="status">Nenhum veículo ativo disponível.</p>}
-            <label className="block space-y-1">
-              <span>Tipo de manutenção</span>
-              <select name="tipo" required defaultValue="Corretiva" className="w-full rounded-lg border bg-background px-2 py-2">
-                <option>Corretiva</option>
-                <option>Preventiva</option>
-              </select>
-            </label>
-            <label className="block space-y-1">
-              <span>Data de abertura</span>
-              <Input name="data" type="date" required defaultValue={new Date().toLocaleDateString("sv-SE")} />
-            </label>
-            <label className="block space-y-1">
-              <span>Descrição do serviço</span>
-              <textarea name="descricao" required rows={3} className="w-full rounded-lg border bg-background px-2 py-2" />
-            </label>
-            {criarOS.isError && <p role="alert" className="text-rose-400">{criarOS.error.message}</p>}
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" disabled={criarOS.isPending} onClick={() => abrirFormulario(false)}>Cancelar</Button>
-              <Button type="submit" disabled={criarOS.isPending || !veiculos.isSuccess || !veiculosAtivos.length}>
-                {criarOS.isPending ? "Salvando…" : "Abrir OS"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <section aria-label="Ordens de serviço" className="space-y-4">
-        <div className="grid gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:grid-cols-[1fr_minmax(12rem,auto)_auto] sm:items-end">
-          <label className="block space-y-1">
-            <span className="text-xs text-slate-400">Buscar OS</span>
-            <Input placeholder="Código, placa, veículo ou descrição" value={busca} onChange={(event) => setBusca(event.target.value)} />
+    <section>
+      <PageHeader eyebrow="Manutenção" title="Ordens de serviço"
+        actions={<Button onClick={() => abrirNova(true)}><Plus className="size-4" /> Nova OS</Button>} />
+      <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
+        <nav aria-label="Etapas das ordens de serviço" className="flex flex-wrap gap-2 border-b border-slate-800 p-3">
+          {ETAPAS.map((nome) => (
+            <button type="button" key={nome} aria-pressed={etapa === nome}
+              className={cn("rounded-lg px-3 py-2 text-left text-sm transition-colors", etapa === nome
+                ? "bg-sky-500/15 text-sky-200 ring-1 ring-sky-500/35"
+                : "text-slate-300 hover:bg-slate-800")}
+              onClick={() => { setEtapa(nome); setPagina(1); }}>
+              {nome} {painel && <span className="ml-1 font-mono text-xs text-slate-400">{painel.contagens[nome]}</span>}
+            </button>
+          ))}
+        </nav>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+          <label className="relative w-full max-w-md">
+            <span className="sr-only">Buscar ordens</span>
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Input value={entrada} maxLength={120} className="pl-9" placeholder="Buscar por código, placa ou serviço"
+              onChange={(event) => setEntrada(event.target.value)} />
           </label>
-          <label className="block space-y-1">
-            <span className="text-xs text-slate-400">Status</span>
-            <select className={campo} value={filtro} onChange={(event) => setFiltro(event.target.value)}>
-              <option value="">Todos os status</option>
-              {etapas.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-            </select>
-          </label>
-          <div className="flex gap-1" role="group" aria-label="Visualização">
-            <Button variant={modo === "quadro" ? "secondary" : "ghost"} aria-pressed={modo === "quadro"} onClick={() => setModo("quadro")}>Quadro</Button>
-            <Button variant={modo === "lista" ? "secondary" : "ghost"} aria-pressed={modo === "lista"} onClick={() => setModo("lista")}>Lista</Button>
-          </div>
+          {painel && <p className="text-sm text-slate-400" aria-live="polite">{painel.total} {painel.total === 1 ? "ordem" : "ordens"}</p>}
         </div>
-
-        {consulta.isPending ? <p role="status">Carregando ordens de serviço…</p> : consulta.isError ? (
-          <div role="alert" className="flex flex-wrap items-center gap-3 text-rose-300">
-            Falha ao carregar ordens de serviço.
-            <Button variant="outline" onClick={() => consulta.refetch()}>Tentar novamente</Button>
+        {consulta.isPending ? <p role="status" className="p-8 text-center text-slate-400">Carregando ordens…</p> : consulta.isError ? (
+          <div role="alert" className="flex flex-wrap items-center gap-3 p-5 text-rose-300">
+            {consulta.error.message}<Button variant="outline" onClick={() => consulta.refetch()}>Tentar novamente</Button>
           </div>
-        ) : filtradas.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-700 p-6 text-center text-sm text-slate-400">Nenhuma ordem encontrada.</p>
-        ) : modo === "lista" ? (
-          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/60">
-            <table className="w-full min-w-[54rem] text-left text-sm">
-              <thead className="bg-slate-900 text-xs text-slate-400">
-                <tr>{["OS / Serviço", "Veículo", "Abertura", "Status", "Custo", "Ações"].map((titulo) => <th key={titulo} scope="col" className="px-4 py-3">{titulo}</th>)}</tr>
-              </thead>
-              <tbody>
-                {filtradas.map((os) => (
-                  <tr key={os.id} className="border-t border-slate-800">
-                    <th scope="row" className="max-w-72 break-words px-4 py-3 font-medium">
-                      <span className="block font-mono text-xs text-slate-400">{numeroDa(os)}</span>
-                      {os.descricao || "Manutenção"}
-                    </th>
-                    <td className="px-4 py-3">{veiculoDa(os)}</td>
-                    <td className="whitespace-nowrap px-4 py-3">{dataDa(os)}</td>
-                    <td className="px-4 py-3">{statusDa(os)}</td>
-                    <td className="whitespace-nowrap px-4 py-3">{brl(os.custo ?? os.valor ?? 0)}</td>
-                    <td className="px-4 py-3">{renderAcoes(os)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        ) : !painel?.itens.length ? (
+          <div className="grid justify-items-center gap-2 p-10 text-sm text-slate-400">
+            <Wrench className="size-5" aria-hidden="true" /><p>Nenhuma ordem encontrada nesta etapa.</p>
           </div>
         ) : (
-          <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {etapas.filter((etapa) => !filtro || etapa.id === filtro).map((etapa) => {
-              const ordens = filtradas.filter((os) => statusDa(os) === etapa.id);
-              return (
-                <section key={etapa.id} className={cn("min-w-0 space-y-3 rounded-xl border p-3", etapa.border, etapa.bg)}>
-                  <h2 className={cn("flex justify-between gap-2 text-sm font-semibold", etapa.color)}>
-                    {etapa.label} <span className="font-mono text-slate-400">{ordens.length}</span>
-                  </h2>
-                  {ordens.length === 0 && <p className="py-3 text-sm text-slate-400">Nenhuma OS nesta etapa.</p>}
-                  {ordens.map((os) => (
-                    <article key={os.id} className="space-y-2 rounded-lg border border-slate-800 bg-slate-900 p-3">
-                      <div className="flex justify-between gap-2 text-xs text-slate-400">
-                        <span className="font-mono">{numeroDa(os)}</span><time>{dataDa(os)}</time>
-                      </div>
-                      <h3 className="break-words text-sm font-semibold">{os.descricao || "Manutenção"}</h3>
-                      <p className="break-words text-sm text-slate-300">{veiculoDa(os)}</p>
-                      {(os.tipo || os.oficina || os.fornecedor_nome) && (
-                        <p className="break-words text-xs text-slate-400">{[os.tipo, os.oficina || os.fornecedor_nome].filter(Boolean).join(" · ")}</p>
-                      )}
-                      <div className="space-y-2 border-t border-slate-800 pt-2">
-                        <p className="font-mono text-sm">{brl(os.custo ?? os.valor ?? 0)}</p>
-                        {renderAcoes(os)}
-                      </div>
-                    </article>
-                  ))}
-                </section>
-              );
-            })}
-          </div>
+          <>
+            <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.35fr)_minmax(0,1fr)_8rem_auto] gap-4 border-b border-slate-800 px-4 py-3 text-xs text-slate-400 lg:grid" aria-hidden="true">
+              <span>Ordem e veículo</span><span>Fornecedor</span><span>Status</span><span>Valor</span><span>Ações</span>
+            </div>
+            <ul className="divide-y divide-slate-800">
+              {painel.itens.map((os) => (
+                <li key={os.id} className="grid min-w-0 gap-3 px-4 py-4 text-sm lg:grid-cols-[minmax(0,2fr)_minmax(0,1.35fr)_minmax(0,1fr)_8rem_auto] lg:items-center lg:gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-x-2 text-xs text-slate-400">
+                      <span className="font-mono">{codigo(os)}</span><span>{dataBR(os.data)}</span>
+                    </div>
+                    <button type="button" onClick={() => setEdicao(os)} className="mt-1 block max-w-full truncate text-left font-semibold text-slate-100 hover:text-sky-300" title={os.descricao}>
+                      {os.descricao || "Serviço sem descrição"}
+                    </button>
+                    <p className="truncate text-slate-400" title={veiculoDa(os)}>{veiculoDa(os)}</p>
+                  </div>
+                  <p className="truncate text-slate-300" title={os.fornecedor_nome || os.oficina}>{os.fornecedor_nome || os.oficina || "—"}</p>
+                  <span className={cn("w-fit rounded-md px-2 py-1 text-xs font-medium", CORES[os.etapa] || "bg-slate-800 text-slate-300")}>{statusDa(os)}</span>
+                  <p className="font-mono text-slate-100">{brl(os.custo ?? os.valor ?? 0)}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setEdicao(os)} aria-label={"Editar OS " + codigo(os)}>Editar</Button>
+                    <Button size="sm" variant="ghost" className="text-rose-300" aria-label={"Excluir OS " + codigo(os)}
+                      onClick={() => { remover.reset(); setExclusao(os); }}>Excluir</Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
-      </section>
-    </div>
+        {painel && painel.total > 0 && (
+          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 px-4 py-3">
+            <span className="text-sm text-slate-400">Página {pagina} de {paginas}</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled={pagina <= 1} onClick={() => setPagina((n) => n - 1)}><ChevronLeft className="size-4" /> Anterior</Button>
+              <Button variant="outline" size="sm" disabled={pagina >= paginas} onClick={() => setPagina((n) => n + 1)}>Próxima <ChevronRight className="size-4" /></Button>
+            </div>
+          </footer>
+        )}
+      </div>
+      {(nova || edicao) && (
+        <FormularioOS key={edicao?.id ?? "nova"} os={edicao} atualizar={atualizar} fechar={() => {
+          setEdicao(undefined);
+          if (nova) abrirNova(false);
+        }} />
+      )}
+      {exclusao && (
+        <Dialog open onOpenChange={(aberto) => { if (!aberto && !remover.isPending) setExclusao(undefined); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Excluir OS {codigo(exclusao)}?</DialogTitle>
+              <DialogDescription>
+                {exclusao.descricao || veiculoDa(exclusao)}. A exclusão é definitiva.
+                {exclusao.pecas_utilizadas?.length ? " As peças vinculadas serão devolvidas ao estoque." : ""}
+              </DialogDescription>
+            </DialogHeader>
+            {remover.isError && <p role="alert" className="text-sm text-rose-300">{remover.error.message}</p>}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" disabled={remover.isPending} onClick={() => setExclusao(undefined)}>Voltar</Button>
+              <Button variant="destructive" disabled={remover.isPending} onClick={() => remover.mutate(exclusao.id)}>
+                {remover.isPending ? "Excluindo…" : "Excluir definitivamente"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </section>
   );
 }
