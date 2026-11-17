@@ -13,6 +13,8 @@ async def _get_labels(veiculo_id: str, carreta_id: str | None, motorista_id: str
     veiculo = await db.veiculos.find_one({"id": veiculo_id})
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
+    if veiculo.get("ativo") is not True:
+        raise HTTPException(409, "Veículo inativo. Reative o cadastro antes de acoplar.")
     v_label = f"{veiculo['placa']} - {veiculo.get('modelo', '')}"
     
     c_label = None
@@ -20,6 +22,8 @@ async def _get_labels(veiculo_id: str, carreta_id: str | None, motorista_id: str
         carreta = await db.carretas.find_one({"id": carreta_id})
         if not carreta:
             raise HTTPException(404, "Carreta não encontrada")
+        if carreta.get("ativo") is not True:
+            raise HTTPException(409, "Carreta inativa. Reative o cadastro antes de acoplar.")
         c_label = f"{carreta['codigo']} - {carreta.get('tipo', '')}"
         
     m_label = None
@@ -27,6 +31,8 @@ async def _get_labels(veiculo_id: str, carreta_id: str | None, motorista_id: str
         motorista = await db.motoristas.find_one({"id": motorista_id})
         if not motorista:
             raise HTTPException(404, "Motorista não encontrado")
+        if motorista.get("ativo") is not True:
+            raise HTTPException(409, "Motorista inativo. Reative o cadastro antes de acoplar.")
         m_label = motorista['nome']
 
     return v_label, c_label, m_label
@@ -108,6 +114,17 @@ async def historico(limit: int = 100, _u: dict = Depends(require("read"))):
 
 @router.put("/{id}", response_model=Acoplamento)
 async def atualizar(id: str, body: AcoplamentoCreate, request: Request, user: dict = Depends(require("write"))):
+    atual = await db.acoplamentos.find_one({"id": id}, {"_id": 0, "status": 1})
+    if not atual:
+        raise HTTPException(404, "Acoplamento não encontrado.")
+    if atual.get("status") == "ativo":
+        existente = await db.acoplamentos.find_one(
+            {"id": {"$ne": id}, "veiculo_id": body.veiculo_id, "status": "ativo"},
+            {"_id": 1},
+        )
+        if existente:
+            raise HTTPException(409, "Este veículo já está em um acoplamento ativo.")
+
     v_label, c_label, m_label = await _get_labels(body.veiculo_id, body.carreta_id, body.motorista_id)
     update_data = {
         "veiculo_id": body.veiculo_id, "veiculo_label": v_label,
