@@ -4,6 +4,9 @@ from lib.db import db
 from lib.security import require
 from models.manutencoes import Manutencao, ManutencaoCreate
 import uuid
+from typing import Literal
+
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/manutencoes", tags=["manutencoes"])
 
@@ -60,6 +63,22 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
             
     doc.pop("_id", None)
     return doc
+
+class ManutencaoStatusUpdate(BaseModel):
+    status: Literal["Aguardando aprovação", "Aguardando peça", "Em execução", "Concluída"]
+
+
+@router.patch("/{id}/status")
+async def atualizar_status(
+    id: str, body: ManutencaoStatusUpdate, _u: dict = Depends(require("write"))
+):
+    resultado = await db.manutencoes.update_one(
+        {"id": id}, {"$set": {"status": body.status}}
+    )
+    if resultado.matched_count == 0:
+        raise HTTPException(404, "Ordem de serviço não encontrada.")
+    return {"id": id, "status": body.status}
+
 
 @router.put("/{id}", response_model=Manutencao)
 async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dict = Depends(require("write"))):

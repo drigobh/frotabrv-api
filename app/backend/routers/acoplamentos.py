@@ -96,7 +96,11 @@ async def listar(_u: dict = Depends(require("read"))):
     docs = await db.acoplamentos.find({"status": "ativo"}, {"_id": 0}).sort("created_at", -1).to_list(1000)
     
     # Busca manutenções ativas (qualquer status que não seja finalizado/fechado/cancelado)
-    manutencoes = await db.manutencoes.find({"status": {"$nin": ["concluida", "fechada", "cancelada", "finalizada"]}}, {"_id": 0}).to_list(1000)
+    status_encerrado = r"^\s*(?:conclu[ií]d[ao]|fechad[ao]|cancelad[ao]|finalizad[ao])\s*$"
+    manutencoes = await db.manutencoes.find(
+        {"status": {"$not": {"$regex": status_encerrado, "$options": "i"}}},
+        {"_id": 0},
+    ).to_list(1000)
     manut_map = {m["veiculo_id"]: m for m in manutencoes if "veiculo_id" in m}
 
     for d in docs:

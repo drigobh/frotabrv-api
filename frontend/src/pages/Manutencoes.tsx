@@ -3,7 +3,7 @@ import {
   Check, Clock, Plus, X 
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiGet, apiPut } from "@/lib/api";
+import { apiGet, apiPatch } from "@/lib/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { brl } from "@/lib/format";
@@ -22,11 +22,12 @@ export default function Manutencoes() {
 
   const alterarStatus = useMutation({
     mutationFn: ({ id, novo_status }: { id: string, novo_status: string }) => {
-      return apiPut(`/manutencoes/${id}`, { status: novo_status });
+      return apiPatch(`/manutencoes/${id}/status`, { status: novo_status });
     },
     onSuccess: () => {
       toast.success("Status atualizado com sucesso!");
       qc.invalidateQueries({ queryKey: ["manutencoes"] });
+      qc.invalidateQueries({ queryKey: ["acoplamentos"] });
     },
     onError: (e: any) => toast.error(e.message || "Erro ao atualizar.")
   });
