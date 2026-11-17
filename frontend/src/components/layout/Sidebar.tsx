@@ -37,6 +37,7 @@ const MENUS = [
   {
     id: "cadastros", label: "Cadastros", icon: FolderOpen,
     items: [
+      { label: "Categorias de Chassi", icon: Layers, path: "/cadastros/chassi-categorias" },
       { label: "Templates de Chassi", icon: Layers, path: "/cadastros/chassi-templates" },
       { label: "Cadastro de Planos", icon: Wrench, path: "/cadastros/planos-manutencao" },
       { label: "Cadastro de Compras", icon: ShieldCheck, path: "/admin/compras" },
@@ -113,7 +114,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const [expandedMenu, setExpandedMenu] = useState<string | null>("operacao");
 
   useEffect(() => {
-    if (pathname === "/cadastros/chassi-templates") setExpandedMenu("cadastros");
+    if (pathname === "/cadastros/chassi-templates" || pathname === "/cadastros/chassi-categorias") setExpandedMenu("cadastros");
   }, [pathname]);
 
   useEffect(() => {

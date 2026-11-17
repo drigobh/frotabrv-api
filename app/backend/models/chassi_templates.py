@@ -14,5 +14,6 @@ class ChassiTemplateCreate(BaseModel):
     eixos: list[ChassiTemplateEixo] = []
 
 class ChassiTemplate(ChassiTemplateCreate):
+    familia: str | None = None
     id: str
     created_at: str

@@ -10,10 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FieldSelect } from "@/components/common/FieldSelect";
 
-const CATEGORIAS = [
-  { value: "CAVALO", label: "Cavalo Mecânico" },
-  { value: "CARRETA", label: "Carreta / Semirreboque" },
-];
+type CategoriaChassi = { id: string; nome: string; ativo: boolean };
 
 const FUNCOES = [
   { value: "DIRECIONAL", label: "Direcional" },
@@ -32,9 +29,19 @@ export default function ChassiTemplates() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [excluirId, setExcluirId] = useState<string | null>(null);
-  const [form, setForm] = useState({ nome: "", categoria: "CAVALO", qtd_estepes: 0, eixos: [] as any[] });
+  const [form, setForm] = useState({ nome: "", categoria: "", qtd_estepes: 0, eixos: [] as any[] });
 
   const { data: templates = [] } = useQuery({ queryKey: ["chassi-templates"], queryFn: () => apiGet<any[]>("/chassi-templates") });
+  const { data: categorias = [] } = useQuery({
+    queryKey: ["chassi-categorias"],
+    queryFn: () => apiGet<CategoriaChassi[]>("/chassi-categorias"),
+  });
+  const categoriasDisponiveis = categorias
+    .filter((categoria) => categoria.ativo || (editingId && categoria.id === form.categoria))
+    .map((categoria) => ({ value: categoria.id, label: categoria.nome }));
+  if (editingId && form.categoria && !categoriasDisponiveis.some((categoria) => categoria.value === form.categoria)) {
+    categoriasDisponiveis.push({ value: form.categoria, label: form.categoria });
+  }
   const { data: config } = useQuery({ queryKey: ["parametrizacao-meta"], queryFn: () => apiGet<any>("/parametrizacao/meta") });
 
   const seed = useMutation({
@@ -57,7 +64,7 @@ export default function ChassiTemplates() {
     onSuccess: () => { toast.success("Template excluído."); setExcluirId(null); qc.invalidateQueries({ queryKey: ["chassi-templates"] }); }
   });
 
-  const abrirNovo = () => { setEditingId(null); setForm({ nome: "", categoria: "CAVALO", qtd_estepes: 0, eixos: [] }); setOpen(true); };
+  const abrirNovo = () => { setEditingId(null); setForm({ nome: "", categoria: "", qtd_estepes: 0, eixos: [] }); setOpen(true); };
   const abrirEdicao = (r: any) => { setEditingId(r.id); setForm({ ...r, eixos: r.eixos || [] }); setOpen(true); };
 
   const addEixo = () => {
@@ -114,12 +121,12 @@ export default function ChassiTemplates() {
             {templates.map((t: any) => (
               <TableRow key={t.id} className="border-slate-800 hover:bg-slate-800/30">
                 <TableCell className="font-medium text-slate-200">{t.nome}</TableCell>
-                <TableCell className="text-slate-400">{t.categoria === "CAVALO" ? "Cavalo" : "Carreta"}</TableCell>
+                <TableCell className="text-slate-400">{categorias.find((categoria) => categoria.id === t.categoria)?.nome ?? t.categoria}</TableCell>
                 <TableCell className="text-slate-400">{t.eixos?.length || 0}</TableCell>
                 <TableCell className="text-slate-400">{t.qtd_estepes}</TableCell>
                 <TableCell className="text-center">
                   <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(t)}><Pencil className="size-4 text-sky-400" /></Button>
-                  <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(t.id)}><Trash2 className="size-4 text-red-300" /></Button>
+                  <Button size="icon-sm" variant="ghost" onClick={() => { excluir.reset(); setExcluirId(t.id); }}><Trash2 className="size-4 text-red-300" /></Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -141,7 +148,7 @@ export default function ChassiTemplates() {
               </div>
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">Categoria</Label>
-                <FieldSelect value={form.categoria} onChange={(v) => setForm(s => ({ ...s, categoria: v }))} options={CATEGORIAS} />
+                <FieldSelect value={form.categoria} onChange={(v) => setForm(s => ({ ...s, categoria: v }))} options={categoriasDisponiveis} />
               </div>
               <div className="grid gap-1.5">
                 <Label className="text-xs text-slate-400">Qtd. Estepes</Label>
@@ -175,7 +182,7 @@ export default function ChassiTemplates() {
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button onClick={() => salvar.mutate()} disabled={salvar.isPending}>{salvar.isPending ? "Salvando..." : "Salvar Template"}</Button>
+              <Button onClick={() => salvar.mutate()} disabled={salvar.isPending || !form.categoria}>{salvar.isPending ? "Salvando..." : "Salvar Template"}</Button>
             </div>
           </div>
         </div>
@@ -185,6 +192,7 @@ export default function ChassiTemplates() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <h2 className="text-lg font-bold text-slate-100 mb-2">Excluir Template?</h2>
+            {excluir.error && <p role="alert" className="mb-3 text-sm text-rose-300">{excluir.error.message}</p>}
             <div className="flex justify-end gap-3 mt-4">
               <Button variant="outline" onClick={() => setExcluirId(null)}>Cancelar</Button>
               <Button variant="destructive" onClick={() => excluirId && excluir.mutate(excluirId)}>Excluir</Button>

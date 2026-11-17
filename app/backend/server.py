@@ -3,10 +3,12 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from lib.db import ensure_indexes, client
+from lib.chassi_vinculos import inicializar_categorias_chassi
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await ensure_indexes()
+    await inicializar_categorias_chassi()
     yield
     client.close()
 
@@ -37,7 +39,7 @@ async def health():
 from routers import empresa, usuarios, perfis, multas, financeiro, cadastros_financeiros, checklist, compras, orcamentos
 from routers import pneu_movimentacoes, chassi_templates, pneu_marcas, pneu_medidas, pneus, planos_manutencao, tipos_fornecedores, parametrizacao, auth, movimentacoes, pecas, fornecedores, combustiveis, veiculos, carretas, motoristas, dashboard, acoplamentos, abastecimentos, manutencoes
 from routers import empresa, usuarios, perfis, multas, financeiro, cadastros_financeiros
-from routers import admin
+from routers import admin, chassi_categorias
 
 api_router.include_router(auth.router)
 api_router.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"])
@@ -62,6 +64,7 @@ api_router.include_router(cadastros_financeiros.router, prefix="/cadastros-finan
 api_router.include_router(pneu_medidas.router)
 api_router.include_router(pneu_marcas.router)
 api_router.include_router(chassi_templates.router)
+api_router.include_router(chassi_categorias.router)
 api_router.include_router(pneu_movimentacoes.router)
 api_router.include_router(empresa.router)
 api_router.include_router(tipos_fornecedores.router)

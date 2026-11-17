@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
 from lib.audit import audit
+from lib.chassi_vinculos import transacao_chassi, validar_template_aplicavel
 from lib.dates import now_iso
 from lib.db import db
 from lib.security import require
@@ -70,7 +71,15 @@ def build_cadastro_router(
             raise HTTPException(status_code=409, detail=f"{unique_label} já cadastrado(a)")
         doc = {"id": str(uuid.uuid4()), **data, "ativo": True, "created_at": now_iso(), "created_by": user["nome"]}
         try:
-            await coll.insert_one(dict(doc))
+            template_id = data.get("template_chassi_id")
+            familia = {"veiculos": "CAVALO", "carretas": "CARRETA"}.get(collection)
+            if familia and template_id:
+                async def inserir(session):
+                    await validar_template_aplicavel(template_id, familia, session)
+                    await coll.insert_one(dict(doc), session=session)
+                await transacao_chassi(inserir)
+            else:
+                await coll.insert_one(dict(doc))
         except DuplicateKeyError as erro:
             detail = conflito_cadastro(erro)
             raise HTTPException(status_code=409, detail=detail) from None
@@ -85,7 +94,19 @@ def build_cadastro_router(
             raise HTTPException(status_code=409, detail=f"{unique_label} já cadastrado(a)")
         mudancas = [f"{k}: {atual.get(k)!s} → {v!s}" for k, v in data.items() if atual.get(k) != v]
         try:
-            await coll.update_one({"id": item_id}, {"$set": data})
+            template_id = data.get("template_chassi_id")
+            familia = {"veiculos": "CAVALO", "carretas": "CARRETA"}.get(collection)
+            if familia and template_id:
+                async def atualizar(session):
+                    registro = await coll.find_one({"id": item_id}, {"template_chassi_id": 1}, session=session)
+                    if not registro:
+                        raise HTTPException(404, detail=f"{entidade} não encontrado")
+                    if template_id != registro.get("template_chassi_id"):
+                        await validar_template_aplicavel(template_id, familia, session)
+                    await coll.update_one({"id": item_id}, {"$set": data}, session=session)
+                await transacao_chassi(atualizar)
+            else:
+                await coll.update_one({"id": item_id}, {"$set": data})
         except DuplicateKeyError as erro:
             detail = conflito_cadastro(erro)
             raise HTTPException(status_code=409, detail=detail) from None

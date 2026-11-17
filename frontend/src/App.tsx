@@ -28,6 +28,7 @@ import Seguranca from "@/pages/Seguranca";
 import Acoplamentos from "@/pages/Acoplamentos";
 import Carretas from "@/pages/Carretas";
 import ChassiTemplates from "@/pages/ChassiTemplates";
+import ChassiCategorias from "@/pages/ChassiCategorias";
 import Combustiveis from "@/pages/Combustiveis";
 import Fornecedores from "@/pages/Fornecedores";
 import Motoristas from "@/pages/Motoristas";
@@ -101,6 +102,7 @@ export default function App() {
               <Route path="/cadastros/acoplamentos" element={<Acoplamentos />} />
               <Route path="/cadastros/carretas" element={<Carretas />} />
               <Route path="/cadastros/chassi-templates" element={<ChassiTemplates />} />
+              <Route path="/cadastros/chassi-categorias" element={<ChassiCategorias />} />
               <Route path="/cadastros/combustiveis" element={<Combustiveis />} />
               <Route path="/cadastros/fornecedores" element={<Fornecedores />} />
               <Route path="/cadastros/motoristas" element={<Motoristas />} />

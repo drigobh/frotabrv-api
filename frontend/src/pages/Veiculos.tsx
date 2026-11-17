@@ -14,7 +14,7 @@ const columns: ColumnDef<Veiculo>[] = [
     key: "template_chassi_id", 
     label: "Template de Chassi", 
     type: "text", 
-    fetchOptions: { endpoint: "/chassi-templates", labelKey: "nome", filterKey: "categoria", filterValue: "CAVALO" } 
+    fetchOptions: { endpoint: "/chassi-templates", labelKey: "nome", filterKey: "familia", filterValue: "CAVALO" }
   },
   { key: "ano", label: "Ano", type: "number", required: true, defaultValue: "2024" },
   { key: "hodometro_km", label: "Hodômetro", type: "number", defaultValue: "0", format: (r) => <span className="font-mono">{num(r.hodometro_km)} km</span> },

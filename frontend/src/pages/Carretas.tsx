@@ -14,7 +14,7 @@ const columns = [
   { key: "ano", label: "Ano", type: "number", placeholder: "2024" },
   { key: "hodometro_km", label: "KM", type: "number", placeholder: "0" },
   { key: "tipo", label: "Tipo", required: true, options: TIPOS_CARRETA },
-  { key: "template_chassi_id", label: "Template de Chassi", type: "text", fetchOptions: { endpoint: "/chassi-templates", labelKey: "nome", filterKey: "categoria", filterValue: "CARRETA" } },
+  { key: "template_chassi_id", label: "Template de Chassi", type: "text", fetchOptions: { endpoint: "/chassi-templates", labelKey: "nome", filterKey: "familia", filterValue: "CARRETA" } },
   { key: "observacoes", label: "Observações", placeholder: "Opcional" },
 ];
 
