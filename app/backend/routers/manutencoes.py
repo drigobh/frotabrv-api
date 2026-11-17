@@ -6,7 +6,8 @@ from models.manutencoes import Manutencao, ManutencaoCreate
 import uuid
 from typing import Literal
 
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 import re
 
 from pydantic import BaseModel, Field
@@ -104,6 +105,78 @@ def consulta_etapa(etapa: str) -> dict:
     return {"status": {"$regex": padrao_status(STATUS_ALIASES[etapa]), "$options": "i"}}
 
 
+def hoje_manutencao() -> date:
+    return datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+
+
+def resumo_painel(filtro: dict) -> list[dict]:
+    def para_data(campo):
+        return {"$convert": {"input": campo, "to": "date", "onError": None, "onNull": None}}
+
+    inicio = {"$ifNull": [para_data("$data_inicio"), para_data("$data")]}
+    fim = {"$ifNull": [
+        para_data("$fim_registrado"),
+        {"$cond": ["$em_andamento", para_data(hoje_manutencao().isoformat()), None]},
+    ]}
+    return [
+        {"$match": filtro},
+        {"$project": {
+            "_id": 0,
+            "os_id": "$id",
+            "veiculo_id": {"$ifNull": ["$veiculo_id", ""]},
+            "placa": {"$ifNull": ["$veiculo_placa", ""]},
+            "rotulo": {"$ifNull": ["$veiculo_label", ""]},
+            "valor": {"$convert": {
+                "input": {"$ifNull": ["$custo", "$valor"]},
+                "to": "double", "onError": 0, "onNull": 0,
+            }},
+            "inicio": {"$dateTrunc": {"date": inicio, "unit": "day"}},
+            "fim_registrado": "$data_fim",
+            "em_andamento": {"$regexMatch": {
+                "input": {"$convert": {"input": "$status", "to": "string", "onError": "", "onNull": ""}},
+                "regex": padrao_status(
+                    STATUS_ALIASES["Em execução"] + "|" + STATUS_ALIASES["Aguardando peça"]
+                ),
+                "options": "i",
+            }},
+        }},
+        {"$set": {
+            "fim": {"$dateTrunc": {"date": fim, "unit": "day"}},
+            "nome_veiculo": {"$cond": [{"$ne": ["$rotulo", ""]}, "$rotulo", "$placa"]},
+        }},
+        {"$set": {
+            "dias": {"$cond": [
+                {"$and": [{"$ne": ["$inicio", None]}, {"$ne": ["$fim", None]}, {"$gte": ["$fim", "$inicio"]}]},
+                {"$dateDiff": {"startDate": "$inicio", "endDate": "$fim", "unit": "day"}},
+                None,
+            ]},
+            "chave_veiculo": {"$cond": [
+                {"$ne": ["$veiculo_id", ""]},
+                {"tipo": "id", "valor": "$veiculo_id"},
+                {"tipo": "rotulo", "valor": "$nome_veiculo"},
+            ]},
+        }},
+    ]
+
+
+def ranking_veiculos(base: list[dict], ordem: dict) -> list[dict]:
+    return [
+        *base,
+        {"$match": {"chave_veiculo.valor": {"$ne": ""}}},
+        {"$group": {
+            "_id": "$chave_veiculo", "valor": {"$sum": "$valor"},
+            "quantidade": {"$sum": 1}, "nome": {"$max": "$nome_veiculo"},
+        }},
+        {"$sort": {**ordem, "_id": 1}},
+        {"$limit": 1},
+        {"$project": {
+            "_id": 0,
+            "veiculo": {"$cond": [{"$ne": ["$nome", ""]}, "$nome", "$_id.valor"]},
+            "valor": 1, "quantidade": 1,
+        }},
+    ]
+
+
 @router.get("/painel")
 async def painel(
     etapa: FiltroOS = "Todas",
@@ -134,11 +207,22 @@ async def painel(
         ]}}},
         {"$project": {"_id": 0, "fornecedor_atual": 0}},
     ]
+    base_resumo = resumo_painel(filtro)
     resultado = await db.manutencoes.aggregate([
         {"$match": consulta},
         {"$facet": {
             "itens": registros,
             "status": [{"$group": {"_id": "$status", "total": {"$sum": 1}}}],
+            "valor": [*base_resumo, {"$group": {"_id": None, "total": {"$sum": "$valor"}}}],
+            "duracao": [
+                *base_resumo,
+                {"$match": {"dias": {"$ne": None}}},
+                {"$sort": {"dias": -1, "os_id": 1}},
+                {"$limit": 1},
+                {"$project": {"dias": 1, "os_id": 1, "veiculo": "$nome_veiculo"}},
+            ],
+            "maior_valor": ranking_veiculos(base_resumo, {"valor": -1, "quantidade": -1}),
+            "maior_quantidade": ranking_veiculos(base_resumo, {"quantidade": -1, "valor": -1}),
         }},
     ]).to_list(1)
     dados = resultado[0] if resultado else {"itens": [], "status": []}
@@ -148,7 +232,20 @@ async def painel(
     contagens["Todas"] = sum(contagens.values())
     for os in dados["itens"]:
         os["etapa"] = etapa_atual(os.get("status"))
-    return {"itens": dados["itens"], "contagens": contagens, "total": contagens[etapa], "por_pagina": por_pagina}
+    def primeiro(campo: str):
+        registros = dados.get(campo, [])
+        return registros[0] if registros else None
+
+    return {
+        "itens": dados["itens"], "contagens": contagens,
+        "total": contagens[etapa], "por_pagina": por_pagina,
+        "indicadores": {
+            "valor": (primeiro("valor") or {}).get("total", 0),
+            "duracao": primeiro("duracao"),
+            "maior_valor": primeiro("maior_valor"),
+            "maior_quantidade": primeiro("maior_quantidade"),
+        },
+    }
 
 
 async def nome_fornecedor(fornecedor_id: str | None):
@@ -217,6 +314,8 @@ async def editar_dados(id: str, body: ManutencaoEdicao, _u: dict = Depends(requi
     if body.status is not None:
         filtro["status"] = status_atual
         dados["status"] = body.status
+        if body.status == "Concluída" and etapa_atual(status_atual) != "Concluída" and not atual.get("data_fim"):
+            dados["data_fim"] = hoje_manutencao().isoformat()
     resposta = await db.manutencoes.update_one(filtro, {"$set": dados})
     if not resposta.matched_count:
         raise HTTPException(409, "A OS mudou enquanto você editava. Atualize a lista e tente novamente.")
@@ -231,14 +330,17 @@ class ManutencaoStatusUpdate(BaseModel):
 async def atualizar_status(
     id: str, body: ManutencaoStatusUpdate, _u: dict = Depends(require("write"))
 ):
-    atual = await db.manutencoes.find_one({"id": id}, {"status": 1})
+    atual = await db.manutencoes.find_one({"id": id}, {"status": 1, "data_fim": 1})
     if atual is None:
         raise HTTPException(404, "Ordem de serviço não encontrada.")
     origem = atual.get("status")
     validar_transicao(origem, body.status)
+    dados = {"status": body.status}
+    if body.status == "Concluída" and etapa_atual(origem) != "Concluída" and not atual.get("data_fim"):
+        dados["data_fim"] = hoje_manutencao().isoformat()
     resultado = await db.manutencoes.update_one(
         {"_id": atual["_id"], "status": origem},
-        {"$set": {"status": body.status}},
+        {"$set": dados},
     )
     if not resultado.matched_count:
         raise HTTPException(409, "A OS mudou durante a atualização. Confira o status atual.")

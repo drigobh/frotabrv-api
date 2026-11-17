@@ -49,7 +49,59 @@ type Ordem = {
   oficina?: string;
   pecas_utilizadas?: unknown[];
 };
-type Painel = { itens: Ordem[]; contagens: Record<Etapa, number>; total: number; por_pagina: number };
+type VeiculoIndicador = { veiculo: string; valor: number; quantidade: number };
+type Indicadores = {
+  valor: number;
+  duracao: { dias: number; os_id?: string; veiculo?: string } | null;
+  maior_valor: VeiculoIndicador | null;
+  maior_quantidade: VeiculoIndicador | null;
+};
+type Painel = {
+  itens: Ordem[];
+  contagens: Record<Etapa, number>;
+  total: number;
+  por_pagina: number;
+  indicadores?: Indicadores;
+};
+
+function CardsManutencao({ painel, etapa }: { painel?: Painel; etapa: Etapa }) {
+  const dados = painel?.indicadores;
+  const duracao = dados?.duracao;
+  const total = painel?.total;
+  const cards = [
+    { titulo: "Valor das manutenções", valor: dados ? brl(dados.valor) : "—", detalhe: "" },
+    { titulo: "Quantidade de manutenções", valor: total === undefined ? "—" : total.toLocaleString("pt-BR"), detalhe: "" },
+    {
+      titulo: "Maior tempo de manutenção",
+      valor: duracao ? duracao.dias + (duracao.dias === 1 ? " dia" : " dias") : "—",
+      detalhe: duracao
+        ? [duracao.veiculo, duracao.os_id && "OS " + duracao.os_id.slice(0, 8).toUpperCase()].filter(Boolean).join(" · ")
+        : dados && total ? "Sem datas suficientes" : "",
+    },
+    {
+      titulo: "Veículo com maior valor",
+      valor: dados?.maior_valor ? brl(dados.maior_valor.valor) : "—",
+      detalhe: dados?.maior_valor?.veiculo ?? "",
+    },
+    {
+      titulo: "Veículo com mais manutenções",
+      valor: dados?.maior_quantidade ? String(dados.maior_quantidade.quantidade) : "—",
+      detalhe: dados?.maior_quantidade?.veiculo ?? "",
+    },
+  ];
+
+  return (
+    <section aria-label={"Indicadores de manutenção · " + etapa} className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+      {cards.map(({ titulo, valor, detalhe }) => (
+        <div key={titulo} className="min-w-0 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-4">
+          <h2 className="text-sm font-medium text-slate-300">{titulo}</h2>
+          <p className="mt-2 break-words text-xl font-semibold tabular-nums text-slate-100">{valor}</p>
+          {detalhe && <p className="mt-1 break-words text-xs text-slate-400">{detalhe}</p>}
+        </div>
+      ))}
+    </section>
+  );
+}
 type Veiculo = { id: string; placa: string; modelo: string; ativo?: boolean };
 type Fornecedor = { id: string; nome: string };
 
@@ -235,6 +287,7 @@ export default function Manutencoes() {
     <section>
       <PageHeader eyebrow="Manutenção" title="Ordens de serviço"
         actions={<Button onClick={() => abrirNova(true)}><Plus className="size-4" /> Nova OS</Button>} />
+      <CardsManutencao painel={painel} etapa={etapa} />
       <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
         <nav aria-label="Etapas das ordens de serviço" className="flex flex-wrap gap-2 border-b border-slate-800 p-3">
           {ETAPAS.map((nome) => (
