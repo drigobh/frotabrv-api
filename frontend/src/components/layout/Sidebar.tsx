@@ -37,12 +37,12 @@ const MENUS = [
   {
     id: "cadastros", label: "Cadastros", icon: FolderOpen,
     items: [
+      { label: "Templates de Chassi", icon: Layers, path: "/cadastros/chassi-templates" },
       { label: "Cadastro de Planos", icon: Wrench, path: "/cadastros/planos-manutencao" },
       { label: "Cadastro de Compras", icon: ShieldCheck, path: "/admin/compras" },
       { label: "Medidas de Pneus", icon: Disc, path: "/cadastros/pneu-medidas" },
       { label: "Marcas de Pneus", icon: Tag, path: "/cadastros/pneu-marcas" },
       { label: "Modelos de Pneus", icon: Tag, path: "/cadastros/pneu-modelos" },
-      { label: "Templates de Chassi", icon: Layers, path: "/cadastros/chassi-templates" },
       { label: "Carretas", icon: Car, path: "/cadastros/carretas" },
       { label: "Combustíveis", icon: Fuel, path: "/cadastros/combustiveis" },
       { label: "Fornecedores", icon: Briefcase, path: "/cadastros/fornecedores" },
@@ -111,6 +111,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { podeVer } = usePermissions();
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem("sidebar_collapsed") === "true");
   const [expandedMenu, setExpandedMenu] = useState<string | null>("operacao");
+
+  useEffect(() => {
+    if (pathname === "/cadastros/chassi-templates") setExpandedMenu("cadastros");
+  }, [pathname]);
 
   useEffect(() => {
     localStorage.setItem("sidebar_collapsed", String(isCollapsed));
