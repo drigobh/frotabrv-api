@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { 
-  Check, Clock, Plus, X 
-} from "lucide-react";
+import { useState } from "react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
@@ -17,11 +16,55 @@ const COLUNAS = [
   { id: "Aguardando peça", label: "Aguardando Peça", color: "text-sky-500", bg: "bg-sky-500/10", border: "border-sky-500/30" },
   { id: "Em execução", label: "Em Execução", color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/30" },
   { id: "Concluída", label: "Concluída", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
+  { id: "Cancelada", label: "Cancelada", color: "text-rose-300", bg: "bg-rose-500/5", border: "border-rose-500/25" },
 ];
+
+type Ordem = {
+  id: string;
+  descricao?: string;
+  veiculo_label?: string;
+  veiculo_placa?: string;
+  tipo?: string;
+  status?: string;
+  data?: string;
+  oficina?: string;
+  fornecedor_nome?: string;
+  custo?: number;
+  valor?: number;
+};
+
+const ACOES: Record<string, { nome: string; destino: string }[]> = {
+  "Aguardando aprovação": [
+    { nome: "Aprovar", destino: "Em execução" },
+    { nome: "Cancelar OS", destino: "Cancelada" },
+  ],
+  "Em execução": [
+    { nome: "Aguardar peça", destino: "Aguardando peça" },
+    { nome: "Concluir", destino: "Concluída" },
+    { nome: "Cancelar OS", destino: "Cancelada" },
+  ],
+  "Aguardando peça": [
+    { nome: "Retomar", destino: "Em execução" },
+    { nome: "Cancelar OS", destino: "Cancelada" },
+  ],
+};
+
+const campo = "w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm";
+const normalizar = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const veiculoDa = (os: Ordem) => os.veiculo_label || os.veiculo_placa || "Veículo sem identificação";
+const numeroDa = (os: Ordem) => os.id.slice(0, 6).toUpperCase();
+function dataDa(os: Ordem) {
+  const partes = os.data?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return partes ? `${partes[3]}/${partes[2]}/${partes[1]}` : "—";
+}
 
 export default function Manutencoes() {
   const qc = useQueryClient();
-  const { data: manutencoes = [] } = useQuery({ queryKey: ["manutencoes"], queryFn: () => apiGet<any[]>("/manutencoes") });
+  const consulta = useQuery({ queryKey: ["manutencoes"], queryFn: () => apiGet<Ordem[]>("/manutencoes") });
+  const manutencoes = consulta.data ?? [];
+  const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState("");
+  const [modo, setModo] = useState<"quadro" | "lista">("quadro");
 
   const [params, setParams] = useSearchParams();
   const novaOS = params.get("nova-os") === "1";
@@ -62,12 +105,45 @@ export default function Manutencoes() {
       qc.invalidateQueries({ queryKey: ["manutencoes"] });
       qc.invalidateQueries({ queryKey: ["acoplamentos"] });
     },
-    onError: (e: any) => toast.error(e.message || "Erro ao atualizar.")
+    onError: (erro: Error) => {
+      qc.invalidateQueries({ queryKey: ["manutencoes"] });
+      toast.error(erro.message || "Erro ao atualizar.");
+    }
   });
 
-  const getCards = (status: string) => {
-    return manutencoes.filter((m: any) => m.status === status);
-  };
+  const termo = normalizar(busca);
+  const statusDa = (os: Ordem) => os.status?.trim() || "Sem status";
+  const etapas = [
+    ...COLUNAS,
+    ...Array.from(new Set(manutencoes.map(statusDa)))
+      .filter((status) => !COLUNAS.some((etapa) => etapa.id === status))
+      .map((status) => ({ id: status, label: status, color: "text-slate-300", bg: "bg-slate-900/60", border: "border-slate-800" })),
+  ];
+  const filtradas = manutencoes.filter((os) => {
+    const texto = [os.id, os.descricao, veiculoDa(os), os.veiculo_placa, os.tipo, os.oficina].join(" ");
+    return (!filtro || statusDa(os) === filtro) && normalizar(texto).includes(termo);
+  });
+
+  function renderAcoes(os: Ordem) {
+    const acoes = ACOES[os.status ?? ""] ?? [];
+    if (!acoes.length) return null;
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {acoes.map(({ nome, destino }) => (
+          <Button key={nome} size="sm" variant="outline"
+            className={destino === "Cancelada" ? "text-rose-300" : undefined}
+            disabled={alterarStatus.isPending}
+            aria-label={`${nome} · OS ${numeroDa(os)}`}
+            onClick={() => {
+              if (destino === "Cancelada" && !window.confirm(`Cancelar a OS ${numeroDa(os)}?`)) return;
+              alterarStatus.mutate({ id: os.id, novo_status: destino });
+            }}>
+            {nome}
+          </Button>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -145,73 +221,87 @@ export default function Manutencoes() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        {COLUNAS.map((col) => (
-          <div key={col.id} className={cn("glass p-3 rounded-xl border", col.border, "bg-slate-900/50")}>
-            <p className={cn("text-[11px] uppercase tracking-widest font-bold", col.color)}>{col.label}</p>
-            <p className="mt-2 font-mono text-2xl font-bold text-slate-100">{getCards(col.id).length}</p>
+      <section aria-label="Ordens de serviço" className="space-y-4">
+        <div className="grid gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3 sm:grid-cols-[1fr_minmax(12rem,auto)_auto] sm:items-end">
+          <label className="block space-y-1">
+            <span className="text-xs text-slate-400">Buscar OS</span>
+            <Input placeholder="Código, placa, veículo ou descrição" value={busca} onChange={(event) => setBusca(event.target.value)} />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs text-slate-400">Status</span>
+            <select className={campo} value={filtro} onChange={(event) => setFiltro(event.target.value)}>
+              <option value="">Todos os status</option>
+              {etapas.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          </label>
+          <div className="flex gap-1" role="group" aria-label="Visualização">
+            <Button variant={modo === "quadro" ? "secondary" : "ghost"} aria-pressed={modo === "quadro"} onClick={() => setModo("quadro")}>Quadro</Button>
+            <Button variant={modo === "lista" ? "secondary" : "ghost"} aria-pressed={modo === "lista"} onClick={() => setModo("lista")}>Lista</Button>
           </div>
-        ))}
-      </div>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
-        {COLUNAS.map((col) => {
-          const cards = getCards(col.id);
-          return (
-            <div key={col.id} className={cn("rounded-2xl border p-3 flex flex-col gap-3", col.border, col.bg)}>
-              <div className="flex items-center justify-between px-1">
-                <h3 className={cn("text-xs font-bold uppercase tracking-wider", col.color)}>{col.label}</h3>
-                <span className="text-xs font-mono text-slate-400">{cards.length}</span>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {cards.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-slate-500 border border-dashed border-slate-700 rounded-lg">
-                    Nenhuma OS nesta etapa.
-                  </div>
-                ) : (
-                  cards.map((m: any) => (
-                    <div key={m.id} className="glass p-4 rounded-xl border border-slate-700/50 bg-slate-900/80 hover:border-slate-500 transition-colors shadow-lg">
-                      <div className="flex items-start justify-between mb-2">
-                        <span className="font-mono text-[10px] font-bold text-slate-400">{m.id.slice(0,6).toUpperCase()}</span>
-                        <span className="text-[10px] text-slate-500">{m.veiculo_placa || "Veículo"}</span>
+        {consulta.isPending ? <p role="status">Carregando ordens de serviço…</p> : consulta.isError ? (
+          <div role="alert" className="flex flex-wrap items-center gap-3 text-rose-300">
+            Falha ao carregar ordens de serviço.
+            <Button variant="outline" onClick={() => consulta.refetch()}>Tentar novamente</Button>
+          </div>
+        ) : filtradas.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-700 p-6 text-center text-sm text-slate-400">Nenhuma ordem encontrada.</p>
+        ) : modo === "lista" ? (
+          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/60">
+            <table className="w-full min-w-[54rem] text-left text-sm">
+              <thead className="bg-slate-900 text-xs text-slate-400">
+                <tr>{["OS / Serviço", "Veículo", "Abertura", "Status", "Custo", "Ações"].map((titulo) => <th key={titulo} scope="col" className="px-4 py-3">{titulo}</th>)}</tr>
+              </thead>
+              <tbody>
+                {filtradas.map((os) => (
+                  <tr key={os.id} className="border-t border-slate-800">
+                    <th scope="row" className="max-w-72 break-words px-4 py-3 font-medium">
+                      <span className="block font-mono text-xs text-slate-400">{numeroDa(os)}</span>
+                      {os.descricao || "Manutenção"}
+                    </th>
+                    <td className="px-4 py-3">{veiculoDa(os)}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{dataDa(os)}</td>
+                    <td className="px-4 py-3">{statusDa(os)}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{brl(os.custo ?? os.valor ?? 0)}</td>
+                    <td className="px-4 py-3">{renderAcoes(os)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {etapas.filter((etapa) => !filtro || etapa.id === filtro).map((etapa) => {
+              const ordens = filtradas.filter((os) => statusDa(os) === etapa.id);
+              return (
+                <section key={etapa.id} className={cn("min-w-0 space-y-3 rounded-xl border p-3", etapa.border, etapa.bg)}>
+                  <h2 className={cn("flex justify-between gap-2 text-sm font-semibold", etapa.color)}>
+                    {etapa.label} <span className="font-mono text-slate-400">{ordens.length}</span>
+                  </h2>
+                  {ordens.length === 0 && <p className="py-3 text-sm text-slate-400">Nenhuma OS nesta etapa.</p>}
+                  {ordens.map((os) => (
+                    <article key={os.id} className="space-y-2 rounded-lg border border-slate-800 bg-slate-900 p-3">
+                      <div className="flex justify-between gap-2 text-xs text-slate-400">
+                        <span className="font-mono">{numeroDa(os)}</span><time>{dataDa(os)}</time>
                       </div>
-                      
-                      <p className="text-sm font-bold text-slate-200 leading-snug mb-1">{m.descricao || "Manutenção"}</p>
-                      <p className="text-xs text-slate-400 line-clamp-2 mb-3">{m.fornecedor_nome || "Fornecedor"}</p>
-                      
-                      <div className="flex items-center justify-between border-t border-slate-800 pt-3 mt-1">
-                        <span className="font-mono text-sm font-bold text-slate-100">{brl(m.valor || 0)}</span>
-                        
-                        {col.id === "Aguardando aprovação" && (
-                          <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" className="size-7 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400" onClick={() => alterarStatus.mutate({ id: m.id, novo_status: "Em execução" })}>
-                              <Check className="size-3.5" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="size-7 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400" onClick={() => alterarStatus.mutate({ id: m.id, novo_status: "Concluída" })}>
-                              <X className="size-3.5" />
-                            </Button>
-                          </div>
-                        )}
-                        {col.id === "Em execução" && (
-                          <Button size="sm" variant="outline" className="text-[10px] h-7 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" onClick={() => alterarStatus.mutate({ id: m.id, novo_status: "Concluída" })}>
-                            Concluir
-                          </Button>
-                        )}
+                      <h3 className="break-words text-sm font-semibold">{os.descricao || "Manutenção"}</h3>
+                      <p className="break-words text-sm text-slate-300">{veiculoDa(os)}</p>
+                      {(os.tipo || os.oficina || os.fornecedor_nome) && (
+                        <p className="break-words text-xs text-slate-400">{[os.tipo, os.oficina || os.fornecedor_nome].filter(Boolean).join(" · ")}</p>
+                      )}
+                      <div className="space-y-2 border-t border-slate-800 pt-2">
+                        <p className="font-mono text-sm">{brl(os.custo ?? os.valor ?? 0)}</p>
+                        {renderAcoes(os)}
                       </div>
-                      
-                      <div className="mt-3 flex items-center gap-1 text-[10px] text-slate-500">
-                        <Clock className="size-3" /> 
-                        <span>Aguardando atualização...</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                    </article>
+                  ))}
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

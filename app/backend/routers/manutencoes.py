@@ -65,20 +65,32 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     return doc
 
 class ManutencaoStatusUpdate(BaseModel):
-    status: Literal["Aguardando aprovação", "Aguardando peça", "Em execução", "Concluída"]
+    status: Literal["Aguardando aprovação", "Aguardando peça", "Em execução", "Concluída", "Cancelada"]
+
+
+ORIGENS_STATUS = {
+    "Aguardando aprovação": (),
+    "Aguardando peça": ("Em execução",),
+    "Em execução": ("Aguardando aprovação", "Aguardando peça"),
+    "Concluída": ("Em execução",),
+    "Cancelada": ("Aguardando aprovação", "Aguardando peça", "Em execução"),
+}
 
 
 @router.patch("/{id}/status")
 async def atualizar_status(
     id: str, body: ManutencaoStatusUpdate, _u: dict = Depends(require("write"))
 ):
+    status = body.status
     resultado = await db.manutencoes.update_one(
-        {"id": id}, {"$set": {"status": body.status}}
+        {"id": id, "status": {"$in": [status, *ORIGENS_STATUS[status]]}},
+        {"$set": {"status": status}},
     )
     if resultado.matched_count == 0:
-        raise HTTPException(404, "Ordem de serviço não encontrada.")
-    return {"id": id, "status": body.status}
-
+        if await db.manutencoes.find_one({"id": id}, {"_id": 1}) is None:
+            raise HTTPException(404, "Ordem de serviço não encontrada.")
+        raise HTTPException(409, "A alteração não é permitida para o status atual da OS.")
+    return {"id": id, "status": status}
 
 @router.put("/{id}", response_model=Manutencao)
 async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dict = Depends(require("write"))):
