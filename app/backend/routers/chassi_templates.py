@@ -1,6 +1,6 @@
 import re
 import uuid
-from lib.chassi_vinculos import categoria_chassi, transacao_chassi
+from lib.chassi_vinculos import categoria_chassi, destino_categoria, transacao_chassi
 from fastapi import APIRouter, Depends, HTTPException
 from lib.db import db
 from lib.security import require
@@ -13,7 +13,8 @@ router = APIRouter(prefix="/chassi-templates", tags=["Chassi Templates"])
 @router.get("", response_model=list[ChassiTemplate])
 async def listar(_u: dict = Depends(require("read"))):
     docs = await db.chassi_templates.find({}, {"_id": 0}).sort("nome", 1).to_list(200)
-    categorias = {c["_id"]: c["familia"] async for c in db.chassi_categorias.find()}
+    destinos = {tipo["_id"]: tipo["destino"] async for tipo in db.chassi_tipos_aplicacao.find()}
+    categorias = {c["_id"]: destinos.get(c["familia"]) async for c in db.chassi_categorias.find()}
     return [ChassiTemplate(**{**d, "familia": categorias.get(d["categoria"])}) for d in docs]
 
 
@@ -31,7 +32,7 @@ async def criar(body: ChassiTemplateCreate, user: dict = Depends(require("write"
         if existente:
             raise HTTPException(409, "Já existe um template com este nome.")
         await db.chassi_templates.insert_one(dict(doc), session=session)
-        return ChassiTemplate(**doc, familia=categoria["familia"])
+        return ChassiTemplate(**doc, familia=await destino_categoria(categoria, session))
 
     return await transacao_chassi(inserir)
 
@@ -110,7 +111,7 @@ async def atualizar(template_id: str, body: ChassiTemplateCreate, user: dict = D
             await verificar_template_em_uso(template_id, session)
         dados = body.model_dump()
         await db.chassi_templates.update_one(filtro, {"$set": dados}, session=session)
-        return ChassiTemplate(**{**doc, **dados, "familia": categoria["familia"] if categoria else None})
+        return ChassiTemplate(**{**doc, **dados, "familia": await destino_categoria(categoria, session)})
 
     return await transacao_chassi(editar)
 

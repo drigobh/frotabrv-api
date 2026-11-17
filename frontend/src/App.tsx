@@ -103,6 +103,7 @@ export default function App() {
               <Route path="/cadastros/carretas" element={<Carretas />} />
               <Route path="/cadastros/chassi-templates" element={<ChassiTemplates />} />
               <Route path="/cadastros/chassi-categorias" element={<ChassiCategorias />} />
+              <Route path="/cadastros/chassi-tipos-aplicacao" element={<ChassiCategorias key="tipos-aplicacao" gerenciarAplicacoes />} />
               <Route path="/cadastros/combustiveis" element={<Combustiveis />} />
               <Route path="/cadastros/fornecedores" element={<Fornecedores />} />
               <Route path="/cadastros/motoristas" element={<Motoristas />} />

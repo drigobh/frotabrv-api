@@ -25,6 +25,7 @@ def _id() -> IndexModel:
 INDEXES: dict[str, list[IndexModel]] = {
     "usuarios": [_id(), IndexModel([("email", ASCENDING)], name="email", unique=True)],
     "chassi_categorias": [IndexModel([("nome_chave", ASCENDING)], name="nome_chave", unique=True)],
+    "chassi_tipos_aplicacao": [IndexModel([("nome_chave", ASCENDING)], name="nome_chave", unique=True)],
     "veiculos": [_id(), IndexModel([("placa", ASCENDING)], name="placa", unique=True)],
     "carretas": [_id(), IndexModel([("codigo", ASCENDING)], name="codigo", unique=True)],
     "motoristas": [_id(), IndexModel([("cnh", ASCENDING)], name="cnh", unique=True)],
