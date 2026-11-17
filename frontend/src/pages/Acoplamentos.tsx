@@ -55,10 +55,10 @@ export default function Acoplamentos() {
   };
 
   const opcoesLivres = <T extends { id: string; ativo: boolean; acoplado?: boolean }>(
-    itens: T[], campo: Campo, nome: (item: T) => string,
+    itens: T[], campo: Campo, nome: (item: T) => string, conjuntoEmEdicao: string | null = null,
   ) => {
-    const doConjuntoAtual = rows.find((row) => row.id === editingId)?.[campo];
-    const ocupados = new Set(rows.filter((row) => row.id !== editingId).map((row) => row[campo]));
+    const doConjuntoAtual = rows.find((row) => row.id === conjuntoEmEdicao)?.[campo];
+    const ocupados = new Set(rows.filter((row) => row.id !== conjuntoEmEdicao).map((row) => row[campo]));
     return itens
       .filter((item) => item.ativo && !ocupados.has(item.id) && (!item.acoplado || item.id === doConjuntoAtual))
       .map((item) => ({ value: item.id, label: nome(item) }));
@@ -105,13 +105,57 @@ export default function Acoplamentos() {
   const falhaDisponibilidade = [q, veiculos, carretas, motoristas].some((consulta) => consulta.isError);
   const carregandoDisponibilidade = [q, veiculos, carretas, motoristas].some((consulta) => consulta.isPending);
   const podeSalvar = !!form.veiculo_id && !salvar.isPending && !falhaDisponibilidade && !carregandoDisponibilidade;
-  const cavalosLivres = opcoesLivres(veiculos.data ?? [], "veiculo_id", (v) => v.placa);
-  const carretasLivres = opcoesLivres(carretas.data ?? [], "carreta_id", (c) => c.codigo);
-  const motoristasLivres = opcoesLivres(motoristas.data ?? [], "motorista_id", (m) => m.nome);
+  const cavalosLivres = opcoesLivres(veiculos.data ?? [], "veiculo_id", (v) => v.placa, editingId);
+  const carretasLivres = opcoesLivres(carretas.data ?? [], "carreta_id", (c) => c.codigo, editingId);
+  const motoristasLivres = opcoesLivres(motoristas.data ?? [], "motorista_id", (m) => m.nome, editingId);
+
+  const consultasDesacoplados = [q, veiculos, carretas];
+  const disponibilidadeConfirmada = consultasDesacoplados.every((consulta) => consulta.isSuccess);
+  const gruposDesacoplados = disponibilidadeConfirmada ? [
+    { titulo: "Cavalos", itens: opcoesLivres(veiculos.data ?? [], "veiculo_id", (v) => v.placa) },
+    { titulo: "Carretas", itens: opcoesLivres(carretas.data ?? [], "carreta_id", (c) => c.codigo) },
+  ] : [];
+  const totalDesacoplados = gruposDesacoplados.reduce((total, grupo) => total + grupo.itens.length, 0);
 
   return (
     <div>
       <PageHeader eyebrow="Operação" title="Acoplamentos" description="Vincule motoristas aos veículos." actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setHistoricoId(HISTORICO_GERAL)}><History className="size-4" /> Histórico geral</Button><Button onClick={abrirNovo}><Plus className="size-4 mr-2" /> Novo</Button></div>} />
+      <details className="glass mb-4 rounded-2xl border border-slate-800 p-4">
+        <summary className="cursor-pointer text-sm font-medium text-slate-200">
+          <span className="inline-flex items-center gap-2">
+            <Truck aria-hidden="true" className={totalDesacoplados > 0 ? "size-4 text-orange-400 motion-safe:animate-pulse" : "size-4 text-slate-500"} />
+            Cavalos e carretas desacoplados
+            {disponibilidadeConfirmada && <span className="text-slate-400">({totalDesacoplados})</span>}
+          </span>
+        </summary>
+        {!disponibilidadeConfirmada ? (
+          <p className="mt-3 text-sm text-slate-400">
+            {consultasDesacoplados.some((consulta) => consulta.isError) ? "Não foi possível consultar os desacoplados." : "Consultando desacoplados…"}
+          </p>
+        ) : totalDesacoplados === 0 ? (
+          <p className="mt-3 text-sm text-slate-400">Nenhum cavalo ou carreta ativa está desacoplado.</p>
+        ) : (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {gruposDesacoplados.map(({ titulo, itens }) => (
+              <div key={titulo}>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{titulo} ({itens.length})</p>
+                {itens.length ? (
+                  <ul aria-label={`${titulo} desacoplados`} className="max-h-48 space-y-1 overflow-y-auto">
+                    {itens.map((item) => (
+                      <li key={item.value} className="flex items-center gap-2 py-1 text-sm text-slate-200">
+                        <Truck aria-hidden="true" className="size-4 shrink-0 text-orange-400 motion-safe:animate-pulse" />
+                        {item.label}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500">Nenhum item desacoplado.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </details>
       <div className="glass overflow-hidden rounded-2xl">
         <Table>
           <TableHeader>
