@@ -22,9 +22,9 @@ class StatusUpdate(BaseModel):
     ativo: bool
 
 
-async def ids_em_uso(campo: str) -> set[str]:
+async def ids_em_uso(campo: str, session=None) -> set[str]:
     """Ids (veiculo_id/carreta_id/motorista_id) presentes em acoplamentos ativos."""
-    vals = await db.acoplamentos.distinct(campo, {"status": "ativo"})
+    vals = await db.acoplamentos.distinct(campo, {"status": "ativo"}, session=session)
     return {v for v in vals if v}
 
 
@@ -116,10 +116,14 @@ def build_cadastro_router(
     @router.patch("/{item_id}/status", response_model=out_model)
     async def alterar_status(item_id: str, body: StatusUpdate, request: Request, user: dict = Depends(require("write"))):
         atual = await _get(item_id)
-        em_uso = await ids_em_uso(acop_field)
-        if not body.ativo and item_id in em_uso:
-            raise HTTPException(status_code=409, detail="Item está acoplado. Libere o acoplamento antes de inativar.")
-        await coll.update_one({"id": item_id}, {"$set": {"ativo": body.ativo}})
+        async def mudar_status(session):
+            em_uso = await ids_em_uso(acop_field, session=session)
+            if not body.ativo and item_id in em_uso:
+                raise HTTPException(status_code=409, detail="Item está acoplado. Libere o acoplamento antes de inativar.")
+            await coll.update_one({"id": item_id}, {"$set": {"ativo": body.ativo}}, session=session)
+            return em_uso
+
+        em_uso = await transacao_chassi(mudar_status)
         acao = "reativar" if body.ativo else "inativar"
         await audit(user, acao, collection, item_id, f"{unique_label}: {atual[unique_field]}", request)
         return _out({**atual, "ativo": body.ativo}, em_uso)

@@ -2,6 +2,7 @@ import uuid
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from lib.audit import audit
+from lib.chassi_vinculos import transacao_chassi as transacao_vinculos
 from lib.dates import now_iso
 from lib.db import db
 from lib.security import require
@@ -9,8 +10,8 @@ from models.acoplamentos import Acoplamento, AcoplamentoCreate, HistoricoItem
 
 router = APIRouter(prefix="/acoplamentos", tags=["Acoplamentos"])
 
-async def _get_labels(veiculo_id: str, carreta_id: str | None, motorista_id: str | None) -> tuple[str, str | None, str | None]:
-    veiculo = await db.veiculos.find_one({"id": veiculo_id})
+async def _get_labels(veiculo_id: str, carreta_id: str | None, motorista_id: str | None, session) -> tuple[str, str | None, str | None]:
+    veiculo = await db.veiculos.find_one({"id": veiculo_id}, session=session)
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
     if veiculo.get("ativo") is not True:
@@ -19,7 +20,7 @@ async def _get_labels(veiculo_id: str, carreta_id: str | None, motorista_id: str
     
     c_label = None
     if carreta_id:
-        carreta = await db.carretas.find_one({"id": carreta_id})
+        carreta = await db.carretas.find_one({"id": carreta_id}, session=session)
         if not carreta:
             raise HTTPException(404, "Carreta não encontrada")
         if carreta.get("ativo") is not True:
@@ -28,7 +29,7 @@ async def _get_labels(veiculo_id: str, carreta_id: str | None, motorista_id: str
         
     m_label = None
     if motorista_id:
-        motorista = await db.motoristas.find_one({"id": motorista_id})
+        motorista = await db.motoristas.find_one({"id": motorista_id}, session=session)
         if not motorista:
             raise HTTPException(404, "Motorista não encontrado")
         if motorista.get("ativo") is not True:
@@ -36,6 +37,44 @@ async def _get_labels(veiculo_id: str, carreta_id: str | None, motorista_id: str
         m_label = motorista['nome']
 
     return v_label, c_label, m_label
+
+ITENS_ACOPLAMENTO = (
+    ("veiculo", "Cavalo / veículo"),
+    ("carreta", "Carreta"),
+    ("motorista", "Motorista"),
+)
+
+
+async def verificar_disponibilidade(body, session, ignorar_id=None):
+    conflitos = []
+    for campo, funcao in ITENS_ACOPLAMENTO:
+        item_id = getattr(body, f"{campo}_id")
+        if not item_id:
+            continue
+        filtro = {f"{campo}_id": item_id, "status": "ativo"}
+        if ignorar_id is not None:
+            filtro["id"] = {"$ne": ignorar_id}
+        conjunto = await db.acoplamentos.find_one(
+            filtro, sort=[("created_at", -1)], session=session
+        )
+        if conjunto:
+            conflitos.append({
+                "funcao": funcao,
+                "item": conjunto.get(f"{campo}_label") or item_id,
+                "conjunto_id": conjunto.get("id"),
+                "veiculo": conjunto.get("veiculo_label"),
+                "carreta": conjunto.get("carreta_label"),
+                "motorista": conjunto.get("motorista_label"),
+                "inicio_conjunto": conjunto.get("data_inicio") or conjunto.get("created_at"),
+                "vinculado_em": conjunto.get(f"{campo}_vinculado_em"),
+            })
+    if conflitos:
+        raise HTTPException(409, detail={
+            "codigo": "ITENS_EM_USO",
+            "mensagem": "Os itens abaixo já estão em acoplamentos ativos.",
+            "conflitos": conflitos,
+        })
+
 
 @router.get("", response_model=list[Acoplamento])
 async def listar(_u: dict = Depends(require("read"))):
@@ -61,51 +100,43 @@ async def listar(_u: dict = Depends(require("read"))):
 
 @router.post("", response_model=Acoplamento, status_code=201)
 async def criar(body: AcoplamentoCreate, request: Request, user: dict = Depends(require("write"))):
-    # 1. Valida se o veículo já está acoplado
-    existente = await db.acoplamentos.find_one({"veiculo_id": body.veiculo_id, "status": "ativo"})
-    if existente:
-        raise HTTPException(409, "Este veículo já está em um acoplamento ativo.")
+    async def inserir(session):
+        await verificar_disponibilidade(body, session)
+        v_label, c_label, m_label = await _get_labels(body.veiculo_id, body.carreta_id, body.motorista_id, session)
+        agora = now_iso()
+        doc = {
+            "id": str(uuid.uuid4()),
+            "veiculo_id": body.veiculo_id, "veiculo_label": v_label,
+            "carreta_id": body.carreta_id, "carreta_label": c_label,
+            "motorista_id": body.motorista_id, "motorista_label": m_label,
+            "status": "ativo", "completo": bool(body.carreta_id and body.motorista_id),
+            "created_at": agora, "updated_at": agora,
+            "created_by": user["nome"], "updated_by": user["nome"],
+            "data_inicio": body.data_inicio, "data_fim": body.data_fim,
+            **{
+                f"{campo}_vinculado_em": agora
+                for campo, _ in ITENS_ACOPLAMENTO if getattr(body, f"{campo}_id")
+            },
+        }
+        await db.acoplamentos.insert_one(dict(doc), session=session)
+        hist_doc = {
+            "id": str(uuid.uuid4()),
+            "acoplamento_id": doc["id"],
+            "conjunto": v_label.split(" ")[0],
+            "evento": "Novo Conjunto",
+            "item": "conjunto",
+            "descricao": f"Criado por {user['nome']}",
+            "status": "Acoplado",
+            "usuario": user["nome"],
+            "created_at": agora,
+        }
+        await db.acoplamentos_historico.insert_one(hist_doc, session=session)
+        return Acoplamento(**doc)
 
-    # 2. Busca os labels para salvar no histórico
-    v_label, c_label, m_label = await _get_labels(body.veiculo_id, body.carreta_id, body.motorista_id)
+    salvo = await transacao_vinculos(inserir)
+    await audit(user, "criar", "acoplamentos", salvo.id, f"Veículo: {salvo.veiculo_label}", request)
+    return salvo
 
-    doc = {
-        "id": str(uuid.uuid4()),
-        "veiculo_id": body.veiculo_id,
-        "veiculo_label": v_label,
-        "carreta_id": body.carreta_id,
-        "carreta_label": c_label,
-        "motorista_id": body.motorista_id,
-        "motorista_label": m_label,
-        "status": "ativo",
-        "completo": bool(body.carreta_id and body.motorista_id),
-        "created_at": now_iso(),
-        "created_by": user["nome"],
-        "updated_by": user["nome"],
-        "data_inicio": body.data_inicio,
-        "data_fim": body.data_fim,
-        "updated_at": now_iso()
-    }
-    
-    await db.acoplamentos.insert_one(dict(doc))
-    
-    # 3. Registrar no histórico
-    hist_doc = {
-        "id": str(uuid.uuid4()),
-        "acoplamento_id": doc["id"],
-        "conjunto": v_label.split(" ")[0],
-        "evento": "Novo Conjunto",
-        "item": "conjunto",
-        "descricao": f"Criado por {user['nome']}",
-        "status": "Acoplado",
-        "usuario": user["nome"],
-        "created_at": now_iso()
-    }
-    await db.acoplamentos_historico.insert_one(dict(hist_doc))
-    
-    await audit(user, "criar", "acoplamentos", doc["id"], f"Veículo: {v_label}", request)
-    
-    return Acoplamento(**doc)
 
 @router.get("/historico", response_model=list[HistoricoItem])
 async def historico(limit: int = 100, _u: dict = Depends(require("read"))):
@@ -114,34 +145,47 @@ async def historico(limit: int = 100, _u: dict = Depends(require("read"))):
 
 @router.put("/{id}", response_model=Acoplamento)
 async def atualizar(id: str, body: AcoplamentoCreate, request: Request, user: dict = Depends(require("write"))):
-    atual = await db.acoplamentos.find_one({"id": id}, {"_id": 0, "status": 1})
-    if not atual:
-        raise HTTPException(404, "Acoplamento não encontrado.")
-    if atual.get("status") == "ativo":
-        existente = await db.acoplamentos.find_one(
-            {"id": {"$ne": id}, "veiculo_id": body.veiculo_id, "status": "ativo"},
-            {"_id": 1},
-        )
-        if existente:
-            raise HTTPException(409, "Este veículo já está em um acoplamento ativo.")
+    async def editar(session):
+        filtro = {"id": id}
+        atual = await db.acoplamentos.find_one(filtro, session=session)
+        if not atual:
+            raise HTTPException(404, "Acoplamento não encontrado.")
+        if atual.get("status") != "ativo":
+            raise HTTPException(409, "Este acoplamento já foi encerrado. Atualize a lista.")
+        await verificar_disponibilidade(body, session, ignorar_id=id)
+        v_label, c_label, m_label = await _get_labels(body.veiculo_id, body.carreta_id, body.motorista_id, session)
+        agora = now_iso()
+        dados = {
+            "veiculo_id": body.veiculo_id, "veiculo_label": v_label,
+            "carreta_id": body.carreta_id, "carreta_label": c_label,
+            "motorista_id": body.motorista_id, "motorista_label": m_label,
+            "data_inicio": body.data_inicio, "data_fim": body.data_fim,
+            "completo": bool(body.carreta_id and body.motorista_id),
+            "updated_at": agora, "updated_by": user["nome"],
+        }
+        for campo, _ in ITENS_ACOPLAMENTO:
+            item_id = getattr(body, f"{campo}_id")
+            if item_id != atual.get(f"{campo}_id"):
+                dados[f"{campo}_vinculado_em"] = agora if item_id else None
+        await db.acoplamentos.update_one(filtro, {"$set": dados}, session=session)
+        return Acoplamento(**{**atual, **dados})
 
-    v_label, c_label, m_label = await _get_labels(body.veiculo_id, body.carreta_id, body.motorista_id)
-    update_data = {
-        "veiculo_id": body.veiculo_id, "veiculo_label": v_label,
-        "carreta_id": body.carreta_id, "carreta_label": c_label,
-        "motorista_id": body.motorista_id, "motorista_label": m_label,
-        "data_inicio": body.data_inicio, "data_fim": body.data_fim,
-        "completo": bool(body.carreta_id and body.motorista_id),
-        "updated_at": now_iso(), "updated_by": user["nome"]
-    }
-    await db.acoplamentos.update_one({"id": id}, {"$set": update_data})
-    await audit(user, "atualizar", "acoplamentos", id, f"Veículo: {v_label}", request)
-    doc = await db.acoplamentos.find_one({"id": id})
-    return Acoplamento(**doc)
+    salvo = await transacao_vinculos(editar)
+    await audit(user, "atualizar", "acoplamentos", id, f"Veículo: {salvo.veiculo_label}", request)
+    return salvo
+
 
 @router.delete("/{id}")
 async def excluir(id: str, request: Request, user: dict = Depends(require("write"))):
-    await db.acoplamentos.update_one({"id": id}, {"$set": {"status": "inativo", "updated_at": now_iso(), "updated_by": user["nome"]}})
+    async def encerrar(session):
+        resultado = await db.acoplamentos.update_one(
+            {"id": id, "status": "ativo"},
+            {"$set": {"status": "inativo", "updated_at": now_iso(), "updated_by": user["nome"]}},
+            session=session,
+        )
+        if not resultado.matched_count:
+            raise HTTPException(404, "Acoplamento ativo não encontrado.")
+    await transacao_vinculos(encerrar)
     await audit(user, "excluir", "acoplamentos", id, "Desacoplamento", request)
     return {"ok": True}
 
