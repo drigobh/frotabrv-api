@@ -7,6 +7,29 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+const DIA_MS = 86400000;
+
+function dataISO(valor: string) {
+  const dia = valor?.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  return dia ? new Date(dia + "T00:00:00Z") : new Date(NaN);
+}
+
+function proximaData(base: string, intervalo: number, unidade: string) {
+  const data = dataISO(base);
+  if (!Number.isFinite(data.getTime()) || !Number.isInteger(intervalo) || intervalo <= 0) return null;
+  if (unidade === "dias" || !unidade) {
+    data.setUTCDate(data.getUTCDate() + intervalo);
+  } else if (unidade === "meses" || unidade === "anos") {
+    const dia = data.getUTCDate();
+    data.setUTCDate(1);
+    data.setUTCMonth(data.getUTCMonth() + intervalo * (unidade === "anos" ? 12 : 1));
+    const ultimo = new Date(data.getTime());
+    ultimo.setUTCMonth(ultimo.getUTCMonth() + 1, 0);
+    data.setUTCDate(Math.min(dia, ultimo.getUTCDate()));
+  } else return null;
+  return Number.isFinite(data.getTime()) ? data : null;
+}
+
 export default function PlanoManutencao() {
   const { data: planos = [] } = useQuery({ queryKey: ["planos-manutencao"], queryFn: () => apiGet<any[]>("/planos-manutencao") });
   const { data: veiculos = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
@@ -18,7 +41,8 @@ export default function PlanoManutencao() {
 
   // 1. Calcular o status de cada plano com base nos gatilhos
   const planosCalculados = useMemo(() => {
-    return planos.map((p: any) => {
+    const hoje = dataISO(new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" }));
+    return planos.filter((p: any) => p.ativo !== false).map((p: any) => {
       let ativo = null;
       if (p.veiculo_id) {
         ativo = veiculos.find((v: any) => v.id === p.veiculo_id);
@@ -29,22 +53,32 @@ export default function PlanoManutencao() {
       if (!ativo) return null;
 
       const kmAtual = ativo.hodometro_km || 0;
-      const ultimaExecucaoKm = p.ultima_execucao_km || 0;
-      const intervalo = p.intervalo || 1;
+      const ultimaExecucaoKm = p.ultima_execucao_km ?? 0;
+      const intervalo = p.intervalo;
+      const vitalicioExecutado = p.tipo_recorrencia === "vitalicio" &&
+        Boolean(p.ultima_execucao_data || p.ultima_execucao_km != null);
 
-      let proximoGatilhoKm = 0;
-      let faltaKm = 0;
-      
-      if (p.tipo_gatilho === "km") {
-        proximoGatilhoKm = ultimaExecucaoKm + intervalo;
-        faltaKm = proximoGatilhoKm - kmAtual;
+      let falta = 0;
+      let limiteAtencao = 0;
+      let gatilho = "—";
+      let unidade = "";
+      if (!vitalicioExecutado && p.tipo_gatilho === "km" && Number.isFinite(intervalo) && intervalo > 0) {
+        const proximoKm = ultimaExecucaoKm + intervalo;
+        falta = proximoKm - kmAtual;
+        limiteAtencao = 5000;
+        gatilho = proximoKm.toLocaleString("pt-BR") + " km";
+        unidade = "km";
+      } else if (!vitalicioExecutado && p.tipo_gatilho === "dias") {
+        const proxima = proximaData(p.ultima_execucao_data || p.data_abertura, intervalo, p.unidade_tempo);
+        if (proxima) {
+          falta = (proxima.getTime() - hoje.getTime()) / DIA_MS;
+          limiteAtencao = 30;
+          gatilho = proxima.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+          unidade = "dias";
+        }
       }
-
-      let status = "OK";
-      if (p.tipo_gatilho === "km") {
-        if (faltaKm < 0) status = "Vencido";
-        else if (faltaKm <= 5000) status = "Atenção";
-      }
+      const status = vitalicioExecutado ? "Executado" : !unidade ? "Sem cálculo"
+        : falta < 0 ? "Vencido" : falta <= limiteAtencao ? "Atenção" : "OK";
 
       return {
         ...p,
@@ -52,8 +86,9 @@ export default function PlanoManutencao() {
           ? `${ativo.placa} - ${ativo.modelo}` 
           : `${ativo.codigo} - ${ativo.tipo}`,
         kmAtual,
-        proximoGatilhoKm,
-        faltaKm,
+        gatilho,
+        falta,
+        unidade,
         status
       };
     }).filter(Boolean);
@@ -77,12 +112,17 @@ export default function PlanoManutencao() {
     if (filtroStatus !== "__all__") {
       filtered = filtered.filter((p: any) => p.status === filtroStatus);
     }
-    return filtered.sort((a: any, b: any) => a.faltaKm - b.faltaKm);
+    const prioridade: Record<string, number> = { Vencido: 0, Atenção: 1, OK: 2, "Sem cálculo": 3, Executado: 4 };
+    return [...filtered].sort((a: any, b: any) =>
+      prioridade[a.status] - prioridade[b.status] ||
+      String(a.unidade).localeCompare(b.unidade) || a.falta - b.falta
+    );
   }, [planosCalculados, filtroNome, filtroStatus]);
 
   const statusColor = (status: string) => {
     if (status === "Vencido") return "bg-rose-500/20 text-rose-400 border border-rose-500/30";
     if (status === "Atenção") return "bg-amber-500/20 text-amber-400 border border-amber-500/30";
+    if (status === "Sem cálculo") return "bg-slate-800 text-slate-300";
     return "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
   };
 
@@ -131,6 +171,8 @@ export default function PlanoManutencao() {
           <option value="OK">Em Dia</option>
           <option value="Atenção">Alerta Preventivo</option>
           <option value="Vencido">Vencido</option>
+          <option value="Executado">Executado</option>
+          <option value="Sem cálculo">Sem cálculo</option>
         </select>
       </div>
 
@@ -157,11 +199,11 @@ export default function PlanoManutencao() {
                   <TableCell className="text-xs text-slate-400">{p.familia}</TableCell>
                   <TableCell className="text-xs text-slate-400">{p.descricao}</TableCell>
                   <TableCell className="text-slate-400 font-mono">{p.kmAtual.toLocaleString('pt-BR')} km</TableCell>
-                  <TableCell className="text-slate-400 font-mono">{p.proximoGatilhoKm.toLocaleString('pt-BR')} km</TableCell>
+                  <TableCell className="text-slate-400 font-mono">{p.gatilho}</TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold ${statusColor(p.status)}`}>
                       {statusIcon(p.status)}
-                      {p.status === "OK" ? "Em dia" : p.status === "Atenção" ? `Faltam ${p.faltaKm.toLocaleString('pt-BR')} km` : `Atrasado (${Math.abs(p.faltaKm).toLocaleString('pt-BR')} km)`}
+                      {p.status === "OK" ? "Em dia" : p.status === "Atenção" ? `Faltam ${p.falta.toLocaleString("pt-BR")} ${p.unidade}` : p.status === "Vencido" ? `Atrasado (${Math.abs(p.falta).toLocaleString("pt-BR")} ${p.unidade})` : p.status}
                     </span>
                   </TableCell>
                 </TableRow>

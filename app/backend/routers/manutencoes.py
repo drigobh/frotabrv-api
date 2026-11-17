@@ -13,6 +13,7 @@ from typing import Literal
 
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
+import math
 import re
 
 from pydantic import BaseModel, Field
@@ -86,6 +87,74 @@ async def listar(_u: dict = Depends(require("read"))):
     docs = await db.manutencoes.find({}, {"_id": 0, "historico_os": 0}).sort("data", -1).to_list(2000)
     return docs
 
+async def plano_da_os(plano_id, tipo, veiculo_id, session=None):
+    if not plano_id:
+        return None
+    if str(tipo).strip().casefold() != "preventiva":
+        raise HTTPException(422, "Apenas uma OS preventiva pode ter um plano vinculado.")
+    plano = await db.planos_manutencao.find_one({"id": plano_id}, session=session)
+    if not plano or plano.get("ativo") is False or plano.get("veiculo_id") != veiculo_id:
+        raise HTTPException(422, "Selecione um plano ativo do veículo desta OS.")
+    if plano.get("tipo_gatilho") not in {"km", "dias"}:
+        raise HTTPException(422, "O vínculo está disponível para planos por quilometragem ou calendário.")
+    return plano
+
+
+def dados_execucao_plano(plano: dict, os: dict) -> dict:
+    ultima = plano.get("ultima_execucao_data")
+    if plano.get("tipo_recorrencia") == "vitalicio" and (
+        ultima or plano.get("ultima_execucao_km") is not None
+    ):
+        raise HTTPException(409, "Este plano vitalício já teve uma execução registrada.")
+    data_execucao = hoje_manutencao().isoformat()
+    if ultima and ultima[:10] > data_execucao:
+        raise HTTPException(409, "O plano tem uma execução com data posterior à conclusão.")
+    dados = {"ultima_execucao_data": data_execucao, "ultima_execucao_os_id": os["id"]}
+    if plano["tipo_gatilho"] == "km":
+        km = os.get("km_manutencao")
+        if not isinstance(km, (int, float)) or not math.isfinite(km) or km < 0:
+            raise HTTPException(422, "Informe o hodômetro da execução antes de concluir a OS.")
+        ultima_km = plano.get("ultima_execucao_km")
+        if ultima_km is not None and km < ultima_km:
+            raise HTTPException(409, "O hodômetro da execução é menor que o último registrado no plano.")
+        dados["ultima_execucao_km"] = km
+    return dados
+
+
+async def atualizar_os_com_plano(anterior, filtro, dados, user, session=None):
+    atual = {**anterior, **dados}
+    plano_id = atual.get("plano_manutencao_id")
+    plano_anterior_id = anterior.get("plano_manutencao_id")
+    estava_concluida = etapa_atual(anterior.get("status")) == "Concluída"
+    vai_concluir = not estava_concluida and etapa_atual(atual.get("status")) == "Concluída"
+    campos_vinculo = ("plano_manutencao_id", "veiculo_id", "tipo", "km_manutencao")
+    mudou_vinculo = any(atual.get(campo) != anterior.get(campo) for campo in campos_vinculo)
+    if estava_concluida and (plano_id or plano_anterior_id) and (
+        mudou_vinculo or etapa_atual(atual.get("status")) != "Concluída"
+    ):
+        raise HTTPException(409, "O vínculo e o hodômetro de uma OS preventiva concluída não podem ser alterados.")
+
+    if mudou_vinculo and (plano_id or plano_anterior_id):
+        filtro = {**filtro, "status": anterior.get("status")}
+
+    async def salvar(sessao):
+        plano = None
+        if plano_id and (mudou_vinculo or vai_concluir):
+            plano = await plano_da_os(plano_id, atual.get("tipo"), atual.get("veiculo_id"), sessao)
+        execucao = dados_execucao_plano(plano, atual) if plano and vai_concluir else None
+        resposta = await db.manutencoes.update_one(
+            filtro, escrita_os(anterior, dados, user), session=sessao,
+        )
+        if resposta.matched_count and execucao:
+            await db.planos_manutencao.update_one({"_id": plano["_id"]}, {"$set": execucao}, session=sessao)
+        return resposta
+
+    if session is not None or not (plano_id and vai_concluir):
+        return await salvar(session)
+    async with await client.start_session() as sessao:
+        return await sessao.with_transaction(salvar)
+
+
 @router.post("", response_model=Manutencao, status_code=201)
 async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(require("write"))):
     veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
@@ -102,6 +171,10 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
             if peca.get("quantidade_atual", 0) < qtd_solicitada:
                 raise HTTPException(400, f"Estoque insuficiente para {peca.get('nome')}. Disponível: {peca.get('quantidade_atual')}, Solicitado: {qtd_solicitada}")
 
+    if body.plano_manutencao_id:
+        await plano_da_os(body.plano_manutencao_id, body.tipo, body.veiculo_id)
+        if etapa_atual(body.status) != "Aguardando aprovação":
+            raise HTTPException(422, "Abra a OS vinculada em Aguardando aprovação.")
     fornecedor_nome = await nome_fornecedor(body.fornecedor_id)
     doc = body.model_dump()
     doc["fornecedor_nome"] = fornecedor_nome
@@ -468,6 +541,8 @@ class ManutencaoEdicao(BaseModel):
     status: EtapaOS | None = None
     status_original: str | None = None
     versao: str | None = None
+    plano_manutencao_id: str | None = None
+    km_manutencao: float | None = Field(None, ge=0, allow_inf_nan=False)
 
 
 @router.patch("/{id}/dados")
@@ -512,6 +587,9 @@ async def editar_dados(id: str, body: ManutencaoEdicao, user: dict = Depends(req
         "oficina": body.oficina,
         "versao_dados": str(uuid.uuid4()),
     }
+    for campo in ("plano_manutencao_id", "km_manutencao"):
+        if campo in body.model_fields_set:
+            dados[campo] = getattr(body, campo)
     if veiculo is not None:
         dados["veiculo_label"] = " · ".join(str(veiculo[campo]) for campo in ("placa", "modelo") if veiculo.get(campo))
     filtro = {"_id": atual["_id"], "versao_dados": body.versao}
@@ -520,7 +598,7 @@ async def editar_dados(id: str, body: ManutencaoEdicao, user: dict = Depends(req
         dados["status"] = body.status
         if body.status == "Concluída" and etapa_atual(status_atual) != "Concluída" and not atual.get("data_fim"):
             dados["data_fim"] = hoje_manutencao().isoformat()
-    resposta = await db.manutencoes.update_one(filtro, escrita_os(atual, dados, user))
+    resposta = await atualizar_os_com_plano(atual, filtro, dados, user)
     if not resposta.matched_count:
         raise HTTPException(409, "A OS mudou enquanto você editava. Atualize a lista e tente novamente.")
     return {"id": id}
@@ -534,7 +612,7 @@ class ManutencaoStatusUpdate(BaseModel):
 async def atualizar_status(
     id: str, body: ManutencaoStatusUpdate, user: dict = Depends(require("write"))
 ):
-    atual = await db.manutencoes.find_one({"id": id}, {"status": 1, "data_fim": 1})
+    atual = await db.manutencoes.find_one({"id": id})
     if atual is None:
         raise HTTPException(404, "Ordem de serviço não encontrada.")
     origem = atual.get("status")
@@ -542,9 +620,8 @@ async def atualizar_status(
     dados = {"status": body.status}
     if body.status == "Concluída" and etapa_atual(origem) != "Concluída" and not atual.get("data_fim"):
         dados["data_fim"] = hoje_manutencao().isoformat()
-    resultado = await db.manutencoes.update_one(
-        {"_id": atual["_id"], "status": origem},
-        escrita_os(atual, dados, user),
+    resultado = await atualizar_os_com_plano(
+        atual, {"_id": atual["_id"], "status": origem, "versao_dados": atual.get("versao_dados")}, dados, user,
     )
     if not resultado.matched_count:
         raise HTTPException(409, "A OS mudou durante a atualização. Confira o status atual.")
@@ -581,6 +658,10 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
             )
 
         doc = body.model_dump()
+        if "plano_manutencao_id" not in body.model_fields_set:
+            doc.pop("plano_manutencao_id", None)
+        if "km_manutencao" not in body.model_fields_set:
+            doc.pop("km_manutencao", None)
         if doc.get("fornecedor_id") != existe.get("fornecedor_id"):
             fornecedor = await db.fornecedores.find_one(
                 {"id": doc["fornecedor_id"]}, {"nome": 1}, session=session,
@@ -596,9 +677,7 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
         doc["criado_por"] = existe.get("criado_por", user.get("nome", "Sistema"))
         doc["created_at"] = existe.get("created_at", now_iso())
         doc["versao_dados"] = str(uuid.uuid4())
-        await db.manutencoes.update_one(
-            {"_id": existe["_id"]}, escrita_os(existe, doc, user), session=session,
-        )
+        await atualizar_os_com_plano(existe, {"_id": existe["_id"]}, doc, user, session=session)
         return {**doc, "id": id}
 
     async with await client.start_session() as session:

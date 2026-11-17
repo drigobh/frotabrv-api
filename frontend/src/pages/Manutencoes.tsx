@@ -44,6 +44,8 @@ type Ordem = {
   etapa: Etapa;
   status?: string;
   versao_dados?: string;
+  plano_manutencao_id?: string;
+  km_manutencao?: number;
   veiculo_id?: string;
   veiculo_label?: string;
   veiculo_placa?: string;
@@ -121,12 +123,30 @@ const dataISO = (data?: string) => data?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] || "";
 const dataBR = (data?: string) => dataISO(data).split("-").reverse().join("/") || "—";
 const hoje = () => new Date().toLocaleDateString("sv-SE");
 
+type PlanoPreventivoOS = {
+  id: string; veiculo_id?: string; ativo?: boolean; tipo_gatilho: string;
+  familia: string; descricao: string;
+};
+
 function FormularioOS({ os, fechar, atualizar }: { os?: Ordem; fechar: () => void; atualizar: () => void }) {
   const veiculos = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<Veiculo[]>("/veiculos") });
   const fornecedores = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<Fornecedor[]>("/fornecedores") });
   const opcoesVeiculos = (veiculos.data ?? []).filter((v) => v.ativo !== false || v.id === os?.veiculo_id);
   const opcoesFornecedores = fornecedores.data ?? [];
   const [status, setStatus] = useState("");
+  const [veiculoId, setVeiculoId] = useState(os?.veiculo_id ?? "");
+  const [tipo, setTipo] = useState(os?.tipo || "Corretiva");
+  const [planoId, setPlanoId] = useState(os?.plano_manutencao_id ?? "");
+  const vinculoFechado = os?.etapa === "Concluída";
+  const planos = useQuery({
+    queryKey: ["planos-manutencao"],
+    queryFn: () => apiGet<PlanoPreventivoOS[]>("/planos-manutencao"),
+    enabled: tipo === "Preventiva" && Boolean(veiculoId),
+  });
+  const elegiveis = (planos.data ?? []).filter((p) =>
+    p.veiculo_id === veiculoId && p.ativo !== false && ["km", "dias"].includes(p.tipo_gatilho)
+  );
+  const plano = elegiveis.find((p) => p.id === planoId);
   const salvar = useMutation({
     mutationFn: (form: FormData) => {
       const descricao = String(form.get("descricao") ?? "").trim();
@@ -144,9 +164,15 @@ function FormularioOS({ os, fechar, atualizar }: { os?: Ordem; fechar: () => voi
         fornecedor_id: String(form.get("fornecedor") ?? "") || null,
         oficina: String(form.get("oficina") ?? "").trim() || null,
       };
-      if (!os) return apiPost("/manutencoes", { ...dados, status: "Aguardando aprovação" });
+      const vinculo = vinculoFechado ? {} : {
+        plano_manutencao_id: planoId || null,
+        ...(form.has("km_execucao") && {
+          km_manutencao: form.get("km_execucao") === "" ? null : Number(form.get("km_execucao")),
+        }),
+      };
+      if (!os) return apiPost("/manutencoes", { ...dados, ...vinculo, status: "Aguardando aprovação" });
       const transicao = status ? { status, status_original: os.status ?? null } : {};
-      return apiPatch("/manutencoes/" + os.id + "/dados", { ...dados, ...transicao, versao: os.versao_dados ?? null });
+      return apiPatch("/manutencoes/" + os.id + "/dados", { ...dados, ...vinculo, ...transicao, versao: os.versao_dados ?? null });
     },
     onSuccess: () => {
       atualizar();
@@ -172,7 +198,7 @@ function FormularioOS({ os, fechar, atualizar }: { os?: Ordem; fechar: () => voi
           <div className="grid min-h-0 gap-3 overflow-y-auto px-0.5 pb-1 sm:grid-cols-2">
             <label className="space-y-1 text-sm sm:col-span-2">
               <span>Veículo</span>
-              <select name="veiculo" className={campo} required defaultValue={os?.veiculo_id ?? ""}>
+              <select name="veiculo" className={campo} required value={veiculoId} onChange={(e) => { setVeiculoId(e.target.value); if (!vinculoFechado) setPlanoId(""); }}>
                 <option value="" disabled>{veiculos.isPending ? "Carregando veículos…" : "Selecione um veículo"}</option>
                 {os?.veiculo_id && !opcoesVeiculos.some((v) => v.id === os.veiculo_id) && <option value={os.veiculo_id}>{veiculoDa(os)}</option>}
                 {opcoesVeiculos.map((v) => <option key={v.id} value={v.id}>{v.placa} · {v.modelo}</option>)}
@@ -180,7 +206,7 @@ function FormularioOS({ os, fechar, atualizar }: { os?: Ordem; fechar: () => voi
             </label>
             <label className="space-y-1 text-sm">
               <span>Tipo de manutenção</span>
-              <select name="tipo" className={campo} defaultValue={os?.tipo || "Corretiva"} required>
+              <select name="tipo" className={campo} value={tipo} onChange={(e) => { setTipo(e.target.value); if (!vinculoFechado) setPlanoId(""); }} required>
                 {os?.tipo && !["Corretiva", "Preventiva"].includes(os.tipo) && <option>{os.tipo}</option>}
                 <option>Corretiva</option><option>Preventiva</option>
               </select>
@@ -220,6 +246,27 @@ function FormularioOS({ os, fechar, atualizar }: { os?: Ordem; fechar: () => voi
                 </select>
               </label>
             )}
+            {(tipo === "Preventiva" || planoId) && (
+              <label className="space-y-1 text-sm sm:col-span-2">
+                <span>Plano preventivo</span>
+                <select className={campo} disabled={vinculoFechado || !veiculoId}
+                  value={planoId} onChange={(e) => setPlanoId(e.target.value)}>
+                  <option value="">{planos.isFetching ? "Carregando planos…" : "Sem plano vinculado"}</option>
+                  {planoId && !plano && <option value={planoId}>Plano vinculado · {planoId.slice(0, 8)}</option>}
+                  {elegiveis.map((p) => <option key={p.id} value={p.id}>{p.familia} · {p.descricao}</option>)}
+                </select>
+              </label>
+            )}
+            {plano?.tipo_gatilho === "km" && (
+              <label key={plano.id} className="space-y-1 text-sm">
+                <span>Hodômetro da execução (km)</span>
+                <Input name="km_execucao" type="number" min={0} step="any" disabled={vinculoFechado}
+                  required={status === "Concluída"} defaultValue={os?.km_manutencao ?? ""} />
+              </label>
+            )}
+            {tipo === "Preventiva" && planos.isError && <p role="alert" className="text-sm text-rose-300">
+              Falha ao carregar planos. <button type="button" className="underline" onClick={() => planos.refetch()}>Recarregar</button>
+            </p>}
             {veiculos.isError && <p role="alert" className="text-sm text-rose-300">Falha ao carregar veículos. <button type="button" className="underline" onClick={() => veiculos.refetch()}>Recarregar</button></p>}
             {fornecedores.isError && <p role="alert" className="text-sm text-rose-300">Falha ao carregar fornecedores. <button type="button" className="underline" onClick={() => fornecedores.refetch()}>Recarregar</button></p>}
           </div>
@@ -393,6 +440,7 @@ export default function Manutencoes() {
   function atualizar() {
     void qc.invalidateQueries({ queryKey: ["manutencoes-painel"] });
     void qc.invalidateQueries({ queryKey: ["manutencoes-historico"] });
+    void qc.invalidateQueries({ queryKey: ["planos-manutencao"] });
     void qc.invalidateQueries({ queryKey: ["manutencoes"] });
     void qc.invalidateQueries({ queryKey: ["acoplamentos"] });
   }

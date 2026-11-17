@@ -14,6 +14,7 @@ class ManutencaoCreate(BaseModel):
     custo: float = 0.0
     oficina: Optional[str] = None
     fornecedor_id: Optional[str] = None
+    plano_manutencao_id: Optional[str] = None
     km_manutencao: Optional[float] = None
     proxima_revisao_km: Optional[float] = None
     pecas_substituidas: Optional[str] = None
