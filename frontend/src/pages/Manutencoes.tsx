@@ -1,13 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Plus, Search, Wrench } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Plus, Search, Wrench } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiGetBlob, apiPatch, apiPost } from "@/lib/api";
 import { brl } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -262,13 +262,34 @@ export default function Manutencoes() {
     return () => clearTimeout(timer);
   }, [entrada]);
 
+  function filtrosPainel() {
+    const filtros = new URLSearchParams({ etapa, busca });
+    if (de) filtros.set("de", de);
+    if (ate) filtros.set("ate", ate);
+    return filtros;
+  }
+
+  const exportacao = useMutation({
+    mutationFn: (filtros: URLSearchParams) => apiGetBlob("/manutencoes/painel/exportar?" + filtros),
+    onSuccess: (arquivo) => {
+      const url = URL.createObjectURL(arquivo);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "ordens-de-servico.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+    onError: (erro: Error) => toast.error(erro.message || "Falha ao exportar ordens de serviço."),
+  });
+
   const consulta = useQuery({
     queryKey: ["manutencoes-painel", etapa, busca, pagina, de, ate],
     enabled: !periodoInvalido,
     queryFn: () => {
-      const filtros = new URLSearchParams({ etapa, busca, pagina: String(pagina) });
-      if (de) filtros.set("de", de);
-      if (ate) filtros.set("ate", ate);
+      const filtros = filtrosPainel();
+      filtros.set("pagina", String(pagina));
       return apiGet<Painel>("/manutencoes/painel?" + filtros);
     },
   });
@@ -306,7 +327,13 @@ export default function Manutencoes() {
   return (
     <section>
       <PageHeader eyebrow="Manutenção" title="Ordens de serviço"
-        actions={<Button onClick={() => abrirNova(true)}><Plus className="size-4" /> Nova OS</Button>} />
+        actions={<>
+          <Button variant="outline" disabled={!painel?.total || periodoInvalido || entrada.trim() !== busca || exportacao.isPending}
+            onClick={() => exportacao.mutate(filtrosPainel())}>
+            <Download className="size-4" /> {exportacao.isPending ? "Exportando…" : "Exportar CSV"}
+          </Button>
+          <Button onClick={() => abrirNova(true)}><Plus className="size-4" /> Nova OS</Button>
+        </>} />
       <fieldset className="mb-5 rounded-xl border border-slate-800 bg-slate-900/60 px-4 pb-4">
         <legend className="px-2 text-sm font-medium text-slate-200">Período de abertura da OS</legend>
         <div className="flex flex-wrap items-end gap-3">

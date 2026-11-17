@@ -1,4 +1,9 @@
+import csv
+import io
+from decimal import Decimal, InvalidOperation
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from lib.dates import now_iso
 from lib.db import client, db
 from lib.security import require
@@ -195,16 +200,7 @@ def filtro_periodo_painel(de: date | None, ate: date | None) -> dict:
     return {"$or": [{"data": texto}, {"data": data_bson}]}
 
 
-@router.get("/painel")
-async def painel(
-    etapa: FiltroOS = "Todas",
-    busca: str = Query("", max_length=120),
-    pagina: int = Query(1, ge=1, le=100000),
-    de: date | None = None,
-    ate: date | None = None,
-    _u: dict = Depends(require("read")),
-):
-    por_pagina = 12
+def consulta_painel(busca: str, de: date | None, ate: date | None) -> dict:
     busca = busca.strip()
     consulta = {}
     if busca:
@@ -215,12 +211,11 @@ async def painel(
     periodo = filtro_periodo_painel(de, ate)
     if periodo:
         consulta = {"$and": [consulta, periodo]} if consulta else periodo
-    filtro = consulta_etapa(etapa)
-    registros = [
-        {"$match": filtro},
-        {"$sort": {"data": -1, "created_at": -1, "_id": -1}},
-        {"$skip": (pagina - 1) * por_pagina},
-        {"$limit": por_pagina},
+    return consulta
+
+
+ORDEM_PAINEL = {"data": -1, "created_at": -1, "_id": -1}
+FORNECEDOR_PAINEL = [
         {"$lookup": {
             "from": "fornecedores", "localField": "fornecedor_id",
             "foreignField": "id", "as": "fornecedor_atual",
@@ -229,6 +224,97 @@ async def painel(
             "$fornecedor_nome", {"$arrayElemAt": ["$fornecedor_atual.nome", 0]}
         ]}}},
         {"$project": {"_id": 0, "fornecedor_atual": 0}},
+]
+
+
+def texto_csv(valor) -> str:
+    texto = "" if valor is None else str(valor)
+    if texto.startswith(("\t", "\n", "\r")) or texto.lstrip().startswith(("=", "+", "-", "@", "＝", "＋", "－", "＠")):
+        return "'" + texto
+    return texto
+
+
+def valor_csv(os: dict) -> str:
+    valor = os.get("custo")
+    if valor is None:
+        valor = os.get("valor")
+    try:
+        numero = Decimal(str(valor))
+        return format(numero, ".2f").replace(".", ",") if numero.is_finite() else ""
+    except InvalidOperation:
+        return ""
+
+
+async def gerar_csv(cursor):
+    buffer = io.StringIO(newline="")
+    writer = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
+
+    def linha(campos):
+        buffer.seek(0)
+        buffer.truncate()
+        writer.writerow(campos)
+        return buffer.getvalue()
+
+    try:
+        yield "\ufeff" + linha([
+            "OS", "Data de abertura", "Veículo", "Descrição", "Tipo",
+            "Fornecedor", "Oficina", "Status", "Valor (R$)",
+        ])
+        async for os in cursor:
+            etapa = etapa_atual(os.get("status"))
+            status = os.get("status") if etapa == "Outras" else etapa
+            campos = [
+                os.get("id"), os.get("data"), os.get("veiculo_label") or os.get("veiculo_placa"),
+                os.get("descricao"), os.get("tipo"), os.get("fornecedor_nome"),
+                os.get("oficina"), status,
+            ]
+            yield linha([*(texto_csv(campo) for campo in campos), valor_csv(os)])
+    finally:
+        await cursor.close()
+
+
+@router.get("/painel/exportar")
+async def exportar_painel(
+    etapa: FiltroOS = "Todas",
+    busca: str = Query("", max_length=120),
+    de: date | None = None,
+    ate: date | None = None,
+    _u: dict = Depends(require("read")),
+):
+    cursor = db.manutencoes.aggregate([
+        {"$match": consulta_painel(busca, de, ate)},
+        {"$match": consulta_etapa(etapa)},
+        {"$sort": ORDEM_PAINEL},
+        *FORNECEDOR_PAINEL,
+    ], allowDiskUse=True)
+    return StreamingResponse(
+        gerar_csv(cursor),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="ordens-de-servico.csv"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@router.get("/painel")
+async def painel(
+    etapa: FiltroOS = "Todas",
+    busca: str = Query("", max_length=120),
+    pagina: int = Query(1, ge=1, le=100000),
+    de: date | None = None,
+    ate: date | None = None,
+    _u: dict = Depends(require("read")),
+):
+    por_pagina = 12
+    consulta = consulta_painel(busca, de, ate)
+    filtro = consulta_etapa(etapa)
+    registros = [
+        {"$match": filtro},
+        {"$sort": ORDEM_PAINEL},
+        {"$skip": (pagina - 1) * por_pagina},
+        {"$limit": por_pagina},
+        *FORNECEDOR_PAINEL,
     ]
     base_resumo = resumo_painel(filtro)
     resultado = await db.manutencoes.aggregate([

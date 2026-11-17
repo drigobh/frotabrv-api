@@ -45,6 +45,12 @@ export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, { headers: getHeaders(), credentials: "include" });
   return handleResponse<T>(res);
 }
+export async function apiGetBlob(path: string): Promise<Blob> {
+  const res = await fetch(`${BASE_URL}${path}`, { headers: getHeaders(), credentials: "include" });
+  if (!res.ok) await handleResponse(res);
+  return res.blob();
+}
+
 export async function apiPost<T>(path: string, body?: any): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, { method: "POST", headers: getHeaders(), body: body ? JSON.stringify(body) : undefined, credentials: "include" });
   return handleResponse<T>(res);
