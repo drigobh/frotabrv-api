@@ -214,7 +214,28 @@ def consulta_painel(busca: str, de: date | None, ate: date | None) -> dict:
     return consulta
 
 
-ORDEM_PAINEL = {"data": -1, "created_at": -1, "_id": -1}
+OrdemPainel = Literal["recentes", "antigas", "maior_valor", "menor_valor"]
+
+
+def ordenar_painel(ordem: OrdemPainel) -> list[dict]:
+    if ordem == "antigas":
+        return [{"$sort": {"data": 1, "created_at": 1, "_id": 1}}]
+
+    recentes = {"data": -1, "created_at": -1, "_id": -1}
+    if ordem == "recentes":
+        return [{"$sort": recentes}]
+
+    direcao = -1 if ordem == "maior_valor" else 1
+    return [
+        {"$set": {"ordem_painel_valor": {"$convert": {
+            "input": {"$ifNull": ["$custo", "$valor"]},
+            "to": "decimal", "onError": None, "onNull": None,
+        }}}},
+        {"$set": {"ordem_painel_sem_valor": {"$eq": ["$ordem_painel_valor", None]}}},
+        {"$sort": {"ordem_painel_sem_valor": 1, "ordem_painel_valor": direcao, **recentes}},
+        {"$unset": ["ordem_painel_valor", "ordem_painel_sem_valor"]},
+    ]
+
 FORNECEDOR_PAINEL = [
         {"$lookup": {
             "from": "fornecedores", "localField": "fornecedor_id",
@@ -276,6 +297,7 @@ async def gerar_csv(cursor):
 @router.get("/painel/exportar")
 async def exportar_painel(
     etapa: FiltroOS = "Todas",
+    ordem: OrdemPainel = "recentes",
     busca: str = Query("", max_length=120),
     de: date | None = None,
     ate: date | None = None,
@@ -284,7 +306,7 @@ async def exportar_painel(
     cursor = db.manutencoes.aggregate([
         {"$match": consulta_painel(busca, de, ate)},
         {"$match": consulta_etapa(etapa)},
-        {"$sort": ORDEM_PAINEL},
+        *ordenar_painel(ordem),
         *FORNECEDOR_PAINEL,
     ], allowDiskUse=True)
     return StreamingResponse(
@@ -300,6 +322,7 @@ async def exportar_painel(
 @router.get("/painel")
 async def painel(
     etapa: FiltroOS = "Todas",
+    ordem: OrdemPainel = "recentes",
     busca: str = Query("", max_length=120),
     pagina: int = Query(1, ge=1, le=100000),
     de: date | None = None,
@@ -311,7 +334,7 @@ async def painel(
     filtro = consulta_etapa(etapa)
     registros = [
         {"$match": filtro},
-        {"$sort": ORDEM_PAINEL},
+        *ordenar_painel(ordem),
         {"$skip": (pagina - 1) * por_pagina},
         {"$limit": por_pagina},
         *FORNECEDOR_PAINEL,

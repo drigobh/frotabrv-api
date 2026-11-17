@@ -16,6 +16,14 @@ const ETAPAS = [
 ] as const;
 type Etapa = typeof ETAPAS[number];
 
+const ORDENACOES = {
+  recentes: "Mais recentes",
+  antigas: "Mais antigas",
+  maior_valor: "Maior valor",
+  menor_valor: "Menor valor",
+} as const;
+type OrdemPainel = keyof typeof ORDENACOES;
+
 const PROXIMAS: Partial<Record<Etapa, Etapa[]>> = {
   "Aguardando aprovação": ["Em execução", "Cancelada"],
   "Aguardando peça": ["Em execução", "Cancelada"],
@@ -233,6 +241,7 @@ export default function Manutencoes() {
   const [entrada, setEntrada] = useState("");
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(1);
+  const [ordem, setOrdem] = useState<OrdemPainel>("recentes");
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const periodoInvalido = Boolean(de && ate && de > ate);
@@ -263,7 +272,7 @@ export default function Manutencoes() {
   }, [entrada]);
 
   function filtrosPainel() {
-    const filtros = new URLSearchParams({ etapa, busca });
+    const filtros = new URLSearchParams({ etapa, busca, ordem });
     if (de) filtros.set("de", de);
     if (ate) filtros.set("ate", ate);
     return filtros;
@@ -285,7 +294,7 @@ export default function Manutencoes() {
   });
 
   const consulta = useQuery({
-    queryKey: ["manutencoes-painel", etapa, busca, pagina, de, ate],
+    queryKey: ["manutencoes-painel", etapa, busca, pagina, de, ate, ordem],
     enabled: !periodoInvalido,
     queryFn: () => {
       const filtros = filtrosPainel();
@@ -374,6 +383,15 @@ export default function Manutencoes() {
             <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
             <Input value={entrada} maxLength={120} className="pl-9" placeholder="Buscar por código, placa ou serviço"
               onChange={(event) => setEntrada(event.target.value)} />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <span className="whitespace-nowrap">Ordenar por</span>
+            <select value={ordem} className={campo} onChange={(event) => {
+              setOrdem(event.target.value as OrdemPainel);
+              setPagina(1);
+            }}>
+              {Object.entries(ORDENACOES).map(([valor, rotulo]) => <option key={valor} value={valor}>{rotulo}</option>)}
+            </select>
           </label>
           {painel && <p className="text-sm text-slate-400" aria-live="polite">{painel.total} {painel.total === 1 ? "ordem" : "ordens"}</p>}
         </div>
