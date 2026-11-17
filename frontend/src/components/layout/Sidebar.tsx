@@ -79,7 +79,7 @@ const MENUS = [
   {
     id: "manutencao", label: "Manutenção", icon: Wrench,
     items: [
-      { label: "Plano de Manutenção", icon: CalendarClock, path: "/agendamento" },
+      { label: "Agendamento Preventivo", icon: CalendarClock, path: "/agendamento" },
       { label: "Gestão de Manutenção", icon: Wrench, path: "/admin/manutencoes" },
     ]
   },

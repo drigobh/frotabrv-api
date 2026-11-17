@@ -11,6 +11,8 @@ class PlanoManutencaoCreate(BaseModel):
     unidade_tempo: Optional[str] = None
     intervalo: float
     ultima_execucao_km: Optional[float] = None
+    ultima_execucao_horas: Optional[float] = None
+    horimetro_atual: Optional[float] = None
     ultima_execucao_data: Optional[str] = None
     data_abertura: str
     ativo: bool = True

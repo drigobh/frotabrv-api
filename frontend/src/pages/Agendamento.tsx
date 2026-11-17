@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarClock, Wrench, AlertTriangle, CheckCircle2, Search, X, Gauge, Info, User } from "lucide-react";
 import { apiGet } from "@/lib/api";
@@ -52,22 +53,31 @@ export default function PlanoManutencao() {
 
       if (!ativo) return null;
 
-      const kmAtual = ativo.hodometro_km || 0;
-      const ultimaExecucaoKm = p.ultima_execucao_km ?? 0;
+      const kmAtual = ativo.hodometro_km;
+      const ultimaExecucaoKm = p.ultima_execucao_km;
       const intervalo = p.intervalo;
       const vitalicioExecutado = p.tipo_recorrencia === "vitalicio" &&
-        Boolean(p.ultima_execucao_data || p.ultima_execucao_km != null);
+        Boolean(p.ultima_execucao_data || (p.tipo_gatilho === "km" && p.ultima_execucao_km != null) || (p.tipo_gatilho === "horas" && p.ultima_execucao_horas != null));
 
       let falta = 0;
       let limiteAtencao = 0;
       let gatilho = "—";
       let unidade = "";
-      if (!vitalicioExecutado && p.tipo_gatilho === "km" && Number.isFinite(intervalo) && intervalo > 0) {
+      const intervaloValido = Number.isFinite(intervalo) && intervalo > 0;
+      if (!vitalicioExecutado && p.tipo_gatilho === "km" && intervaloValido &&
+          Number.isFinite(kmAtual) && Number.isFinite(ultimaExecucaoKm)) {
         const proximoKm = ultimaExecucaoKm + intervalo;
         falta = proximoKm - kmAtual;
         limiteAtencao = 5000;
         gatilho = proximoKm.toLocaleString("pt-BR") + " km";
         unidade = "km";
+      } else if (!vitalicioExecutado && p.tipo_gatilho === "horas" && intervaloValido &&
+          Number.isFinite(p.horimetro_atual) && Number.isFinite(p.ultima_execucao_horas)) {
+        const proximaHora = p.ultima_execucao_horas + intervalo;
+        falta = proximaHora - p.horimetro_atual;
+        limiteAtencao = intervalo * 0.1;
+        gatilho = proximaHora.toLocaleString("pt-BR") + " h";
+        unidade = "h";
       } else if (!vitalicioExecutado && p.tipo_gatilho === "dias") {
         const proxima = proximaData(p.ultima_execucao_data || p.data_abertura, intervalo, p.unidade_tempo);
         if (proxima) {
@@ -85,7 +95,9 @@ export default function PlanoManutencao() {
         ativoLabel: p.veiculo_id 
           ? `${ativo.placa} - ${ativo.modelo}` 
           : `${ativo.codigo} - ${ativo.tipo}`,
-        kmAtual,
+        leituraAtual: p.tipo_gatilho === "horas" && Number.isFinite(p.horimetro_atual)
+          ? p.horimetro_atual.toLocaleString("pt-BR") + " h"
+          : p.tipo_gatilho === "km" && Number.isFinite(kmAtual) ? kmAtual.toLocaleString("pt-BR") + " km" : "—",
         gatilho,
         falta,
         unidade,
@@ -136,8 +148,12 @@ export default function PlanoManutencao() {
     <div>
       <PageHeader
         eyebrow="Operação"
-        title="Plano de Manutenção"
-        description="Controle preditivo baseado nos planos cadastrados por família."
+        title="Agendamento Preventivo"
+        description="Acompanhe os vencimentos dos planos de manutenção."
+        actions={<>
+          <Button variant="outline" render={<Link to="/cadastros/planos-manutencao" />}>Gerenciar planos</Button>
+          <Button render={<Link to="/cadastros/planos-manutencao?novo=1" />}>Novo plano</Button>
+        </>}
       />
 
       {/* Cards de KPI */}
@@ -184,7 +200,7 @@ export default function PlanoManutencao() {
               <TableHead className="text-xs uppercase text-slate-500">Ativo</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Família</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Descrição</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">KM Atual</TableHead>
+              <TableHead className="text-xs uppercase text-slate-500">Leitura atual</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Próx. Gatilho</TableHead>
               <TableHead className="text-xs uppercase text-slate-500">Status</TableHead>
             </TableRow>
@@ -198,7 +214,7 @@ export default function PlanoManutencao() {
                   <TableCell className="font-medium text-slate-200">{p.ativoLabel}</TableCell>
                   <TableCell className="text-xs text-slate-400">{p.familia}</TableCell>
                   <TableCell className="text-xs text-slate-400">{p.descricao}</TableCell>
-                  <TableCell className="text-slate-400 font-mono">{p.kmAtual.toLocaleString('pt-BR')} km</TableCell>
+                  <TableCell className="text-slate-400 font-mono">{p.leituraAtual}</TableCell>
                   <TableCell className="text-slate-400 font-mono">{p.gatilho}</TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold ${statusColor(p.status)}`}>

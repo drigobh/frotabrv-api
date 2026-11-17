@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Wrench, Plus, Pencil, Trash2, Info, User, Gauge, Calendar, HelpCircle, X, Eye } from "lucide-react";
 import { toast } from "sonner";
@@ -33,10 +34,34 @@ const UNIDADES_TEMPO = [
   { value: "anos", label: "Anos" }
 ];
 
+const MODELOS = [
+  { id: "cavalo-motor", grupo: "Cavalo mecânico", ativo: "cavalo", familia: "Lubrificação e Filtros", gatilho: "km", descricao: "Revisão de óleo do motor e filtros. Conferir vazamentos e registrar os itens substituídos." },
+  { id: "cavalo-freios", grupo: "Cavalo mecânico", ativo: "cavalo", familia: "Segurança e Rodagem", gatilho: "km", descricao: "Inspeção de freios, pneus, rodas e sistema pneumático. Registrar desgaste e anomalias." },
+  { id: "cavalo-transmissao", grupo: "Cavalo mecânico", ativo: "cavalo", familia: "Linha Pesada e Transmissão", gatilho: "km", descricao: "Inspeção de transmissão, diferencial, cardan e cruzetas. Conferir lubrificação conforme o fabricante." },
+  { id: "carreta-rodagem", grupo: "Carreta", ativo: "carreta", familia: "Segurança e Rodagem", gatilho: "dias", descricao: "Inspeção de freios, pneus, rodas e cubos. Registrar desgaste, folgas e vazamentos." },
+  { id: "carreta-engate", grupo: "Carreta", ativo: "carreta", familia: "Chassi e Suspensão", gatilho: "dias", descricao: "Inspeção de pino-rei, mesa de acoplamento, suspensão, chassi e aparelho de levantamento." },
+  { id: "carreta-eletrica", grupo: "Carreta", ativo: "carreta", familia: "Outros", gatilho: "dias", descricao: "Inspeção de luzes, conectores, chicote elétrico, refletores e sinalização." },
+  { id: "empilhadeira-mastro", grupo: "Empilhadeira", ativo: "cavalo", familia: "Outros", gatilho: "horas", descricao: "Inspeção de garfos, mastro, correntes e sistema hidráulico. Registrar desgaste, folgas e vazamentos." },
+  { id: "empilhadeira-energia", grupo: "Empilhadeira", ativo: "cavalo", familia: "Lubrificação e Filtros", gatilho: "horas", descricao: "Revisão da fonte de energia. Conforme o modelo, verificar bateria, cabos e conexões ou motor, filtros e alimentação." },
+  { id: "empilhadeira-seguranca", grupo: "Empilhadeira", ativo: "cavalo", familia: "Segurança e Rodagem", gatilho: "dias", descricao: "Programar inspeção de freios, direção, pneus, buzina, alarmes e dispositivos de segurança." },
+] as const;
+
+const GRUPOS_MODELOS = ["Cavalo mecânico", "Carreta", "Empilhadeira"] as const;
+type ModeloPlano = typeof MODELOS[number];
+
 export default function PlanosManutencao() {
   const qc = useQueryClient();
   const { data: me } = useMe();
-  const [open, setOpen] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const [open, setOpen] = useState(() => params.get("novo") === "1");
+  function fecharPlano() {
+    setOpen(false);
+    if (params.has("novo")) {
+      const atuais = new URLSearchParams(params);
+      atuais.delete("novo");
+      setParams(atuais, { replace: true });
+    }
+  }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [excluirId, setExcluirId] = useState<string | null>(null);
   const [visualizarPlano, setVisualizarPlano] = useState<any>(null);
@@ -51,21 +76,32 @@ export default function PlanosManutencao() {
   const [form, setForm] = useState({
     veiculo_id: "", carreta_id: "", familia: FAMILIAS[0].nome, descricao: "", 
     tipo_gatilho: "km", tipo_recorrencia: "periodico", unidade_tempo: "dias",
-    intervalo: "", ultima_execucao_km: "", data_abertura: new Date().toISOString().split('T')[0]
+    intervalo: "", ultima_execucao_km: "", ultima_execucao_data: "",
+      ultima_execucao_horas: "", horimetro_atual: "", data_abertura: new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
   });
 
   const salvar = useMutation({
     mutationFn: () => {
+      if (!(tipoAtivo === "cavalo" ? form.veiculo_id : form.carreta_id)) throw new Error("Selecione o ativo.");
+      if (!form.descricao.trim()) throw new Error("Informe a descrição do serviço.");
+      const intervalo = Number(form.intervalo);
+      if (!Number.isFinite(intervalo) || intervalo <= 0 || (form.tipo_gatilho === "dias" && !Number.isInteger(intervalo))) {
+        throw new Error("Informe um intervalo positivo. Para calendário, use um número inteiro.");
+      }
       const payload = {
         ...form,
         veiculo_id: tipoAtivo === "cavalo" ? form.veiculo_id : null,
         carreta_id: tipoAtivo === "carreta" ? form.carreta_id : null,
-        intervalo: Number(form.intervalo),
-        ultima_execucao_km: form.ultima_execucao_km ? Number(form.ultima_execucao_km) : null
+        intervalo,
+        descricao: form.descricao.trim(),
+        ultima_execucao_data: form.ultima_execucao_data || null,
+        ultima_execucao_km: form.ultima_execucao_km === "" ? null : Number(form.ultima_execucao_km),
+        ultima_execucao_horas: form.ultima_execucao_horas === "" ? null : Number(form.ultima_execucao_horas),
+        horimetro_atual: form.horimetro_atual === "" ? null : Number(form.horimetro_atual),
       };
       return editingId ? apiPut(`/planos-manutencao/${editingId}`, payload) : apiPost("/planos-manutencao", payload);
     },
-    onSuccess: () => { toast.success("Plano salvo!"); setOpen(false); qc.invalidateQueries({ queryKey: ["planos-manutencao"] }); },
+    onSuccess: () => { toast.success("Plano salvo!"); fecharPlano(); qc.invalidateQueries({ queryKey: ["planos-manutencao"] }); },
     onError: (e: any) => toast.error(e.message || "Erro")
   });
 
@@ -85,14 +121,16 @@ export default function PlanosManutencao() {
     }
   };
 
-  const abrirNovo = () => {
+  const abrirNovo = (modelo?: ModeloPlano) => {
     setEditingId(null);
-    setTipoAtivo("cavalo");
+    setTipoAtivo(modelo?.ativo ?? "cavalo");
     setHodometroAtual(null);
     setForm({ 
       veiculo_id: "", carreta_id: "", familia: FAMILIAS[0].nome, descricao: "", 
       tipo_gatilho: "km", tipo_recorrencia: "periodico", unidade_tempo: "dias",
-      intervalo: "", ultima_execucao_km: "", data_abertura: new Date().toISOString().split('T')[0] 
+      intervalo: "", ultima_execucao_km: "", ultima_execucao_data: "",
+      ultima_execucao_horas: "", horimetro_atual: "", data_abertura: new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" }),
+      ...(modelo ? { familia: modelo.familia, descricao: modelo.descricao, tipo_gatilho: modelo.gatilho } : {}),
     });
     setOpen(true);
   };
@@ -100,8 +138,14 @@ export default function PlanosManutencao() {
   const abrirEdicao = (r: any) => {
     setEditingId(r.id);
     setTipoAtivo(r.carreta_id ? "carreta" : "cavalo");
-    setHodometroAtual(null);
-    setForm({ ...r, intervalo: String(r.intervalo), ultima_execucao_km: String(r.ultima_execucao_km || "") });
+    buscarHodometro(r.carreta_id || r.veiculo_id, r.carreta_id ? "carreta" : "cavalo");
+    setForm({
+      ...r, intervalo: String(r.intervalo),
+      ultima_execucao_km: String(r.ultima_execucao_km ?? ""),
+      ultima_execucao_data: r.ultima_execucao_data?.slice(0, 10) ?? "",
+      ultima_execucao_horas: String(r.ultima_execucao_horas ?? ""),
+      horimetro_atual: String(r.horimetro_atual ?? ""),
+    });
     setOpen(true);
   };
 
@@ -113,9 +157,26 @@ export default function PlanosManutencao() {
         eyebrow="Cadastros"
         title="Cadastro de Planos Preventivos"
         description="Defina os gatilhos e intervalos por família de componentes."
-        actions={<Button onClick={abrirNovo} className="bg-sky-600 hover:bg-sky-500 h-9"><Plus className="size-4 mr-2" /> Novo Plano</Button>}
+        actions={<Button onClick={() => abrirNovo()} className="bg-sky-600 hover:bg-sky-500 h-9"><Plus className="size-4 mr-2" /> Novo Plano</Button>}
       />
 
+      <details className="mt-4 rounded-xl border border-slate-800 p-4">
+        <summary className="cursor-pointer font-medium text-slate-100">Modelos de planos preventivos</summary>
+        <p className="mt-2 text-sm text-slate-400">Escolha um modelo, selecione o ativo e informe o intervalo previsto no manual do fabricante.</p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          {GRUPOS_MODELOS.map((grupo) => (
+            <section key={grupo} className="space-y-2">
+              <h2 className="text-sm font-semibold text-slate-200">{grupo}</h2>
+              {MODELOS.filter((modelo) => modelo.grupo === grupo).map((modelo) => (
+                <button key={modelo.id} type="button" onClick={() => abrirNovo(modelo)}
+                  className="block w-full rounded-lg border border-slate-800 px-3 py-2 text-left text-sm text-slate-300 hover:border-sky-500 hover:text-slate-100">
+                  {modelo.descricao}
+                </button>
+              ))}
+            </section>
+          ))}
+        </div>
+      </details>
       <div className="glass overflow-hidden rounded-2xl mt-4">
         <Table>
           <TableHeader>
@@ -158,7 +219,7 @@ export default function PlanosManutencao() {
             
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900 rounded-t-2xl">
               <h2 className="text-lg font-bold text-slate-100">{editingId ? "Editar Plano" : "Novo Plano"}</h2>
-              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white"><X className="size-5" /></button>
+              <button onClick={fecharPlano} className="text-slate-400 hover:text-white"><X className="size-5" /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
@@ -190,13 +251,13 @@ export default function PlanosManutencao() {
                 {/* COLUNA DIREITA */}
                 <div className="flex-1 flex flex-col gap-4">
                   <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-700">
-                    <button className={`flex-1 py-2 text-sm rounded-md font-medium ${tipoAtivo === 'cavalo' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('cavalo'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); setHodometroAtual(null); }}>Cavalo Mecânico</button>
+                    <button className={`flex-1 py-2 text-sm rounded-md font-medium ${tipoAtivo === 'cavalo' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('cavalo'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); setHodometroAtual(null); }}>Veículo / Empilhadeira</button>
                     <button className={`flex-1 py-2 text-sm rounded-md font-medium ${tipoAtivo === 'carreta' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`} onClick={() => { setTipoAtivo('carreta'); setForm(s => ({ ...s, veiculo_id: '', carreta_id: '' })); setHodometroAtual(null); }}>Carreta / Semi</button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-1.5">
-                      <Label className="text-xs text-slate-400">{tipoAtivo === 'cavalo' ? 'Cavalo Mecânico' : 'Carreta'}</Label>
+                      <Label className="text-xs text-slate-400">{tipoAtivo === 'cavalo' ? 'Veículo ou empilhadeira' : 'Carreta'}</Label>
                       {tipoAtivo === 'cavalo' ? (
                         <FieldSelect value={form.veiculo_id} onChange={(v) => { setForm(s => ({ ...s, veiculo_id: v })); buscarHodometro(v, 'cavalo'); }} options={(veiculos.data ?? []).map((v: any) => ({ value: v.id, label: `${v.placa} - ${v.modelo}` }))} placeholder="Selecione..." />
                       ) : (
@@ -254,6 +315,22 @@ export default function PlanosManutencao() {
                     </div>
                   )}
 
+                  {form.tipo_gatilho === "horas" && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="grid gap-1.5 text-xs text-slate-400">Horímetro atual (h)
+                        <Input type="number" min={0} step="any" value={form.horimetro_atual}
+                          onChange={(e) => setForm(s => ({ ...s, horimetro_atual: e.target.value }))} />
+                      </label>
+                      <label className="grid gap-1.5 text-xs text-slate-400">Horímetro da última execução (h)
+                        <Input type="number" min={0} step="any" value={form.ultima_execucao_horas}
+                          onChange={(e) => setForm(s => ({ ...s, ultima_execucao_horas: e.target.value }))} />
+                      </label>
+                    </div>
+                  )}
+                  <label className="grid gap-1.5 text-xs text-slate-400">Data da última execução
+                    <Input type="date" value={form.ultima_execucao_data}
+                      onChange={(e) => setForm(s => ({ ...s, ultima_execucao_data: e.target.value }))} />
+                  </label>
                   <div className="grid gap-1.5">
                     <Label className="text-xs text-slate-400 flex items-center gap-1"><Calendar className="size-3" /> Data de Abertura do Plano</Label>
                     <Input value={form.data_abertura ? form.data_abertura.split("-").reverse().join("/") : ""} disabled className="bg-slate-800/50 text-slate-400 cursor-not-allowed border-slate-700 h-9" />
@@ -263,7 +340,7 @@ export default function PlanosManutencao() {
             </div>
 
             <div className="flex items-center justify-end px-6 py-4 border-t border-slate-800 gap-3 bg-slate-900 rounded-b-2xl">
-              <Button variant="outline" onClick={() => setOpen(false)} className="h-9">Cancelar</Button>
+              <Button variant="outline" onClick={fecharPlano} className="h-9">Cancelar</Button>
               <Button onClick={() => salvar.mutate()} disabled={salvar.isPending} className="h-9 bg-sky-600 hover:bg-sky-500">{salvar.isPending ? "Salvando..." : "Salvar Plano"}</Button>
             </div>
           </div>
