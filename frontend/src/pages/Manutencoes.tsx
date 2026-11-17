@@ -233,6 +233,23 @@ export default function Manutencoes() {
   const [entrada, setEntrada] = useState("");
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(1);
+  const [de, setDe] = useState("");
+  const [ate, setAte] = useState("");
+  const periodoInvalido = Boolean(de && ate && de > ate);
+
+  function aplicarPeriodo(inicio: string, fim: string) {
+    setDe(inicio);
+    setAte(fim);
+    setPagina(1);
+  }
+
+  function selecionarMes(deslocamento: number) {
+    const [ano, mes] = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" }).split("-").map(Number);
+    const indiceMes = mes - 1 + deslocamento;
+    const inicio = new Date(Date.UTC(ano, indiceMes, 1)).toISOString().slice(0, 10);
+    const fim = new Date(Date.UTC(ano, indiceMes + 1, 0)).toISOString().slice(0, 10);
+    aplicarPeriodo(inicio, fim);
+  }
   const [edicao, setEdicao] = useState<Ordem>();
   const [exclusao, setExclusao] = useState<Ordem>();
   const nova = params.get("nova-os") === "1";
@@ -246,9 +263,12 @@ export default function Manutencoes() {
   }, [entrada]);
 
   const consulta = useQuery({
-    queryKey: ["manutencoes-painel", etapa, busca, pagina],
+    queryKey: ["manutencoes-painel", etapa, busca, pagina, de, ate],
+    enabled: !periodoInvalido,
     queryFn: () => {
       const filtros = new URLSearchParams({ etapa, busca, pagina: String(pagina) });
+      if (de) filtros.set("de", de);
+      if (ate) filtros.set("ate", ate);
       return apiGet<Painel>("/manutencoes/painel?" + filtros);
     },
   });
@@ -287,6 +307,27 @@ export default function Manutencoes() {
     <section>
       <PageHeader eyebrow="Manutenção" title="Ordens de serviço"
         actions={<Button onClick={() => abrirNova(true)}><Plus className="size-4" /> Nova OS</Button>} />
+      <fieldset className="mb-5 rounded-xl border border-slate-800 bg-slate-900/60 px-4 pb-4">
+        <legend className="px-2 text-sm font-medium text-slate-200">Período de abertura da OS</legend>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="space-y-1 text-sm text-slate-300">
+            <span>De</span>
+            <Input type="date" value={de} aria-invalid={periodoInvalido}
+              onChange={(event) => aplicarPeriodo(event.target.value, ate)} />
+          </label>
+          <label className="space-y-1 text-sm text-slate-300">
+            <span>Até</span>
+            <Input type="date" value={ate} aria-invalid={periodoInvalido}
+              onChange={(event) => aplicarPeriodo(de, event.target.value)} />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => selecionarMes(0)}>Este mês</Button>
+            <Button type="button" variant="outline" onClick={() => selecionarMes(-1)}>Mês anterior</Button>
+            <Button type="button" variant="ghost" disabled={!de && !ate} onClick={() => aplicarPeriodo("", "")}>Limpar período</Button>
+          </div>
+        </div>
+        {periodoInvalido && <p role="alert" className="mt-2 text-sm text-rose-300">A data final deve ser igual ou posterior à inicial.</p>}
+      </fieldset>
       <CardsManutencao painel={painel} etapa={etapa} />
       <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
         <nav aria-label="Etapas das ordens de serviço" className="flex flex-wrap gap-2 border-b border-slate-800 p-3">
@@ -309,7 +350,7 @@ export default function Manutencoes() {
           </label>
           {painel && <p className="text-sm text-slate-400" aria-live="polite">{painel.total} {painel.total === 1 ? "ordem" : "ordens"}</p>}
         </div>
-        {consulta.isPending ? <p role="status" className="p-8 text-center text-slate-400">Carregando ordens…</p> : consulta.isError ? (
+        {periodoInvalido ? null : consulta.isPending ? <p role="status" className="p-8 text-center text-slate-400">Carregando ordens…</p> : consulta.isError ? (
           <div role="alert" className="flex flex-wrap items-center gap-3 p-5 text-rose-300">
             {consulta.error.message}<Button variant="outline" onClick={() => consulta.refetch()}>Tentar novamente</Button>
           </div>

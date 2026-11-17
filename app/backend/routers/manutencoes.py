@@ -6,7 +6,7 @@ from models.manutencoes import Manutencao, ManutencaoCreate
 import uuid
 from typing import Literal
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 import re
 
@@ -177,11 +177,31 @@ def ranking_veiculos(base: list[dict], ordem: dict) -> list[dict]:
     ]
 
 
+def filtro_periodo_painel(de: date | None, ate: date | None) -> dict:
+    if de and ate and de > ate:
+        raise HTTPException(422, "A data inicial deve ser anterior ou igual à data final.")
+    if not de and not ate:
+        return {}
+
+    texto = {"$type": "string"}
+    data_bson = {"$type": "date"}
+    for operador, limite in (
+        ("$gte", de),
+        ("$lt", ate + timedelta(days=1) if ate and ate != date.max else None),
+    ):
+        if limite is not None:
+            texto[operador] = limite.isoformat()
+            data_bson[operador] = datetime.combine(limite, datetime.min.time())
+    return {"$or": [{"data": texto}, {"data": data_bson}]}
+
+
 @router.get("/painel")
 async def painel(
     etapa: FiltroOS = "Todas",
     busca: str = Query("", max_length=120),
     pagina: int = Query(1, ge=1, le=100000),
+    de: date | None = None,
+    ate: date | None = None,
     _u: dict = Depends(require("read")),
 ):
     por_pagina = 12
@@ -192,6 +212,9 @@ async def painel(
         consulta = {"$or": [
             {campo: {"$regex": re.escape(busca), "$options": "i"}} for campo in campos
         ]}
+    periodo = filtro_periodo_painel(de, ate)
+    if periodo:
+        consulta = {"$and": [consulta, periodo]} if consulta else periodo
     filtro = consulta_etapa(etapa)
     registros = [
         {"$match": filtro},
