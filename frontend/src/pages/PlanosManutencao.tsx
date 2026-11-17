@@ -8,7 +8,6 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FieldSelect } from "@/components/common/FieldSelect";
 import { useVeiculos } from "@/hooks/useCadastros";
 import { useAcoesApi, useMe } from "@/hooks/useSession";
@@ -178,40 +177,40 @@ export default function PlanosManutencao() {
           ))}
         </div>
       </details>}
-      <div className="glass overflow-hidden rounded-2xl mt-4">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-slate-800">
-              <TableHead className="text-xs uppercase text-slate-500">Ativo</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Família</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Descrição</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Gatilho</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Recorrência</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500 text-center">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+      <section aria-label="Planos cadastrados" className="glass mt-4 min-w-0 rounded-2xl border border-slate-800">
+        <div aria-hidden="true" className="hidden xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,2.4fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_7.5rem] gap-3 border-b border-slate-800 px-4 py-3 text-xs uppercase text-slate-400 xl:grid">
+          <span>Ativo</span><span>Família</span><span>Descrição</span><span>Gatilho</span><span>Recorrência</span><span>Ações</span>
+        </div>
+        {planos.length ? (
+          <ul className="divide-y divide-slate-800">
             {planos.map((p: any) => (
-              <TableRow key={p.id} className="border-slate-800 hover:bg-slate-800/30">
-                <TableCell className="text-slate-200 font-medium">{p.veiculo_label}</TableCell>
-                <TableCell className="text-slate-400">{p.familia}</TableCell>
-                <TableCell className="text-slate-400">{p.descricao}</TableCell>
-                <TableCell className="text-xs text-slate-400">
-                  A cada {p.intervalo} {p.tipo_gatilho === 'km' ? 'km' : p.tipo_gatilho === 'horas' ? 'horas' : p.unidade_tempo}
-                </TableCell>
-                <TableCell className="text-xs text-slate-400">
-                  {p.tipo_recorrencia === 'vitalicio' ? 'Vitalício' : 'Periódico'}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Button size="icon-sm" variant="ghost" onClick={() => setVisualizarPlano(p)} title="Ver Detalhes"><Eye className="size-4 text-emerald-400" /></Button>
+              <li key={p.id} className="grid min-w-0 grid-cols-1 gap-3 px-4 py-4 text-sm sm:grid-cols-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,2.4fr)_minmax(0,0.85fr)_minmax(0,0.8fr)_7.5rem] xl:items-start">
+                <div className="min-w-0 break-words font-medium text-slate-200">
+                  <span className="mb-1 block text-xs text-slate-500 xl:sr-only">Ativo</span>{p.veiculo_label}
+                </div>
+                <div className="min-w-0 break-words text-slate-400">
+                  <span className="mb-1 block text-xs text-slate-500 xl:sr-only">Família</span>{p.familia}
+                </div>
+                <div className="min-w-0 whitespace-pre-wrap break-words text-slate-400 sm:col-span-2 xl:col-span-1">
+                  <span className="mb-1 block text-xs text-slate-500 xl:sr-only">Descrição</span>{p.descricao}
+                </div>
+                <div className="min-w-0 break-words text-slate-400">
+                  <span className="mb-1 block text-xs text-slate-500 xl:sr-only">Gatilho</span>
+                  A cada {p.intervalo} {p.tipo_gatilho === "km" ? "km" : p.tipo_gatilho === "horas" ? "horas" : p.unidade_tempo}
+                </div>
+                <div className="min-w-0 break-words text-slate-400">
+                  <span className="mb-1 block text-xs text-slate-500 xl:sr-only">Recorrência</span>{p.tipo_recorrencia === "vitalicio" ? "Vitalício" : "Periódico"}
+                </div>
+                <div className="flex min-w-0 flex-wrap items-center gap-1">
+                  <Button size="icon-sm" variant="ghost" aria-label="Ver detalhes" onClick={() => setVisualizarPlano(p)}><Eye className="size-4 text-emerald-400" /></Button>
                   {podeEscrever && <Button size="icon-sm" variant="ghost" aria-label="Editar plano" onClick={() => abrirEdicao(p)}><Pencil className="size-4 text-sky-400" /></Button>}
                   {podeExcluir && <Button size="icon-sm" variant="ghost" aria-label="Excluir plano" onClick={() => setExcluirId(p.id)}><Trash2 className="size-4 text-red-300" /></Button>}
-                </TableCell>
-              </TableRow>
+                </div>
+              </li>
             ))}
-          </TableBody>
-        </Table>
-      </div>
+          </ul>
+        ) : <p className="px-4 py-6 text-sm text-slate-400">Nenhum plano cadastrado.</p>}
+      </section>
 
       {/* MODAL EXPANDIDO */}
       {podeEscrever && open && (
