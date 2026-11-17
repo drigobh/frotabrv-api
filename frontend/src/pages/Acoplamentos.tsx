@@ -21,6 +21,7 @@ type Conflito = {
 };
 
 const SEM_VINCULO = "__sem_vinculo__";
+const HISTORICO_GERAL = "geral";
 
 function formatarData(valor: string | null) {
   if (!valor) return "Não registrado";
@@ -42,13 +43,13 @@ export default function Acoplamentos() {
   const motoristas = useMotoristas();
   const carretas = useCarretas();
   const q = useQuery({ queryKey: ["acoplamentos"], queryFn: () => apiGet<any[]>("/acoplamentos") });
-  const histQuery = useQuery({ queryKey: ["acoplamento-historico", historicoId], queryFn: () => apiGet<any[]>(`/acoplamentos/${historicoId}/historico`), enabled: !!historicoId });
+  const histQuery = useQuery({ queryKey: ["acoplamento-historico", historicoId], queryFn: () => apiGet<any[]>(historicoId === HISTORICO_GERAL ? "/acoplamentos/historico" : `/acoplamentos/${historicoId}/historico`), enabled: !!historicoId });
   const rows = q.data ?? [];
   const [form, setForm] = useState({ veiculo_id: "", carreta_id: "", motorista_id: "", data_inicio: "", data_fim: "" });
 
   const atualizarDisponibilidade = async () => {
     await Promise.all(
-      [["acoplamentos"], ["veiculos"], ["carretas"], ["motoristas"]]
+      [["acoplamentos"], ["acoplamento-historico"], ["veiculos"], ["carretas"], ["motoristas"]]
         .map((queryKey) => qc.invalidateQueries({ queryKey })),
     );
   };
@@ -110,7 +111,7 @@ export default function Acoplamentos() {
 
   return (
     <div>
-      <PageHeader eyebrow="Operação" title="Acoplamentos" description="Vincule motoristas aos veículos." actions={<Button onClick={abrirNovo}><Plus className="size-4 mr-2" /> Novo</Button>} />
+      <PageHeader eyebrow="Operação" title="Acoplamentos" description="Vincule motoristas aos veículos." actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setHistoricoId(HISTORICO_GERAL)}><History className="size-4" /> Histórico geral</Button><Button onClick={abrirNovo}><Plus className="size-4 mr-2" /> Novo</Button></div>} />
       <div className="glass overflow-hidden rounded-2xl">
         <Table>
           <TableHeader>
@@ -193,15 +194,17 @@ export default function Acoplamentos() {
           </form>
         </DialogContent>
       </Dialog>
-      <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Remover?" onConfirm={() => excluirId && excluir.mutate(excluirId)} confirmLabel="Remover" destructive pending={excluir.isPending} testId="excluir" />
+      <ConfirmDialog open={excluirId !== null} onOpenChange={(o) => !o && setExcluirId(null)} title="Desacoplar conjunto?" onConfirm={() => excluirId && excluir.mutate(excluirId)} confirmLabel="Desacoplar" destructive pending={excluir.isPending} testId="excluir" />
 
       {/* Modal de Histórico */}
       <Dialog open={!!historicoId} onOpenChange={(o) => !o && setHistoricoId(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Histórico de Movimentações</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{historicoId === HISTORICO_GERAL ? "Histórico geral de acoplamentos" : "Histórico de movimentações"}</DialogTitle></DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto space-y-4 pr-2 mt-2">
             {histQuery.isLoading ? (
               <p className="text-sm text-slate-400 text-center py-4">Carregando histórico...</p>
+            ) : histQuery.isError ? (
+              <p role="alert" className="text-sm text-rose-300">Não foi possível carregar o histórico. <button type="button" className="underline" onClick={() => void histQuery.refetch()}>Tentar novamente</button></p>
             ) : histQuery.data?.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-4">Nenhuma movimentação registrada.</p>
             ) : (
@@ -211,7 +214,7 @@ export default function Acoplamentos() {
                   <div>
                     <p className="font-semibold text-slate-200">{h.evento}</p>
                     <p className="text-slate-400 text-xs">{h.descricao}</p>
-                    <p className="text-slate-500 text-[10px] mt-1">{new Date(h.created_at).toLocaleString("pt-BR")}</p>
+                    <p className="text-slate-400 text-xs mt-1">{[h.conjunto, h.usuario, formatarData(h.created_at)].filter(Boolean).join(" · ")}</p>
                   </div>
                 </div>
               ))

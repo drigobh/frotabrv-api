@@ -45,6 +45,21 @@ ITENS_ACOPLAMENTO = (
 )
 
 
+def evento_historico(atual, usuario, agora, evento, item, descricao, status):
+    conjunto = atual.get("veiculo_label") or atual["veiculo_id"]
+    return {
+        "id": str(uuid.uuid4()),
+        "acoplamento_id": atual["id"],
+        "conjunto": conjunto.split(" - ", 1)[0],
+        "evento": evento,
+        "item": item,
+        "descricao": descricao,
+        "status": status,
+        "usuario": usuario,
+        "created_at": agora,
+    }
+
+
 async def verificar_disponibilidade(body, session, ignorar_id=None):
     conflitos = []
     for campo, funcao in ITENS_ACOPLAMENTO:
@@ -163,11 +178,34 @@ async def atualizar(id: str, body: AcoplamentoCreate, request: Request, user: di
             "completo": bool(body.carreta_id and body.motorista_id),
             "updated_at": agora, "updated_by": user["nome"],
         }
-        for campo, _ in ITENS_ACOPLAMENTO:
-            item_id = getattr(body, f"{campo}_id")
-            if item_id != atual.get(f"{campo}_id"):
+        eventos = []
+        for campo, funcao in ITENS_ACOPLAMENTO:
+            item_id = getattr(body, f"{campo}_id") or None
+            anterior_id = atual.get(f"{campo}_id") or None
+            if item_id != anterior_id:
                 dados[f"{campo}_vinculado_em"] = agora if item_id else None
+                antes = atual.get(f"{campo}_label") or anterior_id or "Sem vínculo"
+                depois = dados.get(f"{campo}_label") or item_id or "Sem vínculo"
+                eventos.append(evento_historico(
+                    atual, user["nome"], agora, f"Alteração de {funcao.lower()}",
+                    campo, f"{antes} → {depois}", "Acoplado" if item_id else "Desacoplado",
+                ))
+
+        datas = []
+        for campo, titulo in (("data_inicio", "Início"), ("data_fim", "Fim")):
+            antes = atual.get(campo) or None
+            depois = dados.get(campo) or None
+            if antes != depois:
+                datas.append(f"{titulo}: {antes or '—'} → {depois or '—'}")
+        if datas:
+            eventos.append(evento_historico(
+                atual, user["nome"], agora, "Datas do conjunto alteradas",
+                "conjunto", " | ".join(datas), "Acoplado",
+            ))
+
         await db.acoplamentos.update_one(filtro, {"$set": dados}, session=session)
+        if eventos:
+            await db.acoplamentos_historico.insert_many(eventos, session=session)
         return Acoplamento(**{**atual, **dados})
 
     salvo = await transacao_vinculos(editar)
@@ -178,13 +216,25 @@ async def atualizar(id: str, body: AcoplamentoCreate, request: Request, user: di
 @router.delete("/{id}")
 async def excluir(id: str, request: Request, user: dict = Depends(require("write"))):
     async def encerrar(session):
-        resultado = await db.acoplamentos.update_one(
-            {"id": id, "status": "ativo"},
-            {"$set": {"status": "inativo", "updated_at": now_iso(), "updated_by": user["nome"]}},
+        filtro = {"id": id, "status": "ativo"}
+        atual = await db.acoplamentos.find_one(filtro, session=session)
+        if not atual:
+            raise HTTPException(404, "Acoplamento ativo não encontrado.")
+        agora = now_iso()
+        await db.acoplamentos.update_one(
+            filtro,
+            {"$set": {"status": "inativo", "updated_at": agora, "updated_by": user["nome"]}},
             session=session,
         )
-        if not resultado.matched_count:
-            raise HTTPException(404, "Acoplamento ativo não encontrado.")
+        integrantes = " · ".join(
+            atual.get(f"{campo}_label") or atual[f"{campo}_id"]
+            for campo, _ in ITENS_ACOPLAMENTO if atual.get(f"{campo}_id")
+        )
+        evento = evento_historico(
+            atual, user["nome"], agora, "Conjunto desacoplado",
+            "conjunto", integrantes, "Desacoplado",
+        )
+        await db.acoplamentos_historico.insert_one(evento, session=session)
     await transacao_vinculos(encerrar)
     await audit(user, "excluir", "acoplamentos", id, "Desacoplamento", request)
     return {"ok": True}
