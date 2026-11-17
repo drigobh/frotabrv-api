@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
-from lib.security import USER_RESPONSE_FIELDS, USER_RESPONSE_PROJECTION, hash_user_password, require, user_role
+from lib.security import PERMISSOES, USER_RESPONSE_FIELDS, USER_RESPONSE_PROJECTION, hash_user_password, require, user_role
 from lib.db import db
 from lib.security import verify_password, create_token, current_user, COOKIE_NAME, TOKEN_TTL_HOURS
 from models.auth import LoginIn, LoginOut
@@ -51,7 +51,8 @@ async def me(_u: dict = Depends(require("read"))):
             usuario["perfil_nome"] = perfil.get("nome", "")
             timeout = perfil.get("timeout_minutos", 30)
     
-    usuario["perfil"] = user_role(usuario)
+    usuario["perfil"] = user_role(_u)
+    usuario["acoes_api"] = sorted(PERMISSOES.get(usuario["perfil"], ()))
     usuario["timeout_minutos"] = timeout
     return usuario
 

@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FieldSelect } from "@/components/common/FieldSelect";
 import { useVeiculos } from "@/hooks/useCadastros";
-import { useMe } from "@/hooks/useSession";
+import { useAcoesApi, useMe } from "@/hooks/useSession";
 
 const FAMILIAS = [
   { nome: "Lubrificação e Filtros", itens: "Óleo do motor, filtro de óleo, filtro de combustível/separador sedimentador, filtro de ar do motor." },
@@ -52,6 +52,7 @@ type ModeloPlano = typeof MODELOS[number];
 export default function PlanosManutencao() {
   const qc = useQueryClient();
   const { data: me } = useMe();
+  const { podeEscrever, podeExcluir } = useAcoesApi();
   const [params, setParams] = useSearchParams();
   const [open, setOpen] = useState(() => params.get("novo") === "1");
   function fecharPlano() {
@@ -157,10 +158,10 @@ export default function PlanosManutencao() {
         eyebrow="Cadastros"
         title="Cadastro de Planos Preventivos"
         description="Defina os gatilhos e intervalos por família de componentes."
-        actions={<Button onClick={() => abrirNovo()} className="bg-sky-600 hover:bg-sky-500 h-9"><Plus className="size-4 mr-2" /> Novo Plano</Button>}
+        actions={podeEscrever && <Button onClick={() => abrirNovo()} className="bg-sky-600 hover:bg-sky-500 h-9"><Plus className="size-4 mr-2" /> Novo Plano</Button>}
       />
 
-      <details className="mt-4 rounded-xl border border-slate-800 p-4">
+      {podeEscrever && <details className="mt-4 rounded-xl border border-slate-800 p-4">
         <summary className="cursor-pointer font-medium text-slate-100">Modelos de planos preventivos</summary>
         <p className="mt-2 text-sm text-slate-400">Escolha um modelo, selecione o ativo e informe o intervalo previsto no manual do fabricante.</p>
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -176,7 +177,7 @@ export default function PlanosManutencao() {
             </section>
           ))}
         </div>
-      </details>
+      </details>}
       <div className="glass overflow-hidden rounded-2xl mt-4">
         <Table>
           <TableHeader>
@@ -203,8 +204,8 @@ export default function PlanosManutencao() {
                 </TableCell>
                 <TableCell className="text-center">
                   <Button size="icon-sm" variant="ghost" onClick={() => setVisualizarPlano(p)} title="Ver Detalhes"><Eye className="size-4 text-emerald-400" /></Button>
-                  <Button size="icon-sm" variant="ghost" onClick={() => abrirEdicao(p)}><Pencil className="size-4 text-sky-400" /></Button>
-                  <Button size="icon-sm" variant="ghost" onClick={() => setExcluirId(p.id)}><Trash2 className="size-4 text-red-300" /></Button>
+                  {podeEscrever && <Button size="icon-sm" variant="ghost" aria-label="Editar plano" onClick={() => abrirEdicao(p)}><Pencil className="size-4 text-sky-400" /></Button>}
+                  {podeExcluir && <Button size="icon-sm" variant="ghost" aria-label="Excluir plano" onClick={() => setExcluirId(p.id)}><Trash2 className="size-4 text-red-300" /></Button>}
                 </TableCell>
               </TableRow>
             ))}
@@ -213,7 +214,7 @@ export default function PlanosManutencao() {
       </div>
 
       {/* MODAL EXPANDIDO */}
-      {open && (
+      {podeEscrever && open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh]">
             
@@ -348,7 +349,7 @@ export default function PlanosManutencao() {
       )}
 
       {/* MODAL DE EXCLUSÃO */}
-      {excluirId && (
+      {podeExcluir && excluirId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <h2 className="text-lg font-bold text-slate-100 mb-2">Excluir Plano?</h2>

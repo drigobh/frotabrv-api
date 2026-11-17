@@ -5,12 +5,14 @@ import {
   Fuel, TrendingDown, TrendingUp, Truck, Wrench 
 } from "lucide-react";
 import { apiGet } from "@/lib/api";
+import { useAcoesApi } from "@/hooks/useSession";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { brl, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
+  const { podeEscrever } = useAcoesApi();
   const navigate = useNavigate();
   // Puxando dados reais do backend (rotas que já existem)
   const { data: veiculos = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
@@ -45,9 +47,9 @@ export default function Dashboard() {
             <Button variant="outline" className="h-9 border-sky-500/40 text-sky-400 hover:bg-sky-500/10">
               <Fuel className="size-4 mr-2" /> Importar Abastecimento
             </Button>
-            <Button className="h-9 bg-sky-600 hover:bg-sky-500" onClick={() => navigate("/admin/manutencoes?nova-os=1")}>
+            {podeEscrever && <Button className="h-9 bg-sky-600 hover:bg-sky-500" onClick={() => navigate("/admin/manutencoes?nova-os=1")}>
               <Wrench className="size-4 mr-2" /> Abrir OS
-            </Button>
+            </Button>}
           </div>
         }
       />

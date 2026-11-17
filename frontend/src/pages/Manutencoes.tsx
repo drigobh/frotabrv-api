@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Download, Plus, Search, Wrench } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { useAcoesApi } from "@/hooks/useSession";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -362,6 +363,7 @@ function DialogoHistorico({ os, fechar }: { os: Ordem; fechar: () => void }) {
 
 
 export default function Manutencoes() {
+  const { podeLer, podeEscrever, podeExcluir } = useAcoesApi();
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const [etapa, setEtapa] = useState<Etapa>("Todas");
@@ -467,11 +469,11 @@ export default function Manutencoes() {
     <section>
       <PageHeader eyebrow="Manutenção" title="Ordens de serviço"
         actions={<>
-          <Button variant="outline" disabled={!painel?.total || periodoInvalido || entrada.trim() !== busca || exportacao.isPending}
+          <Button variant="outline" disabled={!podeLer || !painel?.total || periodoInvalido || entrada.trim() !== busca || exportacao.isPending}
             onClick={() => exportacao.mutate(filtrosPainel())}>
             <Download className="size-4" /> {exportacao.isPending ? "Exportando…" : "Exportar CSV"}
           </Button>
-          <Button onClick={() => abrirNova(true)}><Plus className="size-4" /> Nova OS</Button>
+          {podeEscrever && <Button onClick={() => abrirNova(true)}><Plus className="size-4" /> Nova OS</Button>}
         </>} />
       <fieldset className="mb-5 rounded-xl border border-slate-800 bg-slate-900/60 px-4 pb-4">
         <legend className="px-2 text-sm font-medium text-slate-200">Período de abertura da OS</legend>
@@ -545,9 +547,9 @@ export default function Manutencoes() {
                     <div className="flex flex-wrap gap-x-2 text-xs text-slate-400">
                       <span className="font-mono">{codigo(os)}</span><span>{dataBR(os.data)}</span>
                     </div>
-                    <button type="button" onClick={() => setEdicao(os)} className="mt-1 block max-w-full truncate text-left font-semibold text-slate-100 hover:text-sky-300" title={os.descricao}>
+                    {podeEscrever ? <button type="button" onClick={() => setEdicao(os)} className="mt-1 block max-w-full truncate text-left font-semibold text-slate-100 hover:text-sky-300" title={os.descricao}>
                       {os.descricao || "Serviço sem descrição"}
-                    </button>
+                    </button> : <p className="mt-1 truncate font-semibold text-slate-100" title={os.descricao}>{os.descricao || "Serviço sem descrição"}</p>}
                     <p className="truncate text-slate-400" title={veiculoDa(os)}>{veiculoDa(os)}</p>
                   </div>
                   <p className="truncate text-slate-300" title={os.fornecedor_nome || os.oficina}>{os.fornecedor_nome || os.oficina || "—"}</p>
@@ -555,9 +557,9 @@ export default function Manutencoes() {
                   <p className="font-mono text-slate-100">{brl(os.custo ?? os.valor ?? 0)}</p>
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="ghost" onClick={() => setHistorico(os)} aria-label={"Histórico da OS " + codigo(os)}>Histórico</Button>
-                    <Button size="sm" variant="outline" onClick={() => setEdicao(os)} aria-label={"Editar OS " + codigo(os)}>Editar</Button>
-                    <Button size="sm" variant="ghost" className="text-rose-300" aria-label={"Excluir OS " + codigo(os)}
-                      onClick={() => { remover.reset(); setExclusao(os); }}>Excluir</Button>
+                    {podeEscrever && <Button size="sm" variant="outline" onClick={() => setEdicao(os)} aria-label={"Editar OS " + codigo(os)}>Editar</Button>}
+                    {podeExcluir && <Button size="sm" variant="ghost" className="text-rose-300" aria-label={"Excluir OS " + codigo(os)}
+                      onClick={() => { remover.reset(); setExclusao(os); }}>Excluir</Button>}
                   </div>
                 </li>
               ))}
@@ -574,14 +576,14 @@ export default function Manutencoes() {
           </footer>
         )}
       </div>
-      {(nova || edicao) && (
+      {podeEscrever && (nova || edicao) && (
         <FormularioOS key={edicao?.id ?? "nova"} os={edicao} atualizar={atualizar} fechar={() => {
           setEdicao(undefined);
           if (nova) abrirNova(false);
         }} />
       )}
       {historico && <DialogoHistorico os={historico} fechar={() => setHistorico(undefined)} />}
-      {exclusao && (
+      {podeExcluir && exclusao && (
         <Dialog open onOpenChange={(aberto) => { if (!aberto && !remover.isPending) setExclusao(undefined); }}>
           <DialogContent>
             <DialogHeader>

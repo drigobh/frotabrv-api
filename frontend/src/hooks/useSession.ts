@@ -12,6 +12,18 @@ export function useMe() {
   });
 }
 
+export function useAcoesApi() {
+  const { data: me, isError } = useMe();
+  const acoes = !me || isError ? [] : Array.isArray(me.acoes_api) ? me.acoes_api
+    : me.perfil === "admin" ? ["read", "write", "delete"]
+      : me.perfil === "operador" ? ["read", "write"] : [];
+  return {
+    podeLer: acoes.includes("read"),
+    podeEscrever: acoes.includes("write"),
+    podeExcluir: acoes.includes("delete"),
+  };
+}
+
 export function useHoje() {
   return new Date().toISOString().split("T")[0];
 }

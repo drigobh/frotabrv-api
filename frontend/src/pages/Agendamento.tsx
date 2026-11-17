@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarClock, Wrench, AlertTriangle, CheckCircle2, Search, X, Gauge, Info, User } from "lucide-react";
 import { apiGet } from "@/lib/api";
+import { useAcoesApi } from "@/hooks/useSession";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ function proximaData(base: string, intervalo: number, unidade: string) {
 }
 
 export default function PlanoManutencao() {
+  const { podeEscrever } = useAcoesApi();
   const { data: planos = [] } = useQuery({ queryKey: ["planos-manutencao"], queryFn: () => apiGet<any[]>("/planos-manutencao") });
   const { data: veiculos = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
   const { data: carretas = [] } = useQuery({ queryKey: ["carretas"], queryFn: () => apiGet<any[]>("/carretas") });
@@ -152,7 +154,7 @@ export default function PlanoManutencao() {
         description="Acompanhe os vencimentos dos planos de manutenção."
         actions={<>
           <Button variant="outline" render={<Link to="/cadastros/planos-manutencao" />}>Gerenciar planos</Button>
-          <Button render={<Link to="/cadastros/planos-manutencao?novo=1" />}>Novo plano</Button>
+          {podeEscrever && <Button render={<Link to="/cadastros/planos-manutencao?novo=1" />}>Novo plano</Button>}
         </>}
       />
 
