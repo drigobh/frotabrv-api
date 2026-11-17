@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { 
   AlertTriangle, ArrowRight, CheckCircle2, Disc, DollarSign, 
   Fuel, TrendingDown, TrendingUp, Truck, Wrench 
@@ -11,6 +11,7 @@ import { brl, num } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   // Puxando dados reais do backend (rotas que já existem)
   const { data: veiculos = [] } = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<any[]>("/veiculos") });
   const { data: pneus = [] } = useQuery({ queryKey: ["pneus"], queryFn: () => apiGet<any[]>("/pneus") });
@@ -44,7 +45,7 @@ export default function Dashboard() {
             <Button variant="outline" className="h-9 border-sky-500/40 text-sky-400 hover:bg-sky-500/10">
               <Fuel className="size-4 mr-2" /> Importar Abastecimento
             </Button>
-            <Button className="h-9 bg-sky-600 hover:bg-sky-500">
+            <Button className="h-9 bg-sky-600 hover:bg-sky-500" onClick={() => navigate("/admin/manutencoes?nova-os=1")}>
               <Wrench className="size-4 mr-2" /> Abrir OS
             </Button>
           </div>
@@ -187,7 +188,7 @@ export default function Dashboard() {
                 <ArrowRight className="size-4 text-slate-500" />
               </Link>
               
-              <Link to="/manutencoes" className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 transition-colors hover:bg-slate-800 hover:border-amber-500/30">
+              <Link to="/admin/manutencoes" className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 transition-colors hover:bg-slate-800 hover:border-amber-500/30">
                 <div className="flex items-center gap-2">
                   <Wrench className="size-4 text-amber-400" />
                   <span className="text-sm text-slate-300">Abrir Ordem de Serviço</span>

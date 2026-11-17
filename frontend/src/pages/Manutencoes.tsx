@@ -3,7 +3,10 @@ import {
   Check, Clock, Plus, X 
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiGet, apiPatch } from "@/lib/api";
+import { useSearchParams } from "react-router-dom";
+import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { brl } from "@/lib/format";
@@ -19,6 +22,36 @@ const COLUNAS = [
 export default function Manutencoes() {
   const qc = useQueryClient();
   const { data: manutencoes = [] } = useQuery({ queryKey: ["manutencoes"], queryFn: () => apiGet<any[]>("/manutencoes") });
+
+  const [params, setParams] = useSearchParams();
+  const novaOS = params.get("nova-os") === "1";
+  const veiculos = useQuery({
+    queryKey: ["veiculos"],
+    queryFn: () => apiGet<{ id: string; placa: string; modelo: string; ativo?: boolean }[]>("/veiculos"),
+    enabled: novaOS,
+  });
+  const veiculosAtivos = (veiculos.data ?? []).filter((veiculo) => veiculo.ativo !== false);
+
+  function abrirFormulario(open: boolean) {
+    criarOS.reset();
+    setParams((atuais) => {
+      const proximos = new URLSearchParams(atuais);
+      if (open) proximos.set("nova-os", "1");
+      else proximos.delete("nova-os");
+      return proximos;
+    }, { replace: true });
+  }
+
+  const criarOS = useMutation({
+    mutationFn: (dados: { veiculo_id: string; tipo: string; data: string; descricao: string; status: string }) =>
+      apiPost("/manutencoes", dados),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["manutencoes"] });
+      qc.invalidateQueries({ queryKey: ["acoplamentos"] });
+      abrirFormulario(false);
+      toast.success("Ordem de serviço aberta.");
+    },
+  });
 
   const alterarStatus = useMutation({
     mutationFn: ({ id, novo_status }: { id: string, novo_status: string }) => {
@@ -43,11 +76,74 @@ export default function Manutencoes() {
         title="Gestão de Manutenção"
         description="Aprove ordens de serviço, acompanhe peças e libere veículos."
         actions={
-          <Button className="bg-sky-600 hover:bg-sky-500 h-9">
+          <Button className="bg-sky-600 hover:bg-sky-500 h-9" onClick={() => abrirFormulario(true)}>
             <Plus className="size-4 mr-2" /> Nova OS
           </Button>
         }
       />
+
+      <Dialog open={novaOS} onOpenChange={(open) => {
+        if (!criarOS.isPending) abrirFormulario(open);
+      }}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nova ordem de serviço</DialogTitle>
+            <DialogDescription>A ordem será aberta como Aguardando aprovação.</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={(event) => {
+            event.preventDefault();
+            if (criarOS.isPending) return;
+            const dados = new FormData(event.currentTarget);
+            const descricao = String(dados.get("descricao") ?? "").trim();
+            if (!descricao) {
+              toast.error("Informe a descrição do serviço.");
+              return;
+            }
+            criarOS.mutate({
+              veiculo_id: String(dados.get("veiculo_id") ?? ""),
+              tipo: String(dados.get("tipo") ?? ""),
+              data: String(dados.get("data") ?? ""),
+              descricao,
+              status: "Aguardando aprovação",
+            });
+          }}>
+            <label className="block space-y-1">
+              <span>Veículo</span>
+              <select name="veiculo_id" required defaultValue="" className="w-full rounded-lg border bg-background px-2 py-2">
+                <option value="" disabled>Selecione o veículo</option>
+                {veiculosAtivos.map(({ id, placa, modelo }) => (
+                  <option key={id} value={id}>{placa} · {modelo}</option>
+                ))}
+              </select>
+            </label>
+            {veiculos.isError && <p role="alert">Falha ao carregar veículos.</p>}
+            {veiculos.isPending && <p role="status">Carregando veículos…</p>}
+            {veiculos.isSuccess && veiculosAtivos.length === 0 && <p role="status">Nenhum veículo ativo disponível.</p>}
+            <label className="block space-y-1">
+              <span>Tipo de manutenção</span>
+              <select name="tipo" required defaultValue="Corretiva" className="w-full rounded-lg border bg-background px-2 py-2">
+                <option>Corretiva</option>
+                <option>Preventiva</option>
+              </select>
+            </label>
+            <label className="block space-y-1">
+              <span>Data de abertura</span>
+              <Input name="data" type="date" required defaultValue={new Date().toLocaleDateString("sv-SE")} />
+            </label>
+            <label className="block space-y-1">
+              <span>Descrição do serviço</span>
+              <textarea name="descricao" required rows={3} className="w-full rounded-lg border bg-background px-2 py-2" />
+            </label>
+            {criarOS.isError && <p role="alert" className="text-rose-400">{criarOS.error.message}</p>}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" disabled={criarOS.isPending} onClick={() => abrirFormulario(false)}>Cancelar</Button>
+              <Button type="submit" disabled={criarOS.isPending || !veiculos.isSuccess || !veiculosAtivos.length}>
+                {criarOS.isPending ? "Salvando…" : "Abrir OS"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {COLUNAS.map((col) => (
