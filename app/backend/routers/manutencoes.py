@@ -155,14 +155,9 @@ async def atualizar_os_com_plano(anterior, filtro, dados, user, session=None):
         return await sessao.with_transaction(salvar)
 
 
-@router.post("", response_model=Manutencao, status_code=201)
-async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(require("write"))):
-    veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
-    if not veiculo:
-        raise HTTPException(404, "Veículo não encontrado")
-
+def somar_quantidades_pecas(pecas: list[dict] | None) -> dict[str, int]:
     quantidades = {}
-    for item in body.pecas_utilizadas or []:
+    for item in pecas or []:
         peca_id = item.get("peca_id")
         quantidade = item.get("quantidade")
         if not isinstance(peca_id, str) or not peca_id.strip():
@@ -176,6 +171,16 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
         ):
             raise HTTPException(422, "Informe uma quantidade inteira e positiva.")
         quantidades[peca_id] = quantidades.get(peca_id, 0) + unidades
+    return quantidades
+
+
+@router.post("", response_model=Manutencao, status_code=201)
+async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(require("write"))):
+    veiculo = await db.veiculos.find_one({"id": body.veiculo_id}, {"_id": 0})
+    if not veiculo:
+        raise HTTPException(404, "Veículo não encontrado")
+
+    quantidades = somar_quantidades_pecas(body.pecas_utilizadas)
 
     if body.plano_manutencao_id:
         await plano_da_os(body.plano_manutencao_id, body.tipo, body.veiculo_id)
@@ -651,6 +656,8 @@ async def atualizar_status(
 
 @router.put("/{id}", response_model=Manutencao)
 async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dict = Depends(require("write"))):
+    quantidades = somar_quantidades_pecas(body.pecas_utilizadas)
+
     async def salvar(session):
         existe = await db.manutencoes.find_one({"id": id}, session=session)
         if not existe:
@@ -667,15 +674,14 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
                 session=session,
             )
 
-        for item in body.pecas_utilizadas or []:
-            quantidade = int(item.get("quantidade", 0))
-            peca = await db.pecas.find_one({"id": item.get("peca_id")}, session=session)
+        for peca_id, quantidade in sorted(quantidades.items()):
+            peca = await db.pecas.find_one({"id": peca_id}, session=session)
             if not peca:
-                raise HTTPException(404, f"Peça {item.get('nome')} não encontrada.")
+                raise HTTPException(404, f"Peça {peca_id} não encontrada.")
             if peca.get("quantidade_estoque", 0) < quantidade:
                 raise HTTPException(400, f"Estoque insuficiente para {peca.get('nome')}.")
             await db.pecas.update_one(
-                {"id": item.get("peca_id")}, {"$inc": {"quantidade_estoque": -quantidade}}, session=session,
+                {"id": peca_id}, {"$inc": {"quantidade_estoque": -quantidade}}, session=session,
             )
 
         doc = body.model_dump()
