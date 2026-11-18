@@ -5,7 +5,6 @@ import { CalendarClock, Wrench, AlertTriangle, CheckCircle2, Search, X, Gauge, I
 import { apiGet } from "@/lib/api";
 import { useAcoesApi } from "@/hooks/useSession";
 import { PageHeader } from "@/components/common/PageHeader";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -194,42 +193,58 @@ export default function PlanoManutencao() {
         </select>
       </div>
 
-      {/* Tabela */}
-      <div className="glass overflow-hidden rounded-2xl">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-slate-800 hover:bg-transparent">
-              <TableHead className="text-xs uppercase text-slate-500">Ativo</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Família</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Descrição</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Leitura atual</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Próx. Gatilho</TableHead>
-              <TableHead className="text-xs uppercase text-slate-500">Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {planosFiltrados.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8 text-slate-500">Nenhum plano ativo encontrado.</TableCell></TableRow>
-            ) : (
-              planosFiltrados.map((p: any) => (
-                <TableRow key={p.id} className="border-slate-800 hover:bg-slate-800/30">
-                  <TableCell className="font-medium text-slate-200">{p.ativoLabel}</TableCell>
-                  <TableCell className="text-xs text-slate-400">{p.familia}</TableCell>
-                  <TableCell className="text-xs text-slate-400">{p.descricao}</TableCell>
-                  <TableCell className="text-slate-400 font-mono">{p.leituraAtual}</TableCell>
-                  <TableCell className="text-slate-400 font-mono">{p.gatilho}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold ${statusColor(p.status)}`}>
-                      {statusIcon(p.status)}
+      {/* Planos em acompanhamento */}
+      <section aria-label="Planos ativos" className="glass min-w-0 rounded-2xl border border-slate-800">
+        <div aria-hidden="true" className="hidden xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.7fr)_minmax(0,0.75fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-3 border-b border-slate-800 px-4 py-3 text-xs uppercase text-slate-400 xl:grid">
+          <span>Ativo</span>
+          <span>Família</span>
+          <span>Descrição</span>
+          <span>Leitura atual</span>
+          <span>Próx. gatilho</span>
+          <span>Status</span>
+        </div>
+        {planosFiltrados.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-slate-400">Nenhum plano ativo encontrado.</p>
+        ) : (
+          <ul className="divide-y divide-slate-800">
+            {planosFiltrados.map((p: any) => (
+              <li key={p.id} className="px-4 py-4">
+                <dl className="grid min-w-0 gap-3 text-sm sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.7fr)_minmax(0,0.75fr)_minmax(0,0.8fr)_minmax(0,1fr)]">
+                  <div className="min-w-0 ">
+                    <dt className="mb-1 text-xs text-slate-400 xl:sr-only">Ativo</dt>
+                    <dd className="min-w-0 wrap-anywhere font-medium text-slate-200">{p.ativoLabel}</dd>
+                  </div>
+                  <div className="min-w-0 ">
+                    <dt className="mb-1 text-xs text-slate-400 xl:sr-only">Família</dt>
+                    <dd className="min-w-0 wrap-anywhere text-slate-400">{p.familia}</dd>
+                  </div>
+                  <div className="min-w-0 sm:col-span-2 xl:col-span-1">
+                    <dt className="mb-1 text-xs text-slate-400 xl:sr-only">Descrição</dt>
+                    <dd className="min-w-0 wrap-anywhere text-slate-400">{p.descricao}</dd>
+                  </div>
+                  <div className="min-w-0 ">
+                    <dt className="mb-1 text-xs text-slate-400 xl:sr-only">Leitura atual</dt>
+                    <dd className="min-w-0 wrap-anywhere font-mono text-slate-400">{p.leituraAtual}</dd>
+                  </div>
+                  <div className="min-w-0 ">
+                    <dt className="mb-1 text-xs text-slate-400 xl:sr-only">Próx. gatilho</dt>
+                    <dd className="min-w-0 wrap-anywhere font-mono text-slate-400">{p.gatilho}</dd>
+                  </div>
+                  <div className="min-w-0 ">
+                    <dt className="mb-1 text-xs text-slate-400 xl:sr-only">Status</dt>
+                    <dd className="min-w-0 wrap-anywhere text-slate-400"><span className={`inline-flex max-w-full items-start gap-1 rounded-md px-2 py-1 text-xs font-bold ${statusColor(p.status)}`}>
+                    <span className="shrink-0 pt-0.5" aria-hidden="true">{statusIcon(p.status)}</span>
+                    <span className="min-w-0 wrap-anywhere">
                       {p.status === "OK" ? "Em dia" : p.status === "Atenção" ? `Faltam ${p.falta.toLocaleString("pt-BR")} ${p.unidade}` : p.status === "Vencido" ? `Atrasado (${Math.abs(p.falta).toLocaleString("pt-BR")} ${p.unidade})` : p.status}
                     </span>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                  </span></dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
