@@ -207,15 +207,15 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     async def salvar_com_pecas(session):
         for peca_id, unidades in sorted(quantidades.items()):
             resultado = await db.pecas.update_one(
-                {"id": peca_id, "quantidade_atual": {"$gte": unidades}},
-                {"$inc": {"quantidade_atual": -unidades}},
+                {"id": peca_id, "quantidade_estoque": {"$gte": unidades}},
+                {"$inc": {"quantidade_estoque": -unidades}},
                 session=session,
             )
             if resultado.matched_count == 0:
                 peca = await db.pecas.find_one({"id": peca_id}, session=session)
                 if not peca:
                     raise HTTPException(404, f"Peça {peca_id} não encontrada.")
-                disponivel = peca.get("quantidade_atual", 0)
+                disponivel = peca.get("quantidade_estoque", 0)
                 raise HTTPException(
                     400,
                     f"Estoque insuficiente para {peca.get('nome', peca_id)}. "
@@ -663,7 +663,7 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
         for peca in existe.get("pecas_utilizadas") or []:
             await db.pecas.update_one(
                 {"id": peca.get("peca_id")},
-                {"$inc": {"quantidade_atual": int(peca.get("quantidade", 0))}},
+                {"$inc": {"quantidade_estoque": int(peca.get("quantidade", 0))}},
                 session=session,
             )
 
@@ -672,10 +672,10 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
             peca = await db.pecas.find_one({"id": item.get("peca_id")}, session=session)
             if not peca:
                 raise HTTPException(404, f"Peça {item.get('nome')} não encontrada.")
-            if peca.get("quantidade_atual", 0) < quantidade:
+            if peca.get("quantidade_estoque", 0) < quantidade:
                 raise HTTPException(400, f"Estoque insuficiente para {peca.get('nome')}.")
             await db.pecas.update_one(
-                {"id": item.get("peca_id")}, {"$inc": {"quantidade_atual": -quantidade}}, session=session,
+                {"id": item.get("peca_id")}, {"$inc": {"quantidade_estoque": -quantidade}}, session=session,
             )
 
         doc = body.model_dump()
@@ -719,7 +719,7 @@ async def excluir(id: str, _u: dict = Depends(require("delete"))):
                 raise HTTPException(409, "Há uma quantidade inválida no vínculo de estoque. A OS foi preservada.") from None
             if peca_id and quantidade > 0:
                 retorno = await db.pecas.update_one(
-                    {"id": peca_id}, {"$inc": {"quantidade_atual": quantidade}}, session=session
+                    {"id": peca_id}, {"$inc": {"quantidade_estoque": quantidade}}, session=session
                 )
                 if not retorno.matched_count:
                     raise HTTPException(409, "Há uma peça vinculada que não existe mais no estoque. A OS foi preservada.")
