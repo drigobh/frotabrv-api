@@ -161,15 +161,21 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     if not veiculo:
         raise HTTPException(404, "Veículo não encontrado")
 
-    # VALIDAÇÃO DE ESTOQUE RIGOROSA
-    if body.pecas_utilizadas:
-        for p in body.pecas_utilizadas:
-            peca = await db.pecas.find_one({"id": p.get("peca_id")})
-            if not peca:
-                raise HTTPException(404, f"Peça {p.get('nome')} não encontrada.")
-            qtd_solicitada = int(p.get("quantidade", 0))
-            if peca.get("quantidade_atual", 0) < qtd_solicitada:
-                raise HTTPException(400, f"Estoque insuficiente para {peca.get('nome')}. Disponível: {peca.get('quantidade_atual')}, Solicitado: {qtd_solicitada}")
+    quantidades = {}
+    for item in body.pecas_utilizadas or []:
+        peca_id = item.get("peca_id")
+        quantidade = item.get("quantidade")
+        if not isinstance(peca_id, str) or not peca_id.strip():
+            raise HTTPException(422, "Informe o identificador da peça.")
+        try:
+            unidades = int(quantidade)
+        except (TypeError, ValueError, OverflowError):
+            raise HTTPException(422, "Informe uma quantidade inteira e positiva.") from None
+        if isinstance(quantidade, bool) or unidades <= 0 or (
+            not isinstance(quantidade, str) and unidades != quantidade
+        ):
+            raise HTTPException(422, "Informe uma quantidade inteira e positiva.")
+        quantidades[peca_id] = quantidades.get(peca_id, 0) + unidades
 
     if body.plano_manutencao_id:
         await plano_da_os(body.plano_manutencao_id, body.tipo, body.veiculo_id)
@@ -194,17 +200,32 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
     if doc.get("fornecedor_id"):
         abertura.append({"campo": "fornecedor", "antes": None, "depois": fornecedor_historico(doc)})
     doc["historico_os"] = [evento_os("abertura", user, abertura)]
-    await db.manutencoes.insert_one(doc)
-    
-    # BAIXA DE ESTOQUE DIRETA
-    if body.pecas_utilizadas:
-        for p in body.pecas_utilizadas:
-            await db.pecas.update_one(
-                {"id": p.get("peca_id")},
-                {"$inc": {"quantidade_atual": -int(p.get("quantidade", 0))}}
+    if not quantidades:
+        await db.manutencoes.insert_one(dict(doc))
+        return doc
+
+    async def salvar_com_pecas(session):
+        for peca_id, unidades in sorted(quantidades.items()):
+            resultado = await db.pecas.update_one(
+                {"id": peca_id, "quantidade_atual": {"$gte": unidades}},
+                {"$inc": {"quantidade_atual": -unidades}},
+                session=session,
             )
-            
-    doc.pop("_id", None)
+            if resultado.matched_count == 0:
+                peca = await db.pecas.find_one({"id": peca_id}, session=session)
+                if not peca:
+                    raise HTTPException(404, f"Peça {peca_id} não encontrada.")
+                disponivel = peca.get("quantidade_atual", 0)
+                raise HTTPException(
+                    400,
+                    f"Estoque insuficiente para {peca.get('nome', peca_id)}. "
+                    f"Disponível: {disponivel}, solicitado: {unidades}.",
+                )
+
+        await db.manutencoes.insert_one(dict(doc), session=session)
+
+    async with await client.start_session() as session:
+        await session.with_transaction(salvar_com_pecas)
     return doc
 
 # Cada etapa também reconhece as grafias usadas em registros antigos.
