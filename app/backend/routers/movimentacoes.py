@@ -43,7 +43,7 @@ async def criar_movimentacao(body: MovimentacaoCreate, user: dict = Depends(requ
             if not await db.pecas.find_one({"id": body.peca_id}, session=session):
                 raise HTTPException(404, "Peça não encontrada")
             raise HTTPException(400, "Quantidade insuficiente em estoque.")
-        movimento = {**doc, "peca_nome": peca["nome"]}
+        movimento = {**doc, "peca_nome": peca["nome"], "saldo_delta": -body.quantidade}
         await db.movimentacoes.insert_one(movimento, session=session)
         return movimento
 
@@ -83,6 +83,7 @@ async def realizar_inventario(body: InventarioPayload, user: dict = Depends(requ
                 "peca_id": item.peca_id,
                 "peca_nome": peca["nome"],
                 "quantidade": abs(item.qtd_fisica - item.qtd_anterior),
+                "saldo_delta": item.qtd_fisica - item.qtd_anterior,
                 "motivo": "Inventário Cíclico",
                 "observacao": f"Ajuste: {item.qtd_anterior} -> {item.qtd_fisica}",
                 "usuario_nome": user.get("nome", "Sistema"),
@@ -134,6 +135,7 @@ async def reverter_inventario(id: str, user: dict = Depends(require("write"))):
                 "peca_id": item["peca_id"],
                 "peca_nome": item["peca_nome"],
                 "quantidade": abs(diff),
+                "saldo_delta": -diff,
                 "motivo": "Reversão de Inventário",
                 "observacao": f"Revertendo ajuste do inventário de {inv['data_hora'][:10]}",
                 "usuario_nome": user.get("nome", "Sistema"),
