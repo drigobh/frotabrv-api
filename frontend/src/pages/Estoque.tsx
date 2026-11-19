@@ -84,15 +84,15 @@ const { data: me } = useMe();
       "Peça": m.peca_nome,
       "Fornecedor": m.fornecedor_nome || "-",
       "Destino": m.destino_nome || "-",
-      "Quantidade": m.quantidade,
+      "Quantidade": m.saldo_delta ?? m.quantidade,
       "Motivo": m.motivo,
       "Observação": m.observacao || "-",
       "Usuário": m.usuario_nome
     }));
     const ws = XLSX.utils.json_to_sheet(dados);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Saidas");
-    XLSX.writeFile(wb, `Saidas_Estoque_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Movimentações");
+    XLSX.writeFile(wb, `Movimentacoes_Estoque_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const imprimirPDFMov = () => {
@@ -104,13 +104,13 @@ const { data: me } = useMe();
         <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.peca_nome}</td>
         <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.fornecedor_nome || "-"}</td>
         <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.destino_nome || "-"}</td>
-        <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #b91c1c;">-${m.quantidade}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${m.saldo_delta > 0 ? "#047857" : "#b91c1c"};">${m.saldo_delta > 0 ? "+" : ""}${m.saldo_delta ?? -m.quantidade}</td>
         <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.motivo}</td>
         <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.usuario_nome}</td>
       </tr>
     `).join('');
     win.document.write(`
-      <html><head><title>Histórico de Saídas</title>
+      <html><head><title>Histórico de Movimentações</title>
       <style>
         body { font-family: sans-serif; margin: 30px; }
         h2 { color: #0c4a6e; margin-bottom: 5px; }
@@ -118,7 +118,7 @@ const { data: me } = useMe();
         th { background: #f1f5f9; padding: 8px; border: 1px solid #ddd; text-align: left; font-size: 11px; }
       </style>
       </head><body>
-      <h2>Histórico de Saídas - Estoque</h2>
+      <h2>Histórico de Movimentações - Estoque</h2>
       <p style="font-size: 12px; color: #666;">Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
       <table>
         <thead><tr><th>Data</th><th>Peça</th><th>Fornecedor</th><th>Destino</th><th>Qtd</th><th>Motivo</th><th>Usuário</th></tr></thead>
@@ -298,7 +298,7 @@ const { data: me } = useMe();
       {/* Abas */}
       <div className="flex gap-4 mb-4 border-b border-slate-800">
         <button onClick={() => setActiveTab("catalogo")} className={`pb-2 text-sm font-medium transition-colors ${activeTab === "catalogo" ? "text-sky-400 border-b-2 border-sky-400" : "text-slate-400 hover:text-slate-200"}`}>Catálogo de Peças</button>
-        <button onClick={() => setActiveTab("movimentacoes")} className={`pb-2 text-sm font-medium transition-colors ${activeTab === "movimentacoes" ? "text-sky-400 border-b-2 border-sky-400" : "text-slate-400 hover:text-slate-200"}`}>Histórico de Saídas</button>
+        <button onClick={() => setActiveTab("movimentacoes")} className={`pb-2 text-sm font-medium transition-colors ${activeTab === "movimentacoes" ? "text-sky-400 border-b-2 border-sky-400" : "text-slate-400 hover:text-slate-200"}`}>Histórico de Movimentações</button>
         <button onClick={() => setActiveTab("inventarios")} className={`pb-2 text-sm font-medium transition-colors ${activeTab === "inventarios" ? "text-sky-400 border-b-2 border-sky-400" : "text-slate-400 hover:text-slate-200"}`}>Histórico de Inventários</button>
       </div>
 
@@ -424,14 +424,14 @@ const { data: me } = useMe();
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {movimentacoesFiltradas.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-slate-500">Nenhuma baixa encontrada com os filtros atuais.</TableCell></TableRow>}
+                {movimentacoesFiltradas.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-slate-500">Nenhuma movimentação encontrada com os filtros atuais.</TableCell></TableRow>}
                 {movimentacoesFiltradas.map((m: any) => (
                   <TableRow key={m.id} className="border-slate-800/70">
                     <TableCell className="text-xs text-slate-400 font-mono">{new Date(m.data_hora).toLocaleDateString('pt-BR')} {new Date(m.data_hora).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</TableCell>
                     <TableCell className="font-medium text-slate-200">{m.peca_nome}</TableCell>
                     <TableCell className="text-xs text-slate-400">{m.fornecedor_nome || "—"}</TableCell>
                     <TableCell className="text-xs text-sky-400">{m.destino_nome || "—"}</TableCell>
-                    <TableCell className="text-center font-bold text-red-400">-{m.quantidade}</TableCell>
+                    <TableCell className={`text-center font-bold ${m.saldo_delta > 0 ? "text-emerald-400" : "text-red-400"}`}>{m.saldo_delta > 0 ? "+" : ""}{m.saldo_delta ?? -m.quantidade}</TableCell>
                     <TableCell className="text-xs text-slate-300">{m.motivo} {m.observacao && <span className="text-[10px] text-slate-500">({m.observacao})</span>}</TableCell>
                     <TableCell className="text-xs text-slate-400">{m.usuario_nome}</TableCell>
                   </TableRow>
