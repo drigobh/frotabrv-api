@@ -66,6 +66,7 @@ const { data: me } = useMe();
   const [filtroFornMov, setFiltroFornMov] = useState("");
   const [filtroDestinoMov, setFiltroDestinoMov] = useState("");
   const [filtroMotivoMov, setFiltroMotivoMov] = useState("");
+  const [filtroReferenciaMov, setFiltroReferenciaMov] = useState("");
 
   // Queries
   const q = useQuery({ queryKey: ["pecas"], queryFn: () => apiGet<any[]>("/pecas"), staleTime: 0, refetchOnMount: true });
@@ -83,15 +84,17 @@ const { data: me } = useMe();
   const inventarios = invQ.data ?? [];
 
   const movimentacoesFiltradas = useMemo(() => {
+    const referencia = filtroReferenciaMov.trim().toLowerCase();
     return movimentacoes.filter((m: any) => {
       if (filtroDataMov && m.data_hora.substring(0, 10) !== filtroDataMov) return false;
       if (filtroPecaMov && !m.peca_nome.toLowerCase().includes(filtroPecaMov.toLowerCase())) return false;
       if (filtroFornMov && !(m.fornecedor_nome || "").toLowerCase().includes(filtroFornMov.toLowerCase())) return false;
       if (filtroDestinoMov && !(m.destino_nome || "").toLowerCase().includes(filtroDestinoMov.toLowerCase())) return false;
+      if (referencia && !m.observacao?.toLowerCase().includes(referencia)) return false;
       if (filtroMotivoMov && !m.motivo.toLowerCase().includes(filtroMotivoMov.toLowerCase())) return false;
       return true;
     });
-  }, [movimentacoes, filtroDataMov, filtroPecaMov, filtroFornMov, filtroDestinoMov, filtroMotivoMov]);
+  }, [movimentacoes, filtroDataMov, filtroPecaMov, filtroFornMov, filtroDestinoMov, filtroMotivoMov, filtroReferenciaMov]);
 
   const exportarExcelMov = () => {
     const dados = movimentacoesFiltradas.map((m: any) => ({
@@ -433,7 +436,12 @@ const { data: me } = useMe();
             <div className="grid gap-1"><Label className="text-[10px] text-slate-500">Fornecedor</Label><Input placeholder="Nome..." value={filtroFornMov} onChange={e => setFiltroFornMov(e.target.value)} className="w-36 h-8 text-xs" /></div>
             <div className="grid gap-1"><Label className="text-[10px] text-slate-500">Destino</Label><Input placeholder="Placa..." value={filtroDestinoMov} onChange={e => setFiltroDestinoMov(e.target.value)} className="w-36 h-8 text-xs" /></div>
             <div className="grid gap-1"><Label className="text-[10px] text-slate-500">Motivo</Label><Input placeholder="Motivo..." value={filtroMotivoMov} onChange={e => setFiltroMotivoMov(e.target.value)} className="w-36 h-8 text-xs" /></div>
-            <Button variant="ghost" size="sm" onClick={() => { setFiltroDataMov(""); setFiltroPecaMov(""); setFiltroFornMov(""); setFiltroDestinoMov(""); setFiltroMotivoMov(""); }} className="h-8">Limpar</Button>
+            <div className="grid gap-1">
+              <Label htmlFor="filtro-referencia-mov" className="text-[10px] text-slate-500">OS ou observação</Label>
+              <Input id="filtro-referencia-mov" placeholder="Código da OS ou texto" value={filtroReferenciaMov}
+                onChange={e => setFiltroReferenciaMov(e.target.value)} className="w-44 h-8 text-xs" />
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => { setFiltroDataMov(""); setFiltroPecaMov(""); setFiltroFornMov(""); setFiltroDestinoMov(""); setFiltroMotivoMov(""); setFiltroReferenciaMov(""); }} className="h-8">Limpar</Button>
             <div className="ml-auto flex gap-2">
               <Button variant="outline" size="sm" onClick={exportarExcelMov}><FileSpreadsheet className="size-4 mr-1" /> Excel</Button>
               <Button variant="outline" size="sm" onClick={imprimirPDFMov}><Printer className="size-4 mr-1" /> PDF</Button>
