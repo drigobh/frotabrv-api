@@ -113,23 +113,36 @@ const { data: me } = useMe();
 
   const imprimirPDFMov = () => {
     const win = window.open('', '_blank');
-    if (!win) return;
+    if (!win) {
+      toast.error("Permita a abertura de pop-ups para gerar o PDF.");
+      return;
+    }
+    const texto = (valor: unknown) => String(valor ?? "")
+      .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
     const rowsHtml = movimentacoesFiltradas.map((m: any) => `
       <tr>
-        <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-size: 11px;">${new Date(m.data_hora).toLocaleDateString('pt-BR')}</td>
-        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.peca_nome}</td>
-        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.fornecedor_nome || "-"}</td>
-        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.destino_nome || "-"}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-size: 11px;">${texto(m.data_hora ? new Date(m.data_hora).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—")}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${texto(m.peca_nome)}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${texto(m.fornecedor_nome || "-")}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${texto(m.destino_nome || "-")}</td>
         <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${(saldoMovimento(m) ?? 0) > 0 ? "#047857" : saldoMovimento(m) === null ? "#475569" : "#b91c1c"};">${exibirQuantidadeMovimento(m)}</td>
-        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.motivo}</td>
-        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.usuario_nome}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${texto(m.motivo)}${m.observacao ? `<div class="observacao">${texto(m.observacao)}</div>` : ""}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${texto(m.usuario_nome)}</td>
       </tr>
     `).join('');
     win.document.write(`
-      <html><head><title>Histórico de Movimentações</title>
+      <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Histórico de Movimentações</title>
       <style>
         body { font-family: sans-serif; margin: 30px; }
         h2 { color: #0c4a6e; margin-bottom: 5px; }
+        @page { size: A4 landscape; margin: 12mm; }
+        @media print {
+          body { margin: 0; }
+          thead { display: table-header-group; }
+          tr { break-inside: avoid; }
+        }
+        td { overflow-wrap: anywhere; vertical-align: top; }
+        .observacao { margin-top: 3px; color: #475569; white-space: pre-wrap; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th { background: #f1f5f9; padding: 8px; border: 1px solid #ddd; text-align: left; font-size: 11px; }
       </style>
@@ -138,7 +151,7 @@ const { data: me } = useMe();
       <p style="font-size: 12px; color: #666;">Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
       <table>
         <thead><tr><th>Data</th><th>Peça</th><th>Fornecedor</th><th>Destino</th><th>Qtd</th><th>Motivo</th><th>Usuário</th></tr></thead>
-        <tbody>${rowsHtml}</tbody>
+        <tbody>${rowsHtml || '<tr><td colspan="7">Nenhuma movimentação encontrada com os filtros atuais.</td></tr>'}</tbody>
       </table>
       <script>window.onload = () => { window.print(); window.close(); }</script>
       </body></html>
