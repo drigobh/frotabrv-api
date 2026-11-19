@@ -16,6 +16,22 @@ import { FieldSelect } from "@/components/common/FieldSelect";
 import { useVeiculos, useCarretas } from "@/hooks/useCadastros";
 import { useMe } from "@/hooks/useSession";
 
+function saldoMovimento(movimento: { saldo_delta?: number | null; quantidade: number; motivo: string; observacao?: string }) {
+  if (movimento.saldo_delta != null) return movimento.saldo_delta;
+  if (movimento.motivo === "Reversão de Inventário") return null;
+  if (movimento.motivo === "Inventário Cíclico") {
+    const contagem = /^Ajuste: (-?\d+) -> (-?\d+)$/.exec(movimento.observacao ?? "");
+    return contagem ? Number(contagem[2]) - Number(contagem[1]) : null;
+  }
+  return -movimento.quantidade;
+}
+
+function exibirQuantidadeMovimento(movimento: Parameters<typeof saldoMovimento>[0]) {
+  const saldo = saldoMovimento(movimento);
+  if (saldo === null) return `${movimento.quantidade} (sem sinal)`;
+  return saldo > 0 ? `+${saldo}` : String(saldo);
+}
+
 export default function Estoque() {
     const { data: pneusEstoque = [] } = useQuery({ queryKey: ["pneus-estoque"], queryFn: () => apiGet<any[]>("/pneus") });
   const pneusEmEstoque = pneusEstoque.filter((p: any) => p.status === "Estoque");
@@ -84,7 +100,7 @@ const { data: me } = useMe();
       "Peça": m.peca_nome,
       "Fornecedor": m.fornecedor_nome || "-",
       "Destino": m.destino_nome || "-",
-      "Quantidade": m.saldo_delta ?? m.quantidade,
+      "Quantidade": saldoMovimento(m) ?? exibirQuantidadeMovimento(m),
       "Motivo": m.motivo,
       "Observação": m.observacao || "-",
       "Usuário": m.usuario_nome
@@ -104,7 +120,7 @@ const { data: me } = useMe();
         <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.peca_nome}</td>
         <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.fornecedor_nome || "-"}</td>
         <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.destino_nome || "-"}</td>
-        <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${m.saldo_delta > 0 ? "#047857" : "#b91c1c"};">${m.saldo_delta > 0 ? "+" : ""}${m.saldo_delta ?? -m.quantidade}</td>
+        <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${(saldoMovimento(m) ?? 0) > 0 ? "#047857" : saldoMovimento(m) === null ? "#475569" : "#b91c1c"};">${exibirQuantidadeMovimento(m)}</td>
         <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.motivo}</td>
         <td style="padding: 6px; border: 1px solid #ddd; font-size: 11px;">${m.usuario_nome}</td>
       </tr>
@@ -431,7 +447,7 @@ const { data: me } = useMe();
                     <TableCell className="font-medium text-slate-200">{m.peca_nome}</TableCell>
                     <TableCell className="text-xs text-slate-400">{m.fornecedor_nome || "—"}</TableCell>
                     <TableCell className="text-xs text-sky-400">{m.destino_nome || "—"}</TableCell>
-                    <TableCell className={`text-center font-bold ${m.saldo_delta > 0 ? "text-emerald-400" : "text-red-400"}`}>{m.saldo_delta > 0 ? "+" : ""}{m.saldo_delta ?? -m.quantidade}</TableCell>
+                    <TableCell className={`text-center font-bold ${(saldoMovimento(m) ?? 0) > 0 ? "text-emerald-400" : saldoMovimento(m) === null ? "text-slate-400" : "text-red-400"}`}>{exibirQuantidadeMovimento(m)}</TableCell>
                     <TableCell className="text-xs text-slate-300">{m.motivo} {m.observacao && <span className="text-[10px] text-slate-500">({m.observacao})</span>}</TableCell>
                     <TableCell className="text-xs text-slate-400">{m.usuario_nome}</TableCell>
                   </TableRow>
