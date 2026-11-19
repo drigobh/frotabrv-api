@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Package, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Search, MapPin, Info, Star, Barcode, Box, ArrowDownRight, ClipboardList, RefreshCw, Printer, FileSpreadsheet, Eye , Disc } from "lucide-react";
 import { toast } from "sonner";
@@ -38,7 +39,16 @@ export default function Estoque() {
 
 const { data: me } = useMe();
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState("catalogo");
+  const [params, setParams] = useSearchParams();
+  const aba = params.get("aba");
+  const activeTab = aba === "movimentacoes" || aba === "inventarios" ? aba : "catalogo";
+
+  function setActiveTab(tab: "catalogo" | "movimentacoes" | "inventarios") {
+    const proximos = new URLSearchParams(params);
+    if (tab === "catalogo") proximos.delete("aba");
+    else proximos.set("aba", tab);
+    setParams(proximos);
+  }
   
   // Estados da Peça
   const [open, setOpen] = useState(false);
@@ -66,7 +76,13 @@ const { data: me } = useMe();
   const [filtroFornMov, setFiltroFornMov] = useState("");
   const [filtroDestinoMov, setFiltroDestinoMov] = useState("");
   const [filtroMotivoMov, setFiltroMotivoMov] = useState("");
-  const [filtroReferenciaMov, setFiltroReferenciaMov] = useState("");
+  const filtroReferenciaMov = params.get("referencia") ?? "";
+  function setFiltroReferenciaMov(referencia: string) {
+    const proximos = new URLSearchParams(params);
+    if (referencia) proximos.set("referencia", referencia);
+    else proximos.delete("referencia");
+    setParams(proximos, { replace: true });
+  }
 
   // Queries
   const q = useQuery({ queryKey: ["pecas"], queryFn: () => apiGet<any[]>("/pecas"), staleTime: 0, refetchOnMount: true });
