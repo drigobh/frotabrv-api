@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Download, Plus, Search, Wrench } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAcoesApi } from "@/hooks/useSession";
+import { usePermissions } from "@/hooks/usePermissions";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -442,6 +443,7 @@ function DialogoHistorico({ os, fechar }: { os: Ordem; fechar: () => void }) {
 
 export default function Manutencoes() {
   const { podeLer, podeEscrever, podeExcluir } = useAcoesApi();
+  const { podeVer } = usePermissions();
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const [etapa, setEtapa] = useState<Etapa>("Todas");
@@ -637,6 +639,12 @@ export default function Manutencoes() {
                   <p className="font-mono text-slate-100">{brl(os.custo ?? os.valor ?? 0)}</p>
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="ghost" onClick={() => setHistorico(os)} aria-label={"Histórico da OS " + codigo(os)}>Histórico</Button>
+                    {podeVer("Frota") && Boolean(os.pecas_utilizadas?.length) && (
+                      <Button asChild size="sm" variant="ghost">
+                        <Link to={{ pathname: "/operacao/estoque", search: new URLSearchParams({ aba: "movimentacoes", referencia: os.id }).toString() }}
+                          aria-label={"Movimentações de peças da OS " + codigo(os)}>Ver baixas</Link>
+                      </Button>
+                    )}
                     {podeEscrever && <Button size="sm" variant="outline" onClick={() => setEdicao(os)} aria-label={"Editar OS " + codigo(os)}>Editar</Button>}
                     {podeExcluir && <Button size="sm" variant="ghost" className="text-rose-300" aria-label={"Excluir OS " + codigo(os)}
                       onClick={() => { remover.reset(); setExclusao(os); }}>Excluir</Button>}
