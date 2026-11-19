@@ -524,6 +524,7 @@ export default function Manutencoes() {
     void qc.invalidateQueries({ queryKey: ["manutencoes"] });
     void qc.invalidateQueries({ queryKey: ["acoplamentos"] });
     void qc.invalidateQueries({ queryKey: ["pecas"] });
+    void qc.invalidateQueries({ queryKey: ["movimentacoes"] });
   }
 
   function abrirNova(aberto: boolean) {
