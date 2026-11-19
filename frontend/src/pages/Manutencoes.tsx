@@ -58,7 +58,7 @@ type Ordem = {
   fornecedor_id?: string;
   fornecedor_nome?: string;
   oficina?: string;
-  pecas_utilizadas?: unknown[];
+  pecas_utilizadas?: { peca_id: string; quantidade: number | string }[];
 };
 type VeiculoIndicador = { veiculo: string; valor: number; quantidade: number };
 type Indicadores = {
@@ -132,6 +132,17 @@ type PlanoPreventivoOS = {
 function FormularioOS({ os, fechar, atualizar }: { os?: Ordem; fechar: () => void; atualizar: () => void }) {
   const veiculos = useQuery({ queryKey: ["veiculos"], queryFn: () => apiGet<Veiculo[]>("/veiculos") });
   const fornecedores = useQuery({ queryKey: ["fornecedores"], queryFn: () => apiGet<Fornecedor[]>("/fornecedores") });
+  const [mostrarPecas, setMostrarPecas] = useState(false);
+  const [pecaId, setPecaId] = useState("");
+  const [itens, setItens] = useState<{ peca_id: string; quantidade: string }[]>([]);
+  const pecas = useQuery({
+    queryKey: ["pecas"],
+    queryFn: () => apiGet<{ id: string; nome: string; quantidade_estoque: number }[]>("/pecas"),
+    enabled: mostrarPecas || Boolean(os?.pecas_utilizadas?.length),
+  });
+  const opcoesPecas = (pecas.data ?? []).filter((peca) =>
+    peca.quantidade_estoque > 0 && !itens.some((item) => item.peca_id === peca.id)
+  );
   const opcoesVeiculos = (veiculos.data ?? []).filter((v) => v.ativo !== false || v.id === os?.veiculo_id);
   const opcoesFornecedores = fornecedores.data ?? [];
   const [status, setStatus] = useState("");
@@ -171,7 +182,20 @@ function FormularioOS({ os, fechar, atualizar }: { os?: Ordem; fechar: () => voi
           km_manutencao: form.get("km_execucao") === "" ? null : Number(form.get("km_execucao")),
         }),
       };
-      if (!os) return apiPost("/manutencoes", { ...dados, ...vinculo, status: "Aguardando aprovação" });
+      if (!os) {
+        const pecas_utilizadas = itens.map(({ peca_id, quantidade }) => {
+          const unidades = Number(quantidade);
+          if (!Number.isSafeInteger(unidades) || unidades < 1) {
+            throw new Error("Informe uma quantidade inteira e positiva para cada peça.");
+          }
+          const peca = pecas.data?.find((item) => item.id === peca_id);
+          if (!peca || unidades > peca.quantidade_estoque) {
+            throw new Error(`Confira o saldo disponível para ${peca?.nome ?? "a peça selecionada"}.`);
+          }
+          return { peca_id, quantidade: unidades };
+        });
+        return apiPost("/manutencoes", { ...dados, ...vinculo, status: "Aguardando aprovação", pecas_utilizadas });
+      }
       const transicao = status ? { status, status_original: os.status ?? null } : {};
       return apiPatch("/manutencoes/" + os.id + "/dados", { ...dados, ...vinculo, ...transicao, versao: os.versao_dados ?? null });
     },
@@ -264,6 +288,60 @@ function FormularioOS({ os, fechar, atualizar }: { os?: Ordem; fechar: () => voi
                 <Input name="km_execucao" type="number" min={0} step="any" disabled={vinculoFechado}
                   required={status === "Concluída"} defaultValue={os?.km_manutencao ?? ""} />
               </label>
+            )}
+            {!os && (
+              <details className="rounded-lg border border-border p-3 sm:col-span-2"
+                onToggle={(event) => setMostrarPecas(event.currentTarget.open)}>
+                <summary className="cursor-pointer text-sm font-medium">Peças do estoque{itens.length ? ` (${itens.length})` : ""}</summary>
+                <p className="mt-2 text-sm text-slate-400">O saldo é baixado ao salvar a OS.</p>
+                <div className="mt-3 flex flex-wrap items-end gap-2">
+                  <label className="min-w-0 flex-1 space-y-1 text-sm">
+                    <span>Peça</span>
+                    <select className={campo} value={pecaId} onChange={(event) => setPecaId(event.target.value)}>
+                      <option value="">{pecas.isPending ? "Carregando…" : "Selecione uma peça"}</option>
+                      {opcoesPecas.map((peca) => <option key={peca.id} value={peca.id}>{peca.nome} · saldo {peca.quantidade_estoque}</option>)}
+                    </select>
+                  </label>
+                  <Button type="button" variant="outline" disabled={!opcoesPecas.some((peca) => peca.id === pecaId)}
+                    onClick={() => { setItens([...itens, { peca_id: pecaId, quantidade: "1" }]); setPecaId(""); }}>
+                    Adicionar peça
+                  </Button>
+                </div>
+                {pecas.isError ? <p role="alert" className="mt-2 text-sm text-rose-300">
+                  Falha ao carregar o estoque. <button type="button" className="underline" onClick={() => pecas.refetch()}>Tentar novamente</button>
+                </p> : pecas.isSuccess && !opcoesPecas.length && !itens.length && (
+                  <p className="mt-2 text-sm text-slate-400">Nenhuma peça com saldo disponível.</p>
+                )}
+                <ul className="mt-2 divide-y divide-border">
+                  {itens.map((item) => {
+                    const peca = pecas.data?.find((p) => p.id === item.peca_id);
+                    const nome = peca?.nome ?? item.peca_id;
+                    return (
+                      <li key={item.peca_id} className="flex flex-wrap items-end gap-2 py-2">
+                        <span className="min-w-0 flex-1 self-center break-words text-sm">{nome}</span>
+                        <label className="w-24 space-y-1 text-sm">
+                          <span>Quantidade</span>
+                          <Input type="number" inputMode="numeric" value={item.quantidade}
+                            aria-label={`Quantidade de ${nome}`}
+                            onChange={(event) => setItens(itens.map((p) => p.peca_id === item.peca_id ? { ...p, quantidade: event.target.value } : p))} />
+                        </label>
+                        <Button type="button" variant="ghost" aria-label={`Remover ${nome}`}
+                          onClick={() => setItens(itens.filter((p) => p.peca_id !== item.peca_id))}>Remover</Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </details>
+            )}
+            {Boolean(os?.pecas_utilizadas?.length) && (
+              <div className="space-y-1 rounded-lg border border-border p-3 text-sm sm:col-span-2">
+                <p className="font-medium">Peças vinculadas</p>
+                <ul className="space-y-1 text-slate-400">
+                  {os?.pecas_utilizadas?.map((item, indice) => (
+                    <li key={indice}>{pecas.data?.find((peca) => peca.id === item.peca_id)?.nome ?? item.peca_id} · {item.quantidade} un.</li>
+                  ))}
+                </ul>
+              </div>
             )}
             {tipo === "Preventiva" && planos.isError && <p role="alert" className="text-sm text-rose-300">
               Falha ao carregar planos. <button type="button" className="underline" onClick={() => planos.refetch()}>Recarregar</button>
@@ -445,6 +523,7 @@ export default function Manutencoes() {
     void qc.invalidateQueries({ queryKey: ["planos-manutencao"] });
     void qc.invalidateQueries({ queryKey: ["manutencoes"] });
     void qc.invalidateQueries({ queryKey: ["acoplamentos"] });
+    void qc.invalidateQueries({ queryKey: ["pecas"] });
   }
 
   function abrirNova(aberto: boolean) {
