@@ -155,6 +155,20 @@ async def atualizar_os_com_plano(anterior, filtro, dados, user, session=None):
         return await sessao.with_transaction(salvar)
 
 
+async def registrar_movimento_os(session, peca_id, peca_nome, saldo_delta, os_id, user, origem):
+    await db.movimentacoes.insert_one({
+        "id": str(uuid.uuid4()),
+        "peca_id": peca_id,
+        "peca_nome": peca_nome,
+        "quantidade": abs(saldo_delta),
+        "saldo_delta": saldo_delta,
+        "motivo": "Devolução por OS" if saldo_delta > 0 else "Baixa por OS",
+        "observacao": f"{origem} da OS {os_id}",
+        "usuario_nome": user.get("nome", user.get("email", "Sistema")),
+        "data_hora": now_iso(),
+    }, session=session)
+
+
 def somar_quantidades_pecas(pecas: list[dict] | None) -> dict[str, int]:
     quantidades = {}
     for item in pecas or []:
@@ -211,12 +225,12 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
 
     async def salvar_com_pecas(session):
         for peca_id, unidades in sorted(quantidades.items()):
-            resultado = await db.pecas.update_one(
+            movimentada = await db.pecas.find_one_and_update(
                 {"id": peca_id, "quantidade_estoque": {"$gte": unidades}},
                 {"$inc": {"quantidade_estoque": -unidades}},
                 session=session,
             )
-            if resultado.matched_count == 0:
+            if movimentada is None:
                 peca = await db.pecas.find_one({"id": peca_id}, session=session)
                 if not peca:
                     raise HTTPException(404, f"Peça {peca_id} não encontrada.")
@@ -226,6 +240,10 @@ async def criar(body: ManutencaoCreate, request: Request, user: dict = Depends(r
                     f"Estoque insuficiente para {peca.get('nome', peca_id)}. "
                     f"Disponível: {disponivel}, solicitado: {unidades}.",
                 )
+
+            await registrar_movimento_os(
+                session, peca_id, movimentada.get("nome", peca_id), -unidades, doc["id"], user, "Abertura",
+            )
 
         await db.manutencoes.insert_one(dict(doc), session=session)
 
@@ -667,21 +685,27 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
         if not veiculo:
             raise HTTPException(404, "Veículo não encontrado")
 
-        for peca in existe.get("pecas_utilizadas") or []:
-            await db.pecas.update_one(
-                {"id": peca.get("peca_id")},
-                {"$inc": {"quantidade_estoque": int(peca.get("quantidade", 0))}},
-                session=session,
-            )
+        try:
+            anteriores = somar_quantidades_pecas(existe.get("pecas_utilizadas"))
+        except HTTPException:
+            raise HTTPException(409, "A OS contém um vínculo de estoque inválido.") from None
 
-        for peca_id, quantidade in sorted(quantidades.items()):
-            peca = await db.pecas.find_one({"id": peca_id}, session=session)
-            if not peca:
-                raise HTTPException(404, f"Peça {peca_id} não encontrada.")
-            if peca.get("quantidade_estoque", 0) < quantidade:
-                raise HTTPException(400, f"Estoque insuficiente para {peca.get('nome')}.")
-            await db.pecas.update_one(
-                {"id": peca_id}, {"$inc": {"quantidade_estoque": -quantidade}}, session=session,
+        for peca_id in sorted(anteriores.keys() | quantidades.keys()):
+            delta = anteriores.get(peca_id, 0) - quantidades.get(peca_id, 0)
+            if not delta:
+                continue
+            filtro = {"id": peca_id}
+            if delta < 0:
+                filtro["quantidade_estoque"] = {"$gte": -delta}
+            peca = await db.pecas.find_one_and_update(
+                filtro, {"$inc": {"quantidade_estoque": delta}}, session=session,
+            )
+            if peca is None:
+                if not await db.pecas.find_one({"id": peca_id}, session=session):
+                    raise HTTPException(404, f"Peça {peca_id} não encontrada.")
+                raise HTTPException(400, f"Estoque insuficiente para a peça {peca_id}.")
+            await registrar_movimento_os(
+                session, peca_id, peca.get("nome", peca_id), delta, id, user, "Edição",
             )
 
         doc = body.model_dump()
@@ -712,23 +736,24 @@ async def atualizar(id: str, body: ManutencaoCreate, request: Request, user: dic
 
 
 @router.delete("/{id}")
-async def excluir(id: str, _u: dict = Depends(require("delete"))):
+async def excluir(id: str, user: dict = Depends(require("delete"))):
     async def remover(session):
         os = await db.manutencoes.find_one_and_delete({"id": id}, session=session)
         if os is None:
             return
-        for peca in os.get("pecas_utilizadas") or []:
-            peca_id = peca.get("peca_id")
-            try:
-                quantidade = int(peca.get("quantidade") or 0)
-            except (ValueError, TypeError):
-                raise HTTPException(409, "Há uma quantidade inválida no vínculo de estoque. A OS foi preservada.") from None
-            if peca_id and quantidade > 0:
-                retorno = await db.pecas.update_one(
-                    {"id": peca_id}, {"$inc": {"quantidade_estoque": quantidade}}, session=session
-                )
-                if not retorno.matched_count:
-                    raise HTTPException(409, "Há uma peça vinculada que não existe mais no estoque. A OS foi preservada.")
+        try:
+            quantidades = somar_quantidades_pecas(os.get("pecas_utilizadas"))
+        except HTTPException:
+            raise HTTPException(409, "Há um vínculo de estoque inválido. A OS foi preservada.") from None
+        for peca_id, quantidade in sorted(quantidades.items()):
+            peca = await db.pecas.find_one_and_update(
+                {"id": peca_id}, {"$inc": {"quantidade_estoque": quantidade}}, session=session,
+            )
+            if peca is None:
+                raise HTTPException(409, "Há uma peça vinculada que não existe mais no estoque. A OS foi preservada.")
+            await registrar_movimento_os(
+                session, peca_id, peca.get("nome", peca_id), quantidade, id, user, "Exclusão",
+            )
 
     async with await client.start_session() as session:
         await session.with_transaction(remover)
