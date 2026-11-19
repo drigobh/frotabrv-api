@@ -12,6 +12,7 @@ class MovimentacaoCreate(BaseModel):
 
 class Movimentacao(MovimentacaoCreate):
     id: str
+    saldo_delta: Optional[int] = None
     peca_nome: str
     fornecedor_nome: Optional[str] = None
     destino_nome: Optional[str] = None
